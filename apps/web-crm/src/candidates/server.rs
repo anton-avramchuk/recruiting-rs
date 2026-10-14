@@ -1,4 +1,7 @@
 //! Server functions раздела «Кандидаты»: браузер -> web-crm -> bff-crm -> candidate.
+// поля HTML-формы приходят отдельными аргументами server function
+#![allow(clippy::too_many_arguments)]
+
 use leptos::prelude::*;
 use leptos::server_fn::codec::Json;
 use serde::{Deserialize, Serialize};
@@ -48,7 +51,6 @@ pub async fn get_person(id: String) -> Result<LoadOutcome, ServerFnError> {
 }
 
 #[server]
-#[allow(clippy::too_many_arguments)]
 pub async fn create_person(
     full_name: String,
     phone: String,
