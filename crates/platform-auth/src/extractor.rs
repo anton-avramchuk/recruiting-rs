@@ -43,7 +43,7 @@ where
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.strip_prefix("Bearer "))
             .ok_or_else(ApiError::unauthorized)?;
-        let claims = verifier.verify(token).map_err(|e| match e {
+        let claims = verifier.verify_async(token).await.map_err(|e| match e {
             AuthError::WrongAudience => ApiError::forbidden(),
             _ => ApiError::unauthorized(),
         })?;
