@@ -1,9 +1,10 @@
 use utoipa::OpenApi;
 
-use crate::bff::{__path_login, __path_logout, __path_session, login, logout, session};
+#[allow(unused_imports)]
+use crate::bff::{__path_login, __path_logout, __path_session};
 
 #[derive(OpenApi)]
-#[openapi(paths(login, logout, session))]
+#[openapi(paths(crate::bff::login, crate::bff::logout, crate::bff::session))]
 struct BffDoc;
 
 /// OpenAPI-документ служебных маршрутов BFF (`/bff/*`) под названием слоя.
