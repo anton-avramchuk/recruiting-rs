@@ -377,6 +377,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbbad30e4b4c14a39e3cc8aed085a12a327257c316619c93581e017bc52be591"
 
 [[package]]
+name = "candidate"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "candidate-contracts",
+ "http-body-util",
+ "platform-auth",
+ "platform-core",
+ "platform-db",
+ "platform-values",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.21",
+ "tokio",
+ "tower",
+ "tracing",
+ "utoipa",
+ "uuid",
+]
+
+[[package]]
 name = "candidate-contracts"
 version = "0.1.0"
 dependencies = [
