@@ -19,6 +19,8 @@ use serde_json::Value;
 use tower::ServiceExt;
 use uuid::Uuid;
 
+pub const SERVICE_TOKEN: &str = "test-service-token";
+
 #[derive(Default, Clone)]
 pub struct FakeDirectory(pub Arc<Mutex<HashMap<String, TenantInfo>>>);
 
@@ -65,7 +67,7 @@ pub async fn setup() -> Ctx {
     let dir = FakeDirectory::default();
     let keys = KeyPair::generate("test");
     let verifier = TokenVerifier::new(&keys.public_key(), Audience::Tenant);
-    let state = AppState::new(db.app.clone(), Arc::new(dir.clone()), &keys);
+    let state = AppState::new(db.app.clone(), Arc::new(dir.clone()), &keys, SERVICE_TOKEN);
     Ctx {
         db,
         dir,

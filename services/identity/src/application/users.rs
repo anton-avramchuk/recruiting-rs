@@ -72,6 +72,36 @@ impl UserService {
         Ok(user)
     }
 
+    /// Создаёт владельца тенанта; повторный вызов с тем же email возвращает существующего
+    /// пользователя (идемпотентность для саги провижининга). Результат: (пользователь, создан ли).
+    pub async fn ensure_owner(
+        &self,
+        tenant: TenantId,
+        mut new: NewUser,
+    ) -> Result<(User, bool), UserError> {
+        new.roles = vec![Role::Owner];
+        let email = Email::parse(&new.email)?;
+        {
+            let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+            let existing = users::find_by_email(&mut tx, &email).await?;
+            tx.rollback().await?;
+            if let Some(user) = existing {
+                return Ok((user, false));
+            }
+        }
+        match self.create(tenant, new).await {
+            Ok(user) => Ok((user, true)),
+            // гонка двух параллельных вызовов: второй видит победителя
+            Err(UserError::Conflict(_)) => {
+                let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+                let existing = users::find_by_email(&mut tx, &email).await?;
+                tx.rollback().await?;
+                existing.map(|u| (u, false)).ok_or(UserError::NotFound)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     pub async fn update(
         &self,
         tenant: TenantId,
