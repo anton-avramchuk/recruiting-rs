@@ -4,6 +4,7 @@ use leptos_router::{components::A, hooks::use_navigate};
 use ui_kit::{Notice, NoticeKind, PageHeader};
 
 use super::{
+    fields::Field,
     outcome::CreateOutcome,
     server::{CreatePerson, create_person},
 };
@@ -26,39 +27,6 @@ fn matched_by_label(matched_by: &str) -> &'static str {
         "email" => "по email",
         "phone" => "по телефону",
         _ => "по имени",
-    }
-}
-
-#[component]
-fn Field(
-    #[prop(into)] label: String,
-    name: &'static str,
-    #[prop(optional, into)] placeholder: String,
-    #[prop(optional)] required: bool,
-    #[prop(optional, into)] input_type: String,
-    #[prop(into)] error: Signal<Option<String>>,
-) -> impl IntoView {
-    let input_type = if input_type.is_empty() {
-        "text".to_string()
-    } else {
-        input_type
-    };
-    view! {
-        <label>
-            {label}
-            <input type=input_type name=name placeholder=placeholder required=required />
-            {move || {
-                error
-                    .get()
-                    .map(|message| {
-                        view! {
-                            <span class="field-error" role="alert" data-testid=format!("error-{name}")>
-                                {message}
-                            </span>
-                        }
-                    })
-            }}
-        </label>
     }
 }
 

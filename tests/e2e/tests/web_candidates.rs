@@ -239,3 +239,237 @@ async fn recruiter_creates_a_candidate_and_confirms_a_duplicate() {
 
     stack.stop().await;
 }
+
+// ---------- карточка ----------
+
+fn main_text(tab: &Tab) -> String {
+    eval_str(tab, "document.querySelector('main').innerText")
+}
+
+async fn stack_with_ivan() -> (Stack, String) {
+    let stack = Stack::start_with_web().await;
+    stack.seed_tenant("acme", OWNER.0, OWNER.1).await;
+    let owner = stack.crm_client("acme", OWNER.0, OWNER.1).await;
+    stack.add_user(&owner, VIEWER.0, VIEWER.1, "viewer").await;
+    let res = owner
+        .post(
+            "/api/persons",
+            json!({"full_name": "Иван Петров", "email": "ivan@mail.ru", "phone": "+7 916 123 45 67",
+                   "skills": ["Rust"], "declared_experience_years": 3, "source": "hh.ru"}),
+        )
+        .await;
+    assert_eq!(res.status(), 201);
+    let id = res.json::<serde_json::Value>().await.unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    (stack, id)
+}
+
+#[tokio::test]
+async fn card_sections_are_edited_independently() {
+    let (stack, id) = stack_with_ivan().await;
+    let base = stack.web_crm_url.clone();
+    let card_id = id.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let browser = launch();
+        let tab = browser.new_tab().unwrap();
+        login_crm(&tab, &base, "acme", OWNER.0, OWNER.1);
+
+        // 1. из списка открывается карточка
+        tab.navigate_to(&format!("{base}/candidates")).unwrap();
+        wait_count(&tab, "row", ROWS, 1);
+        click(&tab, "[data-testid=persons] tbody tr td a");
+        wait_until(&tab, "card", &exists_js("[data-testid=profile-view]"));
+        assert_eq!(path_of(&tab), format!("/candidates/{card_id}"));
+        let text = main_text(&tab);
+        for expected in [
+            "Иван Петров",
+            "+79161234567",
+            "ivan@mail.ru",
+            "Rust",
+            "hh.ru",
+            "3 года",
+        ] {
+            assert!(text.contains(expected), "card shows {expected}: {text}");
+        }
+        std::thread::sleep(Duration::from_millis(1500)); // гидратация
+        set_marker(&tab);
+
+        // 2. правка профиля и контактов; ошибка остаётся у поля
+        click(&tab, "[data-testid=edit-profile]");
+        wait_until(
+            &tab,
+            "profile form",
+            &exists_js("[data-testid=profile-form]"),
+        );
+        set_value(
+            &tab,
+            "[data-testid=profile-form] input[name=email]",
+            "broken",
+        );
+        click(&tab, "[data-testid=profile-save]");
+        wait_until(&tab, "email error", &exists_js("[data-testid=error-email]"));
+        wait_until(
+            &tab,
+            "form stays open",
+            &exists_js("[data-testid=profile-form]"),
+        );
+
+        set_value(
+            &tab,
+            "[data-testid=profile-form] input[name=email]",
+            "ivan.new@mail.ru",
+        );
+        set_value(
+            &tab,
+            "[data-testid=profile-form] input[name=phone]",
+            "8 903 555 66 77",
+        );
+        set_value(
+            &tab,
+            "[data-testid=profile-form] input[name=skills]",
+            "Rust, SQL, rust",
+        );
+        click(&tab, "[data-testid=profile-save]");
+        wait_until(
+            &tab,
+            "view mode again",
+            &exists_js("[data-testid=profile-view]"),
+        );
+        let text = main_text(&tab);
+        for expected in ["+79035556677", "ivan.new@mail.ru", "Rust, SQL"] {
+            assert!(
+                text.contains(expected),
+                "updated card shows {expected}: {text}"
+            );
+        }
+        assert!(marker_alive(&tab), "saving must not reload the page");
+
+        // 3. опыт: два периода пересчитывают стаж (2 г. 7 мес. + 1 г. 8 мес. = 4 года)
+        click(&tab, "[data-testid=edit-employments]");
+        wait_until(
+            &tab,
+            "employment editor",
+            &exists_js("[data-testid=employments-form]"),
+        );
+        let row = "[data-testid=employment-row]";
+        click(&tab, "[data-testid=add-employment]");
+        set_row_value(&tab, row, 0, "company", "Acme");
+        set_row_value(&tab, row, 0, "position", "Разработчик");
+        set_row_value(&tab, row, 0, "start", "2020-01-01");
+        set_row_value(&tab, row, 0, "end", "2022-08-01");
+        click(&tab, "[data-testid=add-employment]");
+        set_row_value(&tab, row, 1, "company", "Beta");
+        set_row_value(&tab, row, 1, "position", "Тимлид");
+        set_row_value(&tab, row, 1, "start", "2023-01-01");
+        set_row_value(&tab, row, 1, "end", "2024-09-01");
+        click(&tab, "[data-testid=employments-save]");
+        wait_until(
+            &tab,
+            "employments saved",
+            &exists_js("[data-testid=employments-view]"),
+        );
+        let text = main_text(&tab);
+        assert!(
+            text.contains("Acme") && text.contains("Beta") && text.contains("Тимлид"),
+            "{text}"
+        );
+        wait_until(
+            &tab,
+            "experience recalculated",
+            "document.querySelector('[data-testid=experience]').innerText.includes('4 года')",
+        );
+        assert!(marker_alive(&tab));
+
+        // невалидный период не сохраняется, ошибка рядом
+        click(&tab, "[data-testid=edit-employments]");
+        wait_until(
+            &tab,
+            "editor again",
+            &exists_js("[data-testid=employments-form]"),
+        );
+        set_row_value(&tab, row, 0, "end", "2019-01-01");
+        click(&tab, "[data-testid=employments-save]");
+        wait_until(
+            &tab,
+            "period error",
+            &exists_js("[data-testid=error-employments]"),
+        );
+        click(&tab, "[data-testid=employments-cancel]");
+        wait_until(
+            &tab,
+            "view after cancel",
+            &exists_js("[data-testid=employments-view]"),
+        );
+        assert!(main_text(&tab).contains("Acme"), "previous list is intact");
+
+        // 4. образование правится независимо от опыта
+        click(&tab, "[data-testid=edit-educations]");
+        wait_until(
+            &tab,
+            "education editor",
+            &exists_js("[data-testid=educations-form]"),
+        );
+        click(&tab, "[data-testid=add-education]");
+        let edu = "[data-testid=education-row]";
+        set_row_value(&tab, edu, 0, "institution", "МГУ");
+        set_row_value(&tab, edu, 0, "specialty", "Прикладная математика");
+        set_row_value(&tab, edu, 0, "year_from", "2010");
+        set_row_value(&tab, edu, 0, "year_to", "2015");
+        click(&tab, "[data-testid=educations-save]");
+        wait_until(
+            &tab,
+            "educations saved",
+            &exists_js("[data-testid=educations-view]"),
+        );
+        let text = main_text(&tab);
+        assert!(
+            text.contains("МГУ") && text.contains("Прикладная математика"),
+            "{text}"
+        );
+        assert!(
+            text.contains("Acme"),
+            "work history untouched by the education edit"
+        );
+    })
+    .await
+    .unwrap();
+
+    // viewer видит карточку, но не может её менять
+    let base = stack.web_crm_url.clone();
+    tokio::task::spawn_blocking(move || {
+        let browser = launch();
+        let tab = browser.new_tab().unwrap();
+        login_crm(&tab, &base, "acme", VIEWER.0, VIEWER.1);
+        tab.navigate_to(&format!("{base}/candidates/{id}")).unwrap();
+        wait_until(
+            &tab,
+            "card for the viewer",
+            &exists_js("[data-testid=profile-view]"),
+        );
+        for edit in ["edit-profile", "edit-employments", "edit-educations"] {
+            assert!(
+                eval(&tab, &gone_js(&format!("[data-testid={edit}]")))
+                    == serde_json::Value::Bool(true),
+                "viewer must not see {edit}"
+            );
+        }
+
+        // неизвестный кандидат
+        tab.navigate_to(&format!(
+            "{base}/candidates/00000000-0000-0000-0000-000000000000"
+        ))
+        .unwrap();
+        wait_until(
+            &tab,
+            "not found",
+            "document.querySelector('main').innerText.includes('Кандидат не найден')",
+        );
+    })
+    .await
+    .unwrap();
+
+    stack.stop().await;
+}

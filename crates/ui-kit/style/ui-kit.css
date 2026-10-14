@@ -117,3 +117,11 @@ textarea { font: inherit; color: var(--ink); background: var(--surface); border:
 .field-error { color: var(--danger); font-size: 0.85rem; }
 .notice--warn { color: var(--ink); border-color: var(--warn); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .notice--warn p { margin: 0; flex: 1 1 260px; }
+
+.section { margin-bottom: 16px; }
+.section__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+.facts dt { color: var(--ink-muted); }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+.row-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; margin-bottom: 10px; display: grid; gap: 8px; }
+.timeline { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }

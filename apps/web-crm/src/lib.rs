@@ -59,6 +59,7 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/") view=Overview ssr=SsrMode::Async />
                     <Route path=path!("/candidates") view=candidates::list::CandidatesPage ssr=SsrMode::Async />
                     <Route path=path!("/candidates/new") view=candidates::create::CreateCandidatePage ssr=SsrMode::Async />
+                    <Route path=path!("/candidates/:id") view=candidates::card::CandidateCardPage ssr=SsrMode::Async />
                     <Route path=path!("/vacancies") view=Vacancies ssr=SsrMode::Async />
                     <Route path=path!("/interviews") view=Interviews ssr=SsrMode::Async />
                 </ParentRoute>

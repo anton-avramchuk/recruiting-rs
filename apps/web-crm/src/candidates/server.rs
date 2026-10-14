@@ -6,7 +6,9 @@ use leptos::prelude::*;
 use leptos::server_fn::codec::Json;
 use serde::{Deserialize, Serialize};
 
-use super::outcome::{CreateOutcome, ListOutcome, LoadOutcome};
+use candidate_contracts::{EducationDto, EmploymentDto};
+
+use super::outcome::{CreateOutcome, ListOutcome, LoadOutcome, SaveOutcome};
 
 /// Поиск и фильтры списка. Пустые строки не ограничивают выборку.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -111,6 +113,109 @@ pub async fn create_person(
     let reply =
         ui_kit::server::call(Method::POST, "/api/persons", Some(Value::Object(body))).await?;
     Ok(super::outcome::classify_create(reply.status, &reply.body))
+}
+
+#[server]
+pub async fn update_person(
+    id: String,
+    full_name: String,
+    phone: String,
+    email: String,
+    telegram: String,
+    whatsapp: String,
+    source: String,
+    expected_salary: String,
+    skills: String,
+    summary: String,
+) -> Result<SaveOutcome, ServerFnError> {
+    use axum::http::Method;
+    use serde_json::{Map, Value, json};
+
+    use super::format::{parse_optional_number, split_skills};
+
+    if id.parse::<uuid_like::Id>().is_err() {
+        return Ok(SaveOutcome::NotFound);
+    }
+    // пустая строка очищает необязательное поле: на сервер уходит null
+    let nullable = |s: &str| {
+        if s.trim().is_empty() {
+            Value::Null
+        } else {
+            json!(s.trim())
+        }
+    };
+    let salary = if expected_salary.trim().is_empty() {
+        Value::Null
+    } else {
+        match parse_optional_number(&expected_salary) {
+            Some(n) => json!(n),
+            None => {
+                return Ok(SaveOutcome::Invalid {
+                    field: "expected_salary".into(),
+                    message: "Введите число".into(),
+                });
+            }
+        }
+    };
+
+    let mut body = Map::new();
+    body.insert("full_name".into(), json!(full_name.trim()));
+    body.insert("phone".into(), nullable(&phone));
+    body.insert("email".into(), nullable(&email));
+    body.insert("telegram".into(), nullable(&telegram));
+    body.insert("whatsapp".into(), nullable(&whatsapp));
+    body.insert("source".into(), nullable(&source));
+    body.insert("summary".into(), nullable(&summary));
+    body.insert("expected_salary".into(), salary);
+    body.insert("skills".into(), json!(split_skills(&skills)));
+
+    let reply = ui_kit::server::call(
+        Method::PATCH,
+        &format!("/api/persons/{id}"),
+        Some(Value::Object(body)),
+    )
+    .await?;
+    Ok(super::outcome::classify_save(reply.status, &reply.body))
+}
+
+#[server(input = Json)]
+pub async fn save_employments(
+    id: String,
+    items: Vec<EmploymentDto>,
+) -> Result<SaveOutcome, ServerFnError> {
+    use axum::http::Method;
+
+    if id.parse::<uuid_like::Id>().is_err() {
+        return Ok(SaveOutcome::NotFound);
+    }
+    let body = serde_json::to_value(&items).map_err(|e| ServerFnError::new(e.to_string()))?;
+    let reply = ui_kit::server::call(
+        Method::PUT,
+        &format!("/api/persons/{id}/employments"),
+        Some(body),
+    )
+    .await?;
+    Ok(super::outcome::classify_save(reply.status, &reply.body))
+}
+
+#[server(input = Json)]
+pub async fn save_educations(
+    id: String,
+    items: Vec<EducationDto>,
+) -> Result<SaveOutcome, ServerFnError> {
+    use axum::http::Method;
+
+    if id.parse::<uuid_like::Id>().is_err() {
+        return Ok(SaveOutcome::NotFound);
+    }
+    let body = serde_json::to_value(&items).map_err(|e| ServerFnError::new(e.to_string()))?;
+    let reply = ui_kit::server::call(
+        Method::PUT,
+        &format!("/api/persons/{id}/educations"),
+        Some(body),
+    )
+    .await?;
+    Ok(super::outcome::classify_save(reply.status, &reply.body))
 }
 
 /// Проверка формата идентификатора без лишней зависимости: в путь запроса попадает только UUID.

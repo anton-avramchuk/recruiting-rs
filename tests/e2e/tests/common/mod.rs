@@ -38,6 +38,10 @@ pub fn wait_until(tab: &Tab, what: &str, js: &str) {
     }
     let url = tab.get_url();
     let body = eval(tab, "document.body.innerText");
+    if std::env::var_os("E2E_DEBUG_HTML").is_some() {
+        let html = eval_str(tab, "document.querySelector('main').innerHTML");
+        eprintln!("MAIN HTML => {html}");
+    }
     panic!("timeout waiting for {what}; url={url}; body={body}");
 }
 
@@ -115,4 +119,25 @@ pub fn login_crm(tab: &Tab, base: &str, tenant: &str, email: &str, password: &st
     type_into(tab, "input[name=password]", password);
     click(tab, "button[type=submit]");
     wait_until(tab, "app shell", &exists_js("[data-testid=user-label]"));
+}
+
+/// Задаёт значение поля и сообщает фреймворку событием `input` (для полей, куда неудобно печатать).
+pub fn set_value(tab: &Tab, selector: &str, value: &str) {
+    let js = format!(
+        "(() => {{ const el = document.querySelector({selector:?}); el.value = {value:?}; \
+         el.dispatchEvent(new Event('input', {{bubbles: true}})); }})()"
+    );
+    tab.wait_for_element(selector)
+        .unwrap_or_else(|e| panic!("{selector}: {e}"));
+    eval(tab, &js);
+}
+
+/// То же для поля `field` в строке номер `row` (нумерация с нуля) среди элементов `rows`.
+pub fn set_row_value(tab: &Tab, rows: &str, row: usize, field: &str, value: &str) {
+    let js = format!(
+        "(() => {{ const el = document.querySelectorAll({rows:?})[{row}].querySelector('[data-field={field}]'); \
+         el.value = {value:?}; el.dispatchEvent(new Event('input', {{bubbles: true}})); }})()"
+    );
+    wait_until(tab, "row to appear", &format!("{} > {row}", count_js(rows)));
+    eval(tab, &js);
 }
