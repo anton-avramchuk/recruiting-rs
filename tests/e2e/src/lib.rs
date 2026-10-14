@@ -257,6 +257,11 @@ impl Stack {
         stack
     }
 
+    /// Только собирает веб-приложения (без запуска процессов).
+    pub fn build_web_only() {
+        build_web(&["web-crm", "web-admin"]);
+    }
+
     /// Создаёт организацию с владельцем через админский BFF (как это делает администратор платформы).
     pub async fn seed_tenant(&self, slug: &str, owner_email: &str, owner_password: &str) {
         let http = reqwest::Client::builder()
@@ -273,7 +278,10 @@ impl Stack {
             .json()
             .await
             .expect("admin login body");
-        let csrf = login["csrf_token"].as_str().expect("csrf token").to_string();
+        let csrf = login["csrf_token"]
+            .as_str()
+            .expect("csrf token")
+            .to_string();
         let res = http
             .post(format!("{}/api/tenants", self.bff_admin_url))
             .header("x-csrf-token", csrf)
