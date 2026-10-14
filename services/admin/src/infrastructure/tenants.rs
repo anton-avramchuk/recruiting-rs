@@ -76,3 +76,47 @@ pub fn is_unique_violation(e: &sqlx::Error) -> bool {
         .and_then(|d| d.code())
         .is_some_and(|c| c == "23505")
 }
+
+/// Экранирует спецсимволы LIKE, чтобы поиск был буквальным.
+fn like_pattern(q: &str) -> String {
+    let escaped = q
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_");
+    format!("%{escaped}%")
+}
+
+const FILTER: &str = r"($1::text IS NULL OR status = $1)
+    AND ($2::text IS NULL OR slug ILIKE $2 ESCAPE '\' OR name ILIKE $2 ESCAPE '\')";
+
+pub async fn list(
+    pool: &PgPool,
+    status: Option<TenantStatus>,
+    q: Option<&str>,
+    limit: i64,
+    offset: i64,
+) -> Result<(Vec<Tenant>, i64), sqlx::Error> {
+    let status = status.map(TenantStatus::as_str);
+    let pattern = q.filter(|q| !q.is_empty()).map(like_pattern);
+
+    let total: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM tenants WHERE {FILTER}"))
+        .bind(status)
+        .bind(&pattern)
+        .fetch_one(pool)
+        .await?;
+    let rows: Vec<TenantRow> = sqlx::query_as(&format!(
+        "SELECT {COLUMNS} FROM tenants WHERE {FILTER} ORDER BY slug LIMIT $3 OFFSET $4"
+    ))
+    .bind(status)
+    .bind(&pattern)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(pool)
+    .await?;
+    Ok((
+        rows.into_iter()
+            .filter_map(TenantRow::into_domain)
+            .collect(),
+        total,
+    ))
+}

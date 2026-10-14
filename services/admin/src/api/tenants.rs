@@ -1,8 +1,8 @@
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
-    routing::post,
+    routing::{get, post},
 };
 use platform_auth::{AuthUser, Permission};
 use platform_core::{error::ApiError, tenant::TenantId};
@@ -13,14 +13,15 @@ use super::AppState;
 use crate::{
     application::{
         provisioning::OwnerSpec,
-        tenants::{NewTenant, TenantError},
+        tenants::{DEFAULT_PAGE_SIZE, ListQuery, NewTenant, TenantError},
     },
-    domain::{DomainError, Tenant},
+    domain::{DomainError, Tenant, TenantStatus},
 };
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/tenants", post(create))
+        .route("/tenants", post(create).get(list))
+        .route("/tenants/{id}", get(get_one))
         .route("/tenants/{id}/suspend", post(suspend))
         .route("/tenants/{id}/activate", post(activate))
 }
@@ -78,6 +79,58 @@ async fn create(
         })
         .await?;
     Ok((StatusCode::CREATED, Json(tenant.into())))
+}
+
+#[derive(Deserialize)]
+struct ListParams {
+    status: Option<String>,
+    q: Option<String>,
+    page: Option<i64>,
+    page_size: Option<i64>,
+}
+
+#[derive(Serialize)]
+struct PageDto {
+    items: Vec<TenantDto>,
+    total: i64,
+    page: i64,
+    page_size: i64,
+}
+
+async fn list(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Query(params): Query<ListParams>,
+) -> Result<Json<PageDto>, ApiError> {
+    user.require(Permission::ManageTenants)?;
+    let status = params
+        .status
+        .map(|s| TenantStatus::parse(&s).ok_or_else(|| ApiError::bad_request("unknown status")))
+        .transpose()?;
+    let page = state
+        .tenants
+        .list(ListQuery {
+            status,
+            q: params.q,
+            page: params.page.unwrap_or(1),
+            page_size: params.page_size.unwrap_or(DEFAULT_PAGE_SIZE),
+        })
+        .await?;
+    Ok(Json(PageDto {
+        items: page.items.into_iter().map(Into::into).collect(),
+        total: page.total,
+        page: page.page,
+        page_size: page.page_size,
+    }))
+}
+
+async fn get_one(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<TenantDto>, ApiError> {
+    user.require(Permission::ManageTenants)?;
+    Ok(Json(state.tenants.get(TenantId(id)).await?.into()))
 }
 
 async fn suspend(

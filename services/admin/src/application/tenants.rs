@@ -5,7 +5,7 @@ use sqlx::PgPool;
 
 use super::provisioning::{OwnerSpec, Provisioner};
 use crate::{
-    domain::{DomainError, Slug, Tenant},
+    domain::{DomainError, Slug, Tenant, TenantStatus},
     infrastructure::tenants as repo,
 };
 
@@ -32,6 +32,22 @@ pub struct NewTenant {
 }
 
 const MIN_PASSWORD_LEN: usize = 8;
+pub const DEFAULT_PAGE_SIZE: i64 = 20;
+pub const MAX_PAGE_SIZE: i64 = 100;
+
+pub struct ListQuery {
+    pub status: Option<TenantStatus>,
+    pub q: Option<String>,
+    pub page: i64,
+    pub page_size: i64,
+}
+
+pub struct Page<T> {
+    pub items: Vec<T>,
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
+}
 
 #[derive(Clone)]
 pub struct TenantService {
@@ -82,6 +98,30 @@ impl TenantService {
         tenant.activate()?;
         repo::update_status(&self.pool, &tenant).await?;
         Ok(tenant)
+    }
+
+    pub async fn list(&self, query: ListQuery) -> Result<Page<Tenant>, TenantError> {
+        if query.page < 1 || query.page_size < 1 {
+            return Err(TenantError::Invalid(
+                "page and page_size must be positive".into(),
+            ));
+        }
+        let page_size = query.page_size.min(MAX_PAGE_SIZE);
+        let offset = (query.page - 1).saturating_mul(page_size);
+        let (items, total) = repo::list(
+            &self.pool,
+            query.status,
+            query.q.as_deref().map(str::trim),
+            page_size,
+            offset,
+        )
+        .await?;
+        Ok(Page {
+            items,
+            total,
+            page: query.page,
+            page_size,
+        })
     }
 
     pub async fn get(&self, id: TenantId) -> Result<Tenant, TenantError> {
