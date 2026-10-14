@@ -1,4 +1,6 @@
-use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use jsonwebtoken::{
+    Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode, errors::ErrorKind,
+};
 
 use crate::{
     claims::{Audience, Claims},
@@ -11,6 +13,9 @@ pub enum AuthError {
     Sign(String),
     #[error("invalid token: {0}")]
     Invalid(String),
+    /// Подпись и срок действительны, но токен выпущен для другой audience.
+    #[error("token issued for a different audience")]
+    WrongAudience,
 }
 
 pub struct TokenSigner {
@@ -53,6 +58,9 @@ impl TokenVerifier {
     pub fn verify(&self, token: &str) -> Result<Claims, AuthError> {
         decode::<Claims>(token, &self.key, &self.validation)
             .map(|d| d.claims)
-            .map_err(|e| AuthError::Invalid(e.to_string()))
+            .map_err(|e| match e.kind() {
+                ErrorKind::InvalidAudience => AuthError::WrongAudience,
+                _ => AuthError::Invalid(e.to_string()),
+            })
     }
 }

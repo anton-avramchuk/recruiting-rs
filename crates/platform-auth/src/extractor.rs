@@ -6,7 +6,11 @@ use axum::{
 };
 use platform_core::error::ApiError;
 
-use crate::{claims::Claims, role::Permission, token::TokenVerifier};
+use crate::{
+    claims::Claims,
+    role::Permission,
+    token::{AuthError, TokenVerifier},
+};
 
 /// Аутентифицированный субъект запроса. Состояние приложения должно
 /// отдавать `Arc<TokenVerifier>` через `FromRef`.
@@ -39,9 +43,10 @@ where
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.strip_prefix("Bearer "))
             .ok_or_else(ApiError::unauthorized)?;
-        let claims = verifier
-            .verify(token)
-            .map_err(|_| ApiError::unauthorized())?;
+        let claims = verifier.verify(token).map_err(|e| match e {
+            AuthError::WrongAudience => ApiError::forbidden(),
+            _ => ApiError::unauthorized(),
+        })?;
         Ok(AuthUser { claims })
     }
 }

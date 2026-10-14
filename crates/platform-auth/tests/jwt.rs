@@ -187,3 +187,33 @@ fn private_key_survives_base64_roundtrip() {
     let restored = KeyPair::from_pkcs8_base64("k1", &kp.to_pkcs8_base64()).unwrap();
     assert_eq!(restored.public_key(), kp.public_key());
 }
+
+#[test]
+fn wrong_audience_is_reported_distinctly_from_a_bad_signature() {
+    let (a, b) = (KeyPair::generate("k1"), KeyPair::generate("k2"));
+    let tenant_token = TokenSigner::new(&a)
+        .sign(&claims(Audience::Tenant, vec![], 600))
+        .unwrap();
+    let verifier = TokenVerifier::new(&a.public_key(), Audience::Platform);
+    assert!(matches!(
+        verifier.verify(&tenant_token),
+        Err(platform_auth::AuthError::WrongAudience)
+    ));
+    let foreign = TokenSigner::new(&b)
+        .sign(&claims(Audience::Tenant, vec![], 600))
+        .unwrap();
+    assert!(matches!(
+        verifier.verify(&foreign),
+        Err(platform_auth::AuthError::Invalid(_))
+    ));
+}
+
+#[tokio::test]
+async fn tenant_token_on_platform_endpoint_is_forbidden() {
+    let kp = KeyPair::generate("k1");
+    let tenant_token = TokenSigner::new(&kp)
+        .sign(&claims(Audience::Tenant, vec![Role::Owner], 600))
+        .unwrap();
+    let platform_app = app(TokenVerifier::new(&kp.public_key(), Audience::Platform));
+    assert_eq!(call(platform_app, Some(&tenant_token)).await, 403);
+}
