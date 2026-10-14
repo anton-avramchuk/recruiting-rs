@@ -171,7 +171,7 @@ pub fn TenantsPage() -> impl IntoView {
     };
 
     view! {
-        <PageHeader title="Организации">{()}</PageHeader>
+        <PageHeader title="Организации" />
 
         <div class="toolbar">
             <input

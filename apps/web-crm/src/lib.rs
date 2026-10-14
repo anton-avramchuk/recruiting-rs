@@ -90,8 +90,7 @@ fn nav() -> Vec<NavItem> {
 fn Protected() -> impl IntoView {
     let ctx = expect_context::<SessionCtx>();
     let user = move || {
-        ctx.session
-            .get()
+        ctx.current()
             .and_then(Result::ok)
             .and_then(|s| s.user)
             .unwrap_or_default()
@@ -111,7 +110,7 @@ fn Protected() -> impl IntoView {
 #[component]
 fn Overview() -> impl IntoView {
     view! {
-        <PageHeader title="Обзор">{()}</PageHeader>
+        <PageHeader title="Обзор" />
         <EmptyState
             title="Здесь появятся задачи на сегодня"
             hint="Раздел заработает после подключения вакансий и кандидатов."
@@ -122,7 +121,7 @@ fn Overview() -> impl IntoView {
 #[component]
 fn Candidates() -> impl IntoView {
     view! {
-        <PageHeader title="Кандидаты">{()}</PageHeader>
+        <PageHeader title="Кандидаты" />
         <EmptyState title="Кандидатов пока нет" hint="База кандидатов появится в следующих версиях." />
     }
 }
@@ -130,7 +129,7 @@ fn Candidates() -> impl IntoView {
 #[component]
 fn Vacancies() -> impl IntoView {
     view! {
-        <PageHeader title="Вакансии">{()}</PageHeader>
+        <PageHeader title="Вакансии" />
         <EmptyState title="Вакансий пока нет" hint="Создание вакансий появится в следующих версиях." />
     }
 }
@@ -138,7 +137,7 @@ fn Vacancies() -> impl IntoView {
 #[component]
 fn Interviews() -> impl IntoView {
     view! {
-        <PageHeader title="Интервью">{()}</PageHeader>
+        <PageHeader title="Интервью" />
         <EmptyState title="Интервью не запланированы" hint="Календарь интервью появится в следующих версиях." />
     }
 }

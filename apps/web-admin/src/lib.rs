@@ -68,8 +68,7 @@ pub fn App() -> impl IntoView {
 fn Protected() -> impl IntoView {
     let ctx = expect_context::<SessionCtx>();
     let email = move || {
-        ctx.session
-            .get()
+        ctx.current()
             .and_then(Result::ok)
             .and_then(|s| s.user)
             .map(|u| u.email)

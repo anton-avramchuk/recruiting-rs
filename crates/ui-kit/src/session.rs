@@ -79,8 +79,9 @@ pub async fn logout() -> Result<(), ServerFnError> {
 /// Сессия приложения: ресурс, который перезапрашивается после входа/выхода.
 #[derive(Clone, Copy)]
 pub struct SessionCtx {
-    pub session: Resource<Result<SessionInfo, ServerFnError>>,
-    version: WriteSignal<u32>,
+    /// Результат вместе с версией, для которой он получен.
+    session: Resource<(u32, Result<SessionInfo, ServerFnError>)>,
+    version: RwSignal<u32>,
 }
 
 impl SessionCtx {
@@ -88,15 +89,27 @@ impl SessionCtx {
     pub fn refresh(&self) {
         self.version.update(|v| *v += 1);
     }
+
+    /// Актуальная сессия или `None`, пока идёт загрузка. Устаревший ответ (до входа/выхода)
+    /// не возвращается: иначе сразу после входа защищённый маршрут успел бы отправить обратно на вход.
+    pub fn current(&self) -> Option<Result<SessionInfo, ServerFnError>> {
+        let (version, result) = self.session.get()?;
+        (version == self.version.get()).then_some(result)
+    }
+
+    /// Загружен ли актуальный ответ (для `Suspense`-подобных условий).
+    pub fn resource(&self) -> Resource<(u32, Result<SessionInfo, ServerFnError>)> {
+        self.session
+    }
 }
 
 pub fn provide_session() -> SessionCtx {
-    let (version, set_version) = signal(0u32);
-    let session = Resource::new(move || version.get(), |_| get_session());
-    let ctx = SessionCtx {
-        session,
-        version: set_version,
-    };
+    let version = RwSignal::new(0u32);
+    let session = Resource::new(
+        move || version.get(),
+        |v| async move { (v, get_session().await) },
+    );
+    let ctx = SessionCtx { session, version };
     provide_context(ctx);
     ctx
 }
@@ -109,8 +122,9 @@ pub fn AuthGate(children: ChildrenFn) -> impl IntoView {
     view! {
         <Suspense fallback=|| view! { <p class="muted">"Загрузка…"</p> }>
             {move || {
-                ctx.session
-                    .get()
+                // пока ответ устарел, не решаем ничего: Suspense держит fallback
+                let _ = ctx.resource().get();
+                ctx.current()
                     .map(|result| match result {
                         Ok(s) if s.authenticated => children().into_any(),
                         _ => {

@@ -37,11 +37,14 @@ pub fn EmptyState(title: &'static str, hint: &'static str) -> impl IntoView {
 }
 
 #[component]
-pub fn PageHeader(title: &'static str, children: Children) -> impl IntoView {
+pub fn PageHeader(
+    title: &'static str,
+    #[prop(optional)] children: Option<Children>,
+) -> impl IntoView {
     view! {
         <div class="page-header">
             <h1>{title}</h1>
-            <div class="page-header__actions">{children()}</div>
+            <div class="page-header__actions">{children.map(|c| c())}</div>
         </div>
     }
 }
