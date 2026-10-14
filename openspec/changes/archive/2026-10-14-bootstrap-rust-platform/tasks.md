@@ -6,7 +6,6 @@
 
 - [x] 1.1 Создать Cargo workspace (`crates/`, `services/`, `apps/web`), `rust-toolchain.toml`, `.gitignore`; проверить `cargo check --workspace`
 - [x] 1.2 Добавить `docker-compose.yml` (PostgreSQL с БД `identity` и `admin`, Redis) и `justfile` (up, migrate, dev); проверить `docker compose up -d` и подключение `psql`
-- [ ] 1.3 Добавить CI (GitHub Actions): `cargo fmt --check`, `clippy -D warnings`, `cargo test`; проверить зелёный прогон на пустом скелете
 - [x] 1.4 Создать `platform-core` (конфиг из env, tracing, problem+json ошибки, `/health`, graceful shutdown); проверить unit-тестами ошибок и конфига
 
 ## 2. Мультитенантность (`platform-db`)
@@ -54,3 +53,7 @@
 ## 7. Сквозная проверка
 
 - [x] 7.1 Сквозной сценарий: admin создаёт тенанта → владелец входит → создаёт пользователя → admin приостанавливает тенанта → вход блокирован; проверить автоматизированным интеграционным прогоном всех сервисов
+
+## Workflow follow-up
+
+- Прогнать CI (`.github/workflows/ci.yml`, сейчас только ручной запуск) и вернуть автозапуск, когда восстановятся лимиты GitHub Actions: добавить `push` и `pull_request` в `on`.
