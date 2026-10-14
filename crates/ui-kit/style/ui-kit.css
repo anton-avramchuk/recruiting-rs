@@ -1,0 +1,114 @@
+:root {
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --ink: #1c1e21;
+  --ink-muted: #5f6368;
+  --line: #dcdcd6;
+  --accent: #1f4fd8;
+  --accent-ink: #ffffff;
+  --ok: #1e7a46;
+  --warn: #a15c00;
+  --danger: #b3261e;
+  --radius: 8px;
+  --gutter: 16px;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171a;
+    --surface: #1e2125;
+    --ink: #ececea;
+    --ink-muted: #a0a4a8;
+    --line: #34383d;
+    --accent: #6c93ff;
+    --accent-ink: #0b1020;
+    --ok: #5cc486;
+    --warn: #e0a24a;
+    --danger: #f2877f;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+h1 { font-size: 1.4rem; margin: 0 0 0.25rem; }
+h2 { font-size: 1.05rem; margin: 0 0 0.25rem; }
+a { color: var(--accent); }
+.muted { color: var(--ink-muted); margin: 0; }
+.spacer { flex: 1; }
+
+/* вход */
+.auth { min-height: 100vh; display: grid; place-items: center; padding: var(--gutter); }
+.auth__form { width: min(100%, 380px); display: grid; gap: 12px; }
+label { display: grid; gap: 4px; font-size: 0.85rem; color: var(--ink-muted); }
+input, select {
+  font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius); padding: 9px 10px;
+}
+input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+
+.card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 20px;
+}
+
+.btn {
+  font: inherit; cursor: pointer; border-radius: var(--radius);
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); padding: 8px 14px;
+}
+.btn--primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn--ghost { border-color: transparent; background: transparent; color: var(--ink-muted); }
+.btn:disabled { opacity: 0.6; cursor: progress; }
+
+/* каркас */
+.shell { min-height: 100vh; display: grid; grid-template-rows: auto auto 1fr; }
+.shell__bar {
+  display: flex; align-items: center; gap: 12px; padding: 10px var(--gutter);
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.brand { font-weight: 650; }
+.shell__context { color: var(--ink-muted); }
+.shell__user { color: var(--ink-muted); font-size: 0.9rem; }
+.shell__nav {
+  display: flex; gap: 4px; overflow-x: auto; padding: 6px var(--gutter);
+  border-bottom: 1px solid var(--line); background: var(--surface);
+}
+.shell__nav a { padding: 6px 12px; border-radius: var(--radius); text-decoration: none; color: var(--ink-muted); white-space: nowrap; }
+.shell__nav a[aria-current="page"] { color: var(--ink); background: var(--bg); font-weight: 600; }
+.shell__main { padding: var(--gutter); max-width: 1100px; width: 100%; margin: 0 auto; }
+
+.page-header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.page-header__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.empty { text-align: center; padding: 56px 16px; border: 1px dashed var(--line); border-radius: var(--radius); }
+
+.notice { padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--line); }
+.notice--error { color: var(--danger); border-color: var(--danger); }
+.notice--info { color: var(--ink); }
+
+/* таблица */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+th { font-size: 0.8rem; color: var(--ink-muted); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.toolbar input, .toolbar select { min-width: 0; flex: 1 1 160px; }
+
+/* статус: цвет = состояние */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.8rem; border: 1px solid currentColor; }
+.badge--ok { color: var(--ok); }
+.badge--warn { color: var(--warn); }
+.badge--muted { color: var(--ink-muted); }
+
+.form-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }

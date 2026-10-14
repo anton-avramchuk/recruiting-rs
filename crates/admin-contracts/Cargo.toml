@@ -8,7 +8,8 @@ publish.workspace = true
 serde.workspace = true
 utoipa.workspace = true
 serde_json.workspace = true
-uuid.workspace = true
+# без v4: контракты собираются и в wasm, где нет источника случайности
+uuid = { version = "1", default-features = false, features = ["serde"] }
 
 [lints]
 workspace = true

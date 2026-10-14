@@ -25,6 +25,9 @@ pub struct Stack {
     pub admin_url: String,
     pub bff_crm_url: String,
     pub bff_admin_url: String,
+    /// Заполнены только в `start_with_web`.
+    pub web_crm_url: String,
+    pub web_admin_url: String,
     services: Vec<Service>,
     dbs: Vec<EmptyDb>,
 }
@@ -61,6 +64,21 @@ fn build_binaries(packages: &[&str]) {
     assert!(status.success(), "cargo build of service binaries failed");
 }
 
+/// Собирает веб-приложения (SSR-бинарник и wasm-пакет) через cargo-leptos.
+fn build_web(projects: &[&str]) {
+    for project in projects {
+        let status = std::process::Command::new(env!("CARGO"))
+            .args(["leptos", "build", "--project", project])
+            .current_dir(workspace_root())
+            .status()
+            .expect("run cargo leptos (cargo install cargo-leptos)");
+        assert!(
+            status.success(),
+            "cargo leptos build --project {project} failed"
+        );
+    }
+}
+
 fn spawn(name: &'static str, envs: &[(&str, String)]) -> Service {
     let exe = target_dir()
         .join("debug")
@@ -95,11 +113,37 @@ async fn wait_healthy(url: &str, name: &str) {
     }
 }
 
+async fn wait_ready(url: &str, name: &str) {
+    let http = reqwest::Client::new();
+    let deadline = Instant::now() + Duration::from_secs(60);
+    loop {
+        if let Ok(res) = http.get(url).send().await
+            && res.status().is_success()
+        {
+            return;
+        }
+        assert!(Instant::now() < deadline, "{name} did not serve {url}");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
 impl Stack {
     /// Поднимает identity, admin, bff-crm и bff-admin.
     pub async fn start() -> Self {
-        tokio::task::spawn_blocking(|| {
+        Self::start_inner(false).await
+    }
+
+    /// То же и веб-приложения web-crm и web-admin (нужен `cargo-leptos`).
+    pub async fn start_with_web() -> Self {
+        Self::start_inner(true).await
+    }
+
+    async fn start_inner(with_web: bool) -> Self {
+        tokio::task::spawn_blocking(move || {
             build_binaries(&["identity", "admin", "bff-crm", "bff-admin"]);
+            if with_web {
+                build_web(&["web-crm", "web-admin"]);
+            }
         })
         .await
         .expect("build task");
@@ -109,7 +153,14 @@ impl Stack {
         let redis =
             std::env::var("TEST_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into());
 
-        let ports = [free_port(), free_port(), free_port(), free_port()];
+        let ports = [
+            free_port(),
+            free_port(),
+            free_port(),
+            free_port(),
+            free_port(),
+            free_port(),
+        ];
         let url = |p: u16| format!("http://127.0.0.1:{p}");
         let listen = |p: u16| ("LISTEN_ADDR", format!("127.0.0.1:{p}"));
         let (identity_url, admin_url) = (url(ports[0]), url(ports[1]));
@@ -120,6 +171,8 @@ impl Stack {
             admin_url: admin_url.clone(),
             bff_crm_url: bff_crm_url.clone(),
             bff_admin_url: bff_admin_url.clone(),
+            web_crm_url: url(ports[4]),
+            web_admin_url: url(ports[5]),
             services: Vec::new(),
             dbs: Vec::new(),
         };
@@ -166,6 +219,27 @@ impl Stack {
                 ("COOKIE_SECURE", "false".into()),
             ],
         ));
+        if with_web {
+            for (name, port, bff) in [
+                ("web-crm", ports[4], bff_crm_url.clone()),
+                ("web-admin", ports[5], bff_admin_url.clone()),
+            ] {
+                stack.services.push(spawn(
+                    name,
+                    &[
+                        ("BFF_URL", bff),
+                        ("LEPTOS_OUTPUT_NAME", name.into()),
+                        (
+                            "LEPTOS_SITE_ROOT",
+                            target_dir().join("site").join(name).display().to_string(),
+                        ),
+                        ("LEPTOS_SITE_PKG_DIR", "pkg".into()),
+                        ("LEPTOS_SITE_ADDR", format!("127.0.0.1:{port}")),
+                        ("LEPTOS_ENV", "PROD".into()),
+                    ],
+                ));
+            }
+        }
         stack.dbs.extend([identity_db, admin_db]);
 
         for (url, name) in [
@@ -176,7 +250,42 @@ impl Stack {
         ] {
             wait_healthy(url, name).await;
         }
+        if with_web {
+            wait_ready(&format!("{}/login", stack.web_crm_url), "web-crm").await;
+            wait_ready(&format!("{}/login", stack.web_admin_url), "web-admin").await;
+        }
         stack
+    }
+
+    /// Создаёт организацию с владельцем через админский BFF (как это делает администратор платформы).
+    pub async fn seed_tenant(&self, slug: &str, owner_email: &str, owner_password: &str) {
+        let http = reqwest::Client::builder()
+            .cookie_store(true)
+            .build()
+            .expect("http client");
+        let login: serde_json::Value = http
+            .post(format!("{}/bff/login", self.bff_admin_url))
+            .header("x-csrf-token", "login")
+            .json(&serde_json::json!({"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD}))
+            .send()
+            .await
+            .expect("admin login")
+            .json()
+            .await
+            .expect("admin login body");
+        let csrf = login["csrf_token"].as_str().expect("csrf token").to_string();
+        let res = http
+            .post(format!("{}/api/tenants", self.bff_admin_url))
+            .header("x-csrf-token", csrf)
+            .json(&serde_json::json!({
+                "slug": slug,
+                "name": slug,
+                "owner": {"email": owner_email, "password": owner_password}
+            }))
+            .send()
+            .await
+            .expect("create tenant");
+        assert_eq!(res.status(), 201, "seed tenant {slug}");
     }
 
     /// Останавливает процессы и удаляет базы.

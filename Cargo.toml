@@ -34,6 +34,12 @@ argon2 = "0.5"
 sha2 = "0.10"
 async-trait = "0.1"
 url = "2"
+leptos = "0.8"
+leptos_meta = "0.8"
+leptos_router = "0.8"
+leptos_axum = "0.8"
+wasm-bindgen = "0.2"
+console_error_panic_hook = "0.1"
 redis = { version = "0.27", default-features = false, features = ["tokio-comp", "connection-manager"] }
 utoipa = { version = "5", features = ["uuid"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
@@ -43,3 +49,42 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 opt-level = 3
 [profile.dev.package.blake2]
 opt-level = 3
+
+[[workspace.metadata.leptos]]
+name = "web-crm"
+bin-package = "web-crm"
+lib-package = "web-crm"
+bin-features = ["ssr"]
+lib-features = ["hydrate"]
+bin-default-features = false
+lib-default-features = false
+output-name = "web-crm"
+site-root = "target/site/web-crm"
+site-pkg-dir = "pkg"
+site-addr = "127.0.0.1:3000"
+reload-port = 3001
+env = "DEV"
+lib-profile-release = "wasm-release"
+
+[[workspace.metadata.leptos]]
+name = "web-admin"
+bin-package = "web-admin"
+lib-package = "web-admin"
+bin-features = ["ssr"]
+lib-features = ["hydrate"]
+bin-default-features = false
+lib-default-features = false
+output-name = "web-admin"
+site-root = "target/site/web-admin"
+site-pkg-dir = "pkg"
+site-addr = "127.0.0.1:3010"
+reload-port = 3011
+env = "DEV"
+lib-profile-release = "wasm-release"
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
