@@ -17,8 +17,14 @@ async fn main() {
     println!("    организация demo, owner@demo.io / demo-password-1");
     println!("  Админка платформы     : {}", stack.web_admin_url);
     println!("    {ADMIN_EMAIL} / {ADMIN_PASSWORD}");
-    println!("  BFF crm / admin       : {} / {}", stack.bff_crm_url, stack.bff_admin_url);
-    println!("  identity / admin API  : {} / {}", stack.identity_url, stack.admin_url);
+    println!(
+        "  BFF crm / admin       : {} / {}",
+        stack.bff_crm_url, stack.bff_admin_url
+    );
+    println!(
+        "  identity / admin API  : {} / {}",
+        stack.identity_url, stack.admin_url
+    );
     println!();
     println!("Остановить: Ctrl+C");
 
