@@ -215,8 +215,10 @@ name = "bff-crm"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "bff-admin",
  "bff-core",
  "platform-core",
+ "reqwest",
  "serde_json",
  "tokio",
  "tracing",
