@@ -1,7 +1,7 @@
 # web-shell Specification
 
 ## Purpose
-TBD - created by archiving change bootstrap-rust-platform. Update Purpose after archive.
+Задаёт пользовательский интерфейс на Rust: клиентское приложение рекрутеров (вход, защита маршрутов, оболочка с навигацией) и отдельное админское приложение для управления организациями.
 
 ## Requirements
 

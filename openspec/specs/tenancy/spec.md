@@ -1,7 +1,7 @@
 # tenancy Specification
 
 ## Purpose
-TBD - created by archiving change bootstrap-rust-platform. Update Purpose after archive.
+Гарантирует, что данные каждой организации (тенанта) видны только ей: тенант запроса определяется по аутентифицированной личности, а изоляция обеспечивается самой базой данных, а не только прикладным кодом.
 
 ## Requirements
 

@@ -1,7 +1,7 @@
 # identity-auth Specification
 
 ## Purpose
-TBD - created by archiving change bootstrap-rust-platform. Update Purpose after archive.
+Определяет, как пользователи организаций и администраторы платформы входят в систему, получают и обновляют токены и какие действия им разрешены по ролям. Пользователи тенантов и администраторы платформы разделены.
 
 ## Requirements
 

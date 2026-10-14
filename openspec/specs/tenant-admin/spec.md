@@ -1,7 +1,7 @@
 # tenant-admin Specification
 
 ## Purpose
-TBD - created by archiving change bootstrap-rust-platform. Update Purpose after archive.
+Описывает управление организациями силами администраторов платформы: создание организации вместе с первым владельцем, приостановка и возобновление доступа, просмотр списка с фильтром и поиском.
 
 ## Requirements
 

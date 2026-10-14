@@ -1,7 +1,7 @@
 # bff-session Specification
 
 ## Purpose
-TBD - created by archiving change bootstrap-rust-platform. Update Purpose after archive.
+Определяет границу между браузером и бэкендом: отдельный BFF для клиентского и для админского слоя хранит токены на сервере, выдаёт браузеру только cookie сессии, защищает от CSRF и прозрачно обновляет токены.
 
 ## Requirements
 
