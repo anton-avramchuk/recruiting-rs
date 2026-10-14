@@ -289,7 +289,16 @@ pub fn router(bff: Bff) -> Router {
         .with_state(bff)
 }
 
-async fn login(State(bff): State<Bff>, headers: HeaderMap, Json(body): Json<Value>) -> Response {
+#[utoipa::path(post, path = "/bff/login", request_body = serde_json::Value, responses(
+    (status = 200, description = "Session cookie set; body has csrf_token and user preview"),
+    (status = 401, description = "Credentials rejected"),
+    (status = 403, description = "Tenant suspended or CSRF header missing"),
+))]
+pub(crate) async fn login(
+    State(bff): State<Bff>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Response {
     if let Err(e) = Bff::check_csrf(&headers, None) {
         return e.into_response();
     }
@@ -352,7 +361,11 @@ async fn login(State(bff): State<Bff>, headers: HeaderMap, Json(body): Json<Valu
     res
 }
 
-async fn logout(State(bff): State<Bff>, headers: HeaderMap) -> Response {
+#[utoipa::path(post, path = "/bff/logout", responses(
+    (status = 204, description = "Session destroyed, cookie cleared"),
+    (status = 403, description = "CSRF token mismatch"),
+))]
+pub(crate) async fn logout(State(bff): State<Bff>, headers: HeaderMap) -> Response {
     let (id, session) = match bff.load(&headers).await {
         Ok(Some(found)) => found,
         Ok(None) => return no_content_clearing(&bff),
@@ -377,7 +390,10 @@ fn no_content_clearing(bff: &Bff) -> Response {
     res
 }
 
-async fn session(State(bff): State<Bff>, headers: HeaderMap) -> Response {
+#[utoipa::path(get, path = "/bff/session", responses(
+    (status = 200, description = "authenticated flag, csrf_token and user preview"),
+))]
+pub(crate) async fn session(State(bff): State<Bff>, headers: HeaderMap) -> Response {
     let (id, session) = match bff.load(&headers).await {
         Ok(Some(found)) => found,
         Ok(None) => return Json(json!({ "authenticated": false })).into_response(),

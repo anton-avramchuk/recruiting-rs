@@ -198,12 +198,21 @@ dependencies = [
  "tokio",
  "tower",
  "tracing",
+ "utoipa",
  "uuid",
 ]
 
 [[package]]
 name = "bff-crm"
 version = "0.1.0"
+dependencies = [
+ "axum",
+ "bff-core",
+ "platform-core",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "bitflags"

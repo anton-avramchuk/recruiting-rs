@@ -1,6 +1,7 @@
 //! Общий код BFF: серверные сессии, cookie, CSRF, refresh, прокси.
 mod bff;
 mod config;
+mod openapi;
 mod proxy;
 mod session;
 #[cfg(feature = "test-support")]
@@ -9,6 +10,7 @@ mod upstream;
 
 pub use bff::{Bff, CSRF_HEADER, router};
 pub use config::{AllowRule, BffConfig, LoginTransform};
+pub use openapi::openapi;
 pub use session::{
     MemorySessionStore, RedisSessionStore, Session, SessionStore, StoreError, random_token,
 };
