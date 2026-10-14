@@ -1,3 +1,4 @@
+use admin_contracts::{CreateTenantRequest, TenantDto, TenantPage};
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
@@ -9,7 +10,7 @@ use platform_core::{
     error::{ApiError, ProblemDetails},
     tenant::TenantId,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use uuid::Uuid;
 
 use super::AppState;
@@ -29,38 +30,13 @@ pub fn routes() -> Router<AppState> {
         .route("/tenants/{id}/activate", post(activate))
 }
 
-#[derive(Serialize, utoipa::ToSchema)]
-pub struct TenantDto {
-    id: Uuid,
-    slug: String,
-    name: String,
-    status: &'static str,
-}
-
-impl From<Tenant> for TenantDto {
-    fn from(t: Tenant) -> Self {
-        Self {
-            id: t.id.0,
-            slug: t.slug.as_str().to_string(),
-            name: t.name,
-            status: t.status.as_str(),
-        }
+pub(super) fn to_dto(t: Tenant) -> TenantDto {
+    TenantDto {
+        id: t.id.0,
+        slug: t.slug.as_str().to_string(),
+        name: t.name,
+        status: t.status.as_str().to_string(),
     }
-}
-
-#[derive(Deserialize, utoipa::ToSchema)]
-pub(super) struct OwnerRequest {
-    email: String,
-    password: String,
-    #[serde(default)]
-    display_name: String,
-}
-
-#[derive(Deserialize, utoipa::ToSchema)]
-pub(super) struct CreateTenantRequest {
-    slug: String,
-    name: String,
-    owner: OwnerRequest,
 }
 
 #[utoipa::path(post, path = "/tenants", security(("bearer" = [])), request_body = CreateTenantRequest, responses(
@@ -87,7 +63,7 @@ pub(super) async fn create(
             },
         })
         .await?;
-    Ok((StatusCode::CREATED, Json(tenant.into())))
+    Ok((StatusCode::CREATED, Json(to_dto(tenant))))
 }
 
 #[derive(Deserialize, utoipa::IntoParams)]
@@ -99,23 +75,15 @@ pub(super) struct ListParams {
     page_size: Option<i64>,
 }
 
-#[derive(Serialize, utoipa::ToSchema)]
-pub(super) struct PageDto {
-    items: Vec<TenantDto>,
-    total: i64,
-    page: i64,
-    page_size: i64,
-}
-
 #[utoipa::path(get, path = "/tenants", security(("bearer" = [])), params(ListParams), responses(
-    (status = 200, body = PageDto),
+    (status = 200, body = TenantPage),
     (status = 400, body = ProblemDetails, content_type = "application/problem+json"),
 ))]
 pub(super) async fn list(
     State(state): State<AppState>,
     user: AuthUser,
     Query(params): Query<ListParams>,
-) -> Result<Json<PageDto>, ApiError> {
+) -> Result<Json<TenantPage>, ApiError> {
     user.require(Permission::ManageTenants)?;
     let status = params
         .status
@@ -130,8 +98,8 @@ pub(super) async fn list(
             page_size: params.page_size.unwrap_or(DEFAULT_PAGE_SIZE),
         })
         .await?;
-    Ok(Json(PageDto {
-        items: page.items.into_iter().map(Into::into).collect(),
+    Ok(Json(TenantPage {
+        items: page.items.into_iter().map(to_dto).collect(),
         total: page.total,
         page: page.page,
         page_size: page.page_size,
@@ -149,7 +117,7 @@ pub(super) async fn get_one(
     Path(id): Path<Uuid>,
 ) -> Result<Json<TenantDto>, ApiError> {
     user.require(Permission::ManageTenants)?;
-    Ok(Json(state.tenants.get(TenantId(id)).await?.into()))
+    Ok(Json(to_dto(state.tenants.get(TenantId(id)).await?)))
 }
 
 #[utoipa::path(post, path = "/tenants/{id}/suspend", security(("bearer" = [])),
@@ -164,7 +132,7 @@ pub(super) async fn suspend(
     Path(id): Path<Uuid>,
 ) -> Result<Json<TenantDto>, ApiError> {
     user.require(Permission::ManageTenants)?;
-    Ok(Json(state.tenants.suspend(TenantId(id)).await?.into()))
+    Ok(Json(to_dto(state.tenants.suspend(TenantId(id)).await?)))
 }
 
 #[utoipa::path(post, path = "/tenants/{id}/activate", security(("bearer" = [])),
@@ -179,7 +147,7 @@ pub(super) async fn activate(
     Path(id): Path<Uuid>,
 ) -> Result<Json<TenantDto>, ApiError> {
     user.require(Permission::ManageTenants)?;
-    Ok(Json(state.tenants.activate(TenantId(id)).await?.into()))
+    Ok(Json(to_dto(state.tenants.activate(TenantId(id)).await?)))
 }
 
 impl From<TenantError> for ApiError {

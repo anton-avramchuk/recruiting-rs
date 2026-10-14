@@ -11,7 +11,9 @@ use platform_core::{
 };
 use uuid::Uuid;
 
-use super::{AppState, tenants::TenantDto};
+use admin_contracts::TenantDto;
+
+use super::{AppState, tenants::to_dto};
 use crate::infrastructure::tenants as repo;
 
 pub fn routes() -> Router<AppState> {
@@ -33,7 +35,7 @@ pub(super) async fn by_slug(
     repo::find_by_slug(&state.pool, &slug)
         .await
         .map_err(|e| ApiError::internal(&e))?
-        .map(|t| Json(t.into()))
+        .map(|t| Json(to_dto(t)))
         .ok_or_else(ApiError::not_found)
 }
 
@@ -50,6 +52,6 @@ pub(super) async fn by_id(
     repo::find_by_id(&state.pool, TenantId(id))
         .await
         .map_err(|e| ApiError::internal(&e))?
-        .map(|t| Json(t.into()))
+        .map(|t| Json(to_dto(t)))
         .ok_or_else(ApiError::not_found)
 }

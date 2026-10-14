@@ -5,6 +5,7 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+admin-contracts = { path = "../../crates/admin-contracts" }
 platform-core = { path = "../../crates/platform-core" }
 platform-db = { path = "../../crates/platform-db" }
 platform-auth = { path = "../../crates/platform-auth" }
