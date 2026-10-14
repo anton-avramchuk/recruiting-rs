@@ -361,10 +361,10 @@ async fn logout(State(bff): State<Bff>, headers: HeaderMap) -> Response {
     if let Err(e) = Bff::check_csrf(&headers, Some(&session)) {
         return e.into_response();
     }
-    if let Some(refresh) = &session.refresh_token {
-        if let Err(e) = bff.inner.auth.logout(refresh).await {
-            tracing::warn!(error = %e, "upstream logout failed");
-        }
+    if let Some(refresh) = &session.refresh_token
+        && let Err(e) = bff.inner.auth.logout(refresh).await
+    {
+        tracing::warn!(error = %e, "upstream logout failed");
     }
     bff.destroy(&id).await;
     no_content_clearing(&bff)

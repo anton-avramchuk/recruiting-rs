@@ -81,10 +81,10 @@ async fn forward(State(bff): State<Bff>, req: Request) -> Response {
         Ok(None) => return ApiError::unauthorized().into_response(),
         Err(e) => return e.into_response(),
     };
-    if !is_safe_method(&method) {
-        if let Err(e) = Bff::check_csrf(&headers, Some(&session)) {
-            return e.into_response();
-        }
+    if !is_safe_method(&method)
+        && let Err(e) = Bff::check_csrf(&headers, Some(&session))
+    {
+        return e.into_response();
     }
     let body = match axum::body::to_bytes(body, MAX_BODY_BYTES).await {
         Ok(b) => b,
@@ -103,7 +103,7 @@ async fn forward(State(bff): State<Bff>, req: Request) -> Response {
 
     let mut reply = match send(&bff, &method, &url, &headers, &body, &session.access_token).await {
         Ok(r) => r,
-        Err(res) => return res,
+        Err(e) => return e.into_response(),
     };
 
     // токен мог быть отозван на стороне бэкенда: одно обновление и повтор
@@ -113,7 +113,7 @@ async fn forward(State(bff): State<Bff>, req: Request) -> Response {
                 reply = match send(&bff, &method, &url, &headers, &body, &fresh.access_token).await
                 {
                     Ok(r) => r,
-                    Err(res) => return res,
+                    Err(e) => return e.into_response(),
                 };
             }
             Err(Freshness::Expired) => return Freshness::Expired.into_response(&bff),
@@ -131,7 +131,7 @@ async fn send(
     headers: &HeaderMap,
     body: &Bytes,
     access_token: &str,
-) -> Result<reqwest::Response, Response> {
+) -> Result<reqwest::Response, ApiError> {
     let mut rb = bff
         .inner
         .http
@@ -147,7 +147,7 @@ async fn send(
     }
     rb.send().await.map_err(|e| {
         tracing::error!(error = %e, "upstream request failed");
-        ApiError::new(StatusCode::BAD_GATEWAY, "Bad Gateway").into_response()
+        ApiError::new(StatusCode::BAD_GATEWAY, "Bad Gateway")
     })
 }
 
