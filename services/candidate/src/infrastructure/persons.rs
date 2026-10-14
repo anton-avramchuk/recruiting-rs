@@ -34,6 +34,15 @@ struct PersonRow {
 }
 
 #[derive(FromRow)]
+struct KeysRow {
+    id: Uuid,
+    full_name: String,
+    normalized_name: String,
+    normalized_email: Option<String>,
+    normalized_phone: Option<String>,
+}
+
+#[derive(FromRow)]
 struct EmploymentRow {
     company: String,
     position_title: String,
@@ -92,7 +101,7 @@ pub async fn find_candidates(
     conn: &mut PgConnection,
     probe: &Probe,
 ) -> Result<Vec<PersonKeys>, sqlx::Error> {
-    let rows: Vec<(Uuid, String, String, Option<String>, Option<String>)> = sqlx::query_as(
+    let rows: Vec<KeysRow> = sqlx::query_as(
         "SELECT id, full_name, normalized_name, normalized_email, normalized_phone
          FROM persons
          WHERE ($1::text IS NOT NULL AND normalized_email = $1)
@@ -106,15 +115,13 @@ pub async fn find_candidates(
     .await?;
     Ok(rows
         .into_iter()
-        .map(
-            |(id, full_name, normalized_name, normalized_email, normalized_phone)| PersonKeys {
-                id,
-                full_name,
-                normalized_name,
-                normalized_email,
-                normalized_phone,
-            },
-        )
+        .map(|r| PersonKeys {
+            id: r.id,
+            full_name: r.full_name,
+            normalized_name: r.normalized_name,
+            normalized_email: r.normalized_email,
+            normalized_phone: r.normalized_phone,
+        })
         .collect())
 }
 
