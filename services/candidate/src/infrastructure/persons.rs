@@ -373,3 +373,12 @@ pub async fn replace_educations(
         .await?;
     Ok(())
 }
+
+/// Удаляет кандидата; история уходит каскадом. `false` - такого кандидата нет.
+pub async fn delete(conn: &mut PgConnection, id: Uuid) -> Result<bool, sqlx::Error> {
+    let res = sqlx::query("DELETE FROM persons WHERE id = $1")
+        .bind(id)
+        .execute(conn)
+        .await?;
+    Ok(res.rows_affected() == 1)
+}

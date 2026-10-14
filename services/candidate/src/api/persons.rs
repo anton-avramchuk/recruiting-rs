@@ -28,7 +28,7 @@ use crate::{
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/persons", post(create).get(list))
-        .route("/persons/{id}", get(get_one).patch(update))
+        .route("/persons/{id}", get(get_one).patch(update).delete(remove))
         .route("/persons/{id}/employments", put(replace_employments))
         .route("/persons/{id}/educations", put(replace_educations))
 }
@@ -187,6 +187,16 @@ async fn replace_educations(
         .replace_educations(tenant_of(&user)?, id, educations)
         .await?;
     Ok(Json(person_to_dto(&person, state.persons.today())))
+}
+
+async fn remove(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, ApiError> {
+    user.require(Permission::DeleteData)?;
+    state.persons.delete(tenant_of(&user)?, id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 impl From<PersonError> for ApiError {

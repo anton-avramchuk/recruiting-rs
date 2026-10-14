@@ -216,4 +216,14 @@ impl PersonService {
         tx.commit().await?;
         Ok(person)
     }
+
+    /// Необратимое удаление вместе с историей.
+    pub async fn delete(&self, tenant: TenantId, id: Uuid) -> Result<(), PersonError> {
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        if !store::delete(&mut tx, id).await? {
+            return Err(PersonError::NotFound);
+        }
+        tx.commit().await?;
+        Ok(())
+    }
 }
