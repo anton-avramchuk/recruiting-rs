@@ -2,10 +2,11 @@ use axum::{
     Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use candidate_contracts::{
-    CreatePersonRequest, DuplicateInfo, PersonDto, PersonPage, UpdatePersonRequest,
+    CreatePersonRequest, DuplicateInfo, EducationDto, EmploymentDto, PersonDto, PersonPage,
+    UpdatePersonRequest,
 };
 use platform_auth::{AuthUser, Permission};
 use platform_core::{error::ApiError, tenant::TenantId};
@@ -14,7 +15,7 @@ use uuid::Uuid;
 
 use super::{
     AppState,
-    mapping::{person_to_dto, summary_to_dto},
+    mapping::{educations_from_dto, employments_from_dto, person_to_dto, summary_to_dto},
 };
 use crate::{
     application::{
@@ -28,6 +29,8 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/persons", post(create).get(list))
         .route("/persons/{id}", get(get_one).patch(update))
+        .route("/persons/{id}/employments", put(replace_employments))
+        .route("/persons/{id}/educations", put(replace_educations))
 }
 
 /// Тенант берётся только из токена, никогда из запроса.
@@ -152,6 +155,36 @@ async fn update(
                 },
             },
         )
+        .await?;
+    Ok(Json(person_to_dto(&person, state.persons.today())))
+}
+
+async fn replace_employments(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(items): Json<Vec<EmploymentDto>>,
+) -> Result<Json<PersonDto>, ApiError> {
+    user.require(Permission::WriteData)?;
+    let employments = employments_from_dto(items).map_err(PersonError::from)?;
+    let person = state
+        .persons
+        .replace_employments(tenant_of(&user)?, id, employments)
+        .await?;
+    Ok(Json(person_to_dto(&person, state.persons.today())))
+}
+
+async fn replace_educations(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(items): Json<Vec<EducationDto>>,
+) -> Result<Json<PersonDto>, ApiError> {
+    user.require(Permission::WriteData)?;
+    let educations = educations_from_dto(items).map_err(PersonError::from)?;
+    let person = state
+        .persons
+        .replace_educations(tenant_of(&user)?, id, educations)
         .await?;
     Ok(Json(person_to_dto(&person, state.persons.today())))
 }

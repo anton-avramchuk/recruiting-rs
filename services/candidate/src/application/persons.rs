@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use crate::{
     domain::{
-        ContactsInput, DomainError, Duplicate, NewPerson, Person, Probe, ProfilePatch,
-        find_duplicate,
+        ContactsInput, DomainError, Duplicate, Education, Employment, NewPerson, Person, Probe,
+        ProfilePatch, find_duplicate,
     },
     infrastructure::persons::{self as store, ListFilter, PersonSummary, StoreError},
 };
@@ -179,6 +179,40 @@ impl PersonService {
         person = candidate;
 
         store::update(&mut tx, &person, person.experience_years(self.today())).await?;
+        tx.commit().await?;
+        Ok(person)
+    }
+
+    /// Заменяет места работы и пересчитывает стаж в одной транзакции.
+    pub async fn replace_employments(
+        &self,
+        tenant: TenantId,
+        id: Uuid,
+        employments: Vec<Employment>,
+    ) -> Result<Person, PersonError> {
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        let mut person = store::get(&mut tx, id)
+            .await?
+            .ok_or(PersonError::NotFound)?;
+        person.replace_employments(employments);
+        let years = person.experience_years(self.today());
+        store::replace_employments(&mut tx, tenant, id, person.employments(), years).await?;
+        tx.commit().await?;
+        Ok(person)
+    }
+
+    pub async fn replace_educations(
+        &self,
+        tenant: TenantId,
+        id: Uuid,
+        educations: Vec<Education>,
+    ) -> Result<Person, PersonError> {
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        let mut person = store::get(&mut tx, id)
+            .await?
+            .ok_or(PersonError::NotFound)?;
+        person.replace_educations(educations);
+        store::replace_educations(&mut tx, tenant, id, person.educations()).await?;
         tx.commit().await?;
         Ok(person)
     }

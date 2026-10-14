@@ -305,3 +305,71 @@ pub async fn update(
     .await?;
     Ok(())
 }
+
+/// Заменяет места работы целиком (порядок сохраняется) и обновляет стаж в той же транзакции.
+pub async fn replace_employments(
+    conn: &mut PgConnection,
+    tenant: TenantId,
+    person_id: Uuid,
+    employments: &[Employment],
+    experience_years: i32,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("DELETE FROM employments WHERE person_id = $1")
+        .bind(person_id)
+        .execute(&mut *conn)
+        .await?;
+    for (idx, e) in employments.iter().enumerate() {
+        sqlx::query(
+            "INSERT INTO employments (tenant_id, person_id, idx, company, position_title, start_date, end_date, description)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        )
+        .bind(tenant.0)
+        .bind(person_id)
+        .bind(idx as i32)
+        .bind(&e.company)
+        .bind(&e.position)
+        .bind(e.start)
+        .bind(e.end)
+        .bind(&e.description)
+        .execute(&mut *conn)
+        .await?;
+    }
+    sqlx::query("UPDATE persons SET experience_years = $2, updated_at = now() WHERE id = $1")
+        .bind(person_id)
+        .bind(experience_years)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
+pub async fn replace_educations(
+    conn: &mut PgConnection,
+    tenant: TenantId,
+    person_id: Uuid,
+    educations: &[Education],
+) -> Result<(), sqlx::Error> {
+    sqlx::query("DELETE FROM educations WHERE person_id = $1")
+        .bind(person_id)
+        .execute(&mut *conn)
+        .await?;
+    for (idx, e) in educations.iter().enumerate() {
+        sqlx::query(
+            "INSERT INTO educations (tenant_id, person_id, idx, institution, specialty, year_from, year_to)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        )
+        .bind(tenant.0)
+        .bind(person_id)
+        .bind(idx as i32)
+        .bind(&e.institution)
+        .bind(&e.specialty)
+        .bind(e.year_from)
+        .bind(e.year_to)
+        .execute(&mut *conn)
+        .await?;
+    }
+    sqlx::query("UPDATE persons SET updated_at = now() WHERE id = $1")
+        .bind(person_id)
+        .execute(conn)
+        .await?;
+    Ok(())
+}

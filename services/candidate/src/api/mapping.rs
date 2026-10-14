@@ -2,7 +2,10 @@
 use candidate_contracts::{EducationDto, EmploymentDto, PersonDto, PersonSummaryDto};
 use chrono::NaiveDate;
 
-use crate::{domain::Person, infrastructure::persons::PersonSummary};
+use crate::{
+    domain::{DomainError, Education, Employment, Person},
+    infrastructure::persons::PersonSummary,
+};
 
 const DATE_FORMAT: &str = "%Y-%m-%d";
 
@@ -56,4 +59,32 @@ pub fn summary_to_dto(s: PersonSummary) -> PersonSummaryDto {
         experience_years: s.experience_years,
         created_at: s.created_at.to_rfc3339(),
     }
+}
+
+fn parse_date(field: &'static str, raw: &str) -> Result<NaiveDate, DomainError> {
+    NaiveDate::parse_from_str(raw.trim(), DATE_FORMAT)
+        .map_err(|_| DomainError::invalid(field, "дата в формате ГГГГ-ММ-ДД"))
+}
+
+pub fn employments_from_dto(items: Vec<EmploymentDto>) -> Result<Vec<Employment>, DomainError> {
+    items
+        .into_iter()
+        .map(|e| {
+            let start = parse_date("start", &e.start)?;
+            let end = e
+                .end
+                .as_deref()
+                .filter(|s| !s.trim().is_empty())
+                .map(|s| parse_date("end", s))
+                .transpose()?;
+            Employment::new(&e.company, &e.position, start, end, e.description)
+        })
+        .collect()
+}
+
+pub fn educations_from_dto(items: Vec<EducationDto>) -> Result<Vec<Education>, DomainError> {
+    items
+        .into_iter()
+        .map(|e| Education::new(&e.institution, e.specialty, e.year_from, e.year_to))
+        .collect()
 }
