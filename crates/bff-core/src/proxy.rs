@@ -66,15 +66,20 @@ async fn forward(State(bff): State<Bff>, req: Request) -> Response {
     let Some(path) = upstream_path(&uri) else {
         return ApiError::not_found().into_response();
     };
-    if !bff
-        .inner
-        .config
-        .allow
-        .iter()
-        .any(|r| r.allows(&method, &path))
-    {
+    let config = &bff.inner.config;
+    let Some(rule) = config.allow.iter().find(|r| r.allows(&method, &path)) else {
         return ApiError::not_found().into_response();
-    }
+    };
+    let base_url = match rule.upstream() {
+        None => config.upstream_base_url.clone(),
+        Some(name) => match config.upstreams.get(name) {
+            Some(url) => url.clone(),
+            None => {
+                tracing::error!(upstream = name, "allowlist names an unknown upstream");
+                return ApiError::new(StatusCode::BAD_GATEWAY, "Bad Gateway").into_response();
+            }
+        },
+    };
 
     let (id, session) = match bff.load(&headers).await {
         Ok(Some(found)) => found,
@@ -97,8 +102,8 @@ async fn forward(State(bff): State<Bff>, req: Request) -> Response {
     };
 
     let url = match uri.query() {
-        Some(q) => format!("{}{path}?{q}", bff.inner.config.upstream_base_url),
-        None => format!("{}{path}", bff.inner.config.upstream_base_url),
+        Some(q) => format!("{base_url}{path}?{q}"),
+        None => format!("{base_url}{path}"),
     };
 
     let mut reply = match send(&bff, &method, &url, &headers, &body, &session.access_token).await {

@@ -40,6 +40,7 @@ pub fn build(cfg: &AdminConfig, store: Arc<dyn SessionStore>) -> Router {
         cookie_secure: cfg.cookie_secure,
         session_ttl: Duration::from_secs(cfg.session_ttl_secs),
         upstream_base_url: cfg.admin_url.clone(),
+        upstreams: Default::default(),
         allow: allowlist(),
         login_transform: Some(login_transform()),
     };

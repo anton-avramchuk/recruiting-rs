@@ -21,6 +21,7 @@ pub fn config(base: &str) -> BffConfig {
         session_ttl: Duration::from_secs(3600),
         upstream_base_url: base.into(),
         allow: vec![AllowRule::any("/users")],
+        upstreams: Default::default(),
         login_transform: None,
     }
 }

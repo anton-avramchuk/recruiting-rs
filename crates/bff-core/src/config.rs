@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use axum::http::{HeaderMap, Method};
 use platform_core::error::ApiError;
@@ -12,6 +12,8 @@ pub type LoginTransform = Arc<dyn Fn(&HeaderMap, Value) -> Result<Value, ApiErro
 pub struct AllowRule {
     method: Option<Method>,
     prefix: String,
+    /// Имя сервиса из `BffConfig::upstreams`; без имени - сервис по умолчанию.
+    upstream: Option<String>,
 }
 
 impl AllowRule {
@@ -19,6 +21,7 @@ impl AllowRule {
         Self {
             method: None,
             prefix: prefix.into(),
+            upstream: None,
         }
     }
 
@@ -26,7 +29,18 @@ impl AllowRule {
         Self {
             method: Some(method),
             prefix: prefix.into(),
+            upstream: None,
         }
+    }
+
+    /// Направляет маршрут в именованный сервис.
+    pub fn to(mut self, upstream: &str) -> Self {
+        self.upstream = Some(upstream.into());
+        self
+    }
+
+    pub fn upstream(&self) -> Option<&str> {
+        self.upstream.as_deref()
     }
 
     /// Совпадение по границе сегмента: `/users` разрешает `/users` и `/users/1`, но не `/users-x`.
@@ -45,7 +59,10 @@ pub struct BffConfig {
     pub cookie_name: String,
     pub cookie_secure: bool,
     pub session_ttl: Duration,
+    /// Сервис по умолчанию (в нём же выполняются вход и обновление токенов).
     pub upstream_base_url: String,
+    /// Именованные сервисы для правил `AllowRule::to`.
+    pub upstreams: HashMap<String, String>,
     pub allow: Vec<AllowRule>,
     pub login_transform: Option<LoginTransform>,
 }

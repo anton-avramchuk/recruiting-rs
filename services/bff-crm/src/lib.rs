@@ -64,6 +64,7 @@ pub fn build(cfg: &CrmConfig, store: Arc<dyn SessionStore>) -> Router {
         cookie_secure: cfg.cookie_secure,
         session_ttl: Duration::from_secs(cfg.session_ttl_secs),
         upstream_base_url: cfg.identity_url.clone(),
+        upstreams: Default::default(),
         allow: allowlist(),
         login_transform: Some(login_transform(cfg.base_domain.clone())),
     };
