@@ -1,4 +1,6 @@
 //! Клиентское приложение рекрутеров (Leptos, SSR + hydrate). Общается только с bff-crm.
+pub mod candidates;
+
 use leptos::prelude::*;
 use leptos_meta::{MetaTags, Title, provide_meta_context};
 use leptos_router::{
@@ -55,7 +57,7 @@ pub fn App() -> impl IntoView {
                 />
                 <ParentRoute path=path!("") view=Protected ssr=SsrMode::Async>
                     <Route path=path!("/") view=Overview ssr=SsrMode::Async />
-                    <Route path=path!("/candidates") view=Candidates ssr=SsrMode::Async />
+                    <Route path=path!("/candidates") view=candidates::list::CandidatesPage ssr=SsrMode::Async />
                     <Route path=path!("/vacancies") view=Vacancies ssr=SsrMode::Async />
                     <Route path=path!("/interviews") view=Interviews ssr=SsrMode::Async />
                 </ParentRoute>
@@ -115,14 +117,6 @@ fn Overview() -> impl IntoView {
             title="Здесь появятся задачи на сегодня"
             hint="Раздел заработает после подключения вакансий и кандидатов."
         />
-    }
-}
-
-#[component]
-fn Candidates() -> impl IntoView {
-    view! {
-        <PageHeader title="Кандидаты" />
-        <EmptyState title="Кандидатов пока нет" hint="База кандидатов появится в следующих версиях." />
     }
 }
 

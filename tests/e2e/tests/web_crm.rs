@@ -1,76 +1,13 @@
 //! Клиентское приложение в настоящем браузере (headless Chrome): вход, защита маршрутов, каркас.
-use std::time::{Duration, Instant};
+mod common;
 
+use std::time::Duration;
+
+use common::*;
 use e2e::Stack;
-use headless_chrome::{Browser, LaunchOptions, Tab};
 
 const OWNER_EMAIL: &str = "boss@acme.io";
 const OWNER_PASSWORD: &str = "boss-password-1";
-
-fn launch() -> Browser {
-    Browser::new(LaunchOptions {
-        headless: true,
-        window_size: Some((1280, 900)),
-        idle_browser_timeout: Duration::from_secs(300),
-        ..LaunchOptions::default()
-    })
-    .expect("launch Chrome (install Google Chrome)")
-}
-
-fn eval(tab: &Tab, js: &str) -> serde_json::Value {
-    tab.evaluate(js, false)
-        .expect("evaluate")
-        .value
-        .unwrap_or(serde_json::Value::Null)
-}
-
-/// Ждёт, пока выражение JS станет истинным.
-fn wait_until(tab: &Tab, what: &str, js: &str) {
-    let deadline = Instant::now() + Duration::from_secs(15);
-    while Instant::now() < deadline {
-        if eval(tab, js) == serde_json::Value::Bool(true) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
-    let url = tab.get_url();
-    let body = eval(tab, "document.body.innerText");
-    panic!("timeout waiting for {what}; url={url}; body={body}");
-}
-
-fn type_into(tab: &Tab, selector: &str, text: &str) {
-    tab.wait_for_element(selector)
-        .unwrap_or_else(|e| panic!("{selector}: {e}"))
-        .click()
-        .unwrap();
-    tab.type_str(text).unwrap();
-}
-
-fn text_of(tab: &Tab, selector: &str) -> String {
-    eval(
-        tab,
-        &format!("(document.querySelector('{selector}')||{{}}).textContent||''"),
-    )
-    .as_str()
-    .unwrap_or_default()
-    .to_string()
-}
-
-/// Метка в `window`: исчезает при полной перезагрузке страницы.
-fn set_marker(tab: &Tab) {
-    eval(tab, "window.__marker = 'alive'");
-}
-
-fn marker_alive(tab: &Tab) -> bool {
-    eval(tab, "window.__marker === 'alive'") == serde_json::Value::Bool(true)
-}
-
-fn path_of(tab: &Tab) -> String {
-    eval(tab, "location.pathname + location.search")
-        .as_str()
-        .unwrap_or_default()
-        .to_string()
-}
 
 fn fill_login(tab: &Tab, tenant: &str, email: &str, password: &str) {
     type_into(tab, "input[name=tenant]", tenant);

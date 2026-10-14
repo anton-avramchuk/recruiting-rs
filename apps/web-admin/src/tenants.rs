@@ -32,7 +32,7 @@ pub async fn list_tenants(
         path.push_str(&format!("&status={status}"));
     }
     if !q.trim().is_empty() {
-        path.push_str(&format!("&q={}", url_encode(q.trim())));
+        path.push_str(&format!("&q={}", ui_kit::encode_query_value(q.trim())));
     }
     let reply = ui_kit::server::call(Method::GET, &path, None).await?;
     if reply.status != 200 {
@@ -89,18 +89,6 @@ pub async fn set_tenant_status(id: String, action: String) -> Result<StatusOutco
         409 | 404 => StatusOutcome::Conflict,
         _ => StatusOutcome::Unavailable,
     })
-}
-
-#[cfg(feature = "ssr")]
-fn url_encode(s: &str) -> String {
-    s.bytes()
-        .map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                (b as char).to_string()
-            }
-            _ => format!("%{b:02X}"),
-        })
-        .collect()
 }
 
 /// Минимальная проверка формата UUID без лишней зависимости.

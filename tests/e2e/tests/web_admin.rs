@@ -1,46 +1,10 @@
 //! Админское приложение в настоящем браузере: вход, список организаций, создание, приостановка, фильтр.
-use std::time::{Duration, Instant};
+mod common;
 
+use std::time::Duration;
+
+use common::*;
 use e2e::{ADMIN_EMAIL, ADMIN_PASSWORD, Stack};
-use headless_chrome::{Browser, LaunchOptions, Tab};
-
-fn launch() -> Browser {
-    Browser::new(LaunchOptions {
-        headless: true,
-        window_size: Some((1280, 900)),
-        idle_browser_timeout: Duration::from_secs(300),
-        ..LaunchOptions::default()
-    })
-    .expect("launch Chrome (install Google Chrome)")
-}
-
-fn eval(tab: &Tab, js: &str) -> serde_json::Value {
-    tab.evaluate(js, false)
-        .expect("evaluate")
-        .value
-        .unwrap_or(serde_json::Value::Null)
-}
-
-fn wait_until(tab: &Tab, what: &str, js: &str) {
-    let deadline = Instant::now() + Duration::from_secs(15);
-    while Instant::now() < deadline {
-        if eval(tab, js) == serde_json::Value::Bool(true) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
-    let url = tab.get_url();
-    let body = eval(tab, "document.body.innerText");
-    panic!("timeout waiting for {what}; url={url}; body={body}");
-}
-
-fn type_into(tab: &Tab, selector: &str, text: &str) {
-    tab.wait_for_element(selector)
-        .unwrap_or_else(|e| panic!("{selector}: {e}"))
-        .click()
-        .unwrap();
-    tab.type_str(text).unwrap();
-}
 
 fn row_exists(slug: &str) -> String {
     format!("!!document.querySelector(\"tr[data-slug='{slug}']\")")

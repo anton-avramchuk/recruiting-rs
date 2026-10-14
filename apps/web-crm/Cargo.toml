@@ -31,6 +31,9 @@ hydrate = [
 
 [dependencies]
 ui-kit = { path = "../../crates/ui-kit" }
+candidate-contracts = { path = "../../crates/candidate-contracts" }
+serde.workspace = true
+serde_json.workspace = true
 leptos.workspace = true
 leptos_meta.workspace = true
 leptos_router.workspace = true

@@ -128,6 +128,52 @@ async fn wait_ready(url: &str, name: &str) {
     }
 }
 
+/// Клиент клиентского слоя (bff-crm): вошёл пользователь организации, cookie и CSRF хранятся.
+pub struct CrmClient {
+    http: reqwest::Client,
+    base: String,
+    csrf: String,
+}
+
+impl CrmClient {
+    pub async fn get(&self, path: &str) -> reqwest::Response {
+        self.http
+            .get(format!("{}{path}", self.base))
+            .send()
+            .await
+            .expect("crm get")
+    }
+
+    pub async fn post(&self, path: &str, body: serde_json::Value) -> reqwest::Response {
+        self.http
+            .post(format!("{}{path}", self.base))
+            .header("x-csrf-token", &self.csrf)
+            .json(&body)
+            .send()
+            .await
+            .expect("crm post")
+    }
+
+    pub async fn put(&self, path: &str, body: serde_json::Value) -> reqwest::Response {
+        self.http
+            .put(format!("{}{path}", self.base))
+            .header("x-csrf-token", &self.csrf)
+            .json(&body)
+            .send()
+            .await
+            .expect("crm put")
+    }
+
+    pub async fn delete(&self, path: &str) -> reqwest::Response {
+        self.http
+            .delete(format!("{}{path}", self.base))
+            .header("x-csrf-token", &self.csrf)
+            .send()
+            .await
+            .expect("crm delete")
+    }
+}
+
 impl Stack {
     /// Поднимает identity, admin, bff-crm и bff-admin.
     pub async fn start() -> Self {
@@ -141,9 +187,15 @@ impl Stack {
 
     async fn start_inner(with_web: bool) -> Self {
         tokio::task::spawn_blocking(move || {
-            build_binaries(&["identity", "admin", "candidate", "bff-crm", "bff-admin"]);
+            // Сборка один раз на процесс: параллельные тесты не пересобирают бинарники,
+            // которые уже запущены соседним тестом (на Windows их нельзя перезаписать).
+            static BACKEND: std::sync::Once = std::sync::Once::new();
+            static WEB: std::sync::Once = std::sync::Once::new();
+            BACKEND.call_once(|| {
+                build_binaries(&["identity", "admin", "candidate", "bff-crm", "bff-admin"]);
+            });
             if with_web {
-                build_web(&["web-crm", "web-admin"]);
+                WEB.call_once(|| build_web(&["web-crm", "web-admin"]));
             }
         })
         .await
@@ -313,6 +365,39 @@ impl Stack {
             .await
             .expect("create tenant");
         assert_eq!(res.status(), 201, "seed tenant {slug}");
+    }
+
+    /// Входит в клиентский слой как пользователь организации.
+    pub async fn crm_client(&self, tenant: &str, email: &str, password: &str) -> CrmClient {
+        let http = reqwest::Client::builder()
+            .cookie_store(true)
+            .build()
+            .expect("http client");
+        let res = http
+            .post(format!("{}/bff/login", self.bff_crm_url))
+            .header("x-csrf-token", "login")
+            .json(&serde_json::json!({"tenant": tenant, "email": email, "password": password}))
+            .send()
+            .await
+            .expect("crm login");
+        assert_eq!(res.status(), 200, "crm login of {email}");
+        let body: serde_json::Value = res.json().await.expect("login body");
+        CrmClient {
+            http,
+            base: self.bff_crm_url.clone(),
+            csrf: body["csrf_token"].as_str().expect("csrf").to_string(),
+        }
+    }
+
+    /// Создаёт пользователя организации с ролью (от имени владельца).
+    pub async fn add_user(&self, owner: &CrmClient, email: &str, password: &str, role: &str) {
+        let res = owner
+            .post(
+                "/api/users",
+                serde_json::json!({"email": email, "password": password, "roles": [role]}),
+            )
+            .await;
+        assert_eq!(res.status(), 201, "create user {email}");
     }
 
     /// Останавливает процессы и удаляет базы.
