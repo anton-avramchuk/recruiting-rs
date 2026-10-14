@@ -9,6 +9,12 @@ use crate::{
     infrastructure::users,
 };
 
+impl From<platform_values::ValueError> for UserError {
+    fn from(e: platform_values::ValueError) -> Self {
+        UserError::Domain(e.into())
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum UserError {
     #[error(transparent)]

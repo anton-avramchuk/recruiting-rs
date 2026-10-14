@@ -14,29 +14,11 @@ pub enum DomainError {
     WeakPassword(usize),
 }
 
-/// Email в нормализованном виде (trim + нижний регистр).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Email(String);
+pub use platform_values::Email;
 
-impl Email {
-    pub fn parse(raw: &str) -> Result<Self, DomainError> {
-        let s = raw.trim().to_lowercase();
-        match s.split_once('@') {
-            Some((local, domain))
-                if !local.is_empty()
-                    && domain.contains('.')
-                    && !domain.starts_with('.')
-                    && !domain.ends_with('.')
-                    && !s.contains(char::is_whitespace) =>
-            {
-                Ok(Self(s))
-            }
-            _ => Err(DomainError::InvalidEmail),
-        }
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
+impl From<platform_values::ValueError> for DomainError {
+    fn from(_: platform_values::ValueError) -> Self {
+        DomainError::InvalidEmail
     }
 }
 
@@ -146,21 +128,6 @@ mod tests {
             String::new(),
             roles,
         )
-    }
-
-    #[test]
-    fn email_is_normalized() {
-        assert_eq!(
-            Email::parse("  Anna@Acme.IO ").unwrap().as_str(),
-            "anna@acme.io"
-        );
-    }
-
-    #[test]
-    fn invalid_emails_are_rejected() {
-        for bad in ["", "no-at", "@x.io", "a@b", "a b@x.io", "a@.io", "a@x."] {
-            assert_eq!(Email::parse(bad), Err(DomainError::InvalidEmail), "{bad}");
-        }
     }
 
     #[test]

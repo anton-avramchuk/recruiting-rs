@@ -7,6 +7,7 @@ publish.workspace = true
 [dependencies]
 platform-core = { path = "../../crates/platform-core" }
 platform-db = { path = "../../crates/platform-db" }
+platform-values = { path = "../../crates/platform-values" }
 platform-auth = { path = "../../crates/platform-auth" }
 reqwest.workspace = true
 argon2.workspace = true

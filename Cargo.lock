@@ -1504,6 +1504,7 @@ dependencies = [
  "platform-auth",
  "platform-core",
  "platform-db",
+ "platform-values",
  "rand 0.8.8",
  "reqwest",
  "serde",
@@ -2339,6 +2340,15 @@ dependencies = [
  "tokio",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "platform-values"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
