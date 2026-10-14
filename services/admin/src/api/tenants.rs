@@ -1,6 +1,11 @@
-use axum::{Json, Router, extract::State, http::StatusCode, routing::post};
+use axum::{
+    Json, Router,
+    extract::{Path, State},
+    http::StatusCode,
+    routing::post,
+};
 use platform_auth::{AuthUser, Permission};
-use platform_core::error::ApiError;
+use platform_core::{error::ApiError, tenant::TenantId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -10,11 +15,14 @@ use crate::{
         provisioning::OwnerSpec,
         tenants::{NewTenant, TenantError},
     },
-    domain::Tenant,
+    domain::{DomainError, Tenant},
 };
 
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/tenants", post(create))
+    Router::new()
+        .route("/tenants", post(create))
+        .route("/tenants/{id}/suspend", post(suspend))
+        .route("/tenants/{id}/activate", post(activate))
 }
 
 #[derive(Serialize)]
@@ -72,9 +80,30 @@ async fn create(
     Ok((StatusCode::CREATED, Json(tenant.into())))
 }
 
+async fn suspend(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<TenantDto>, ApiError> {
+    user.require(Permission::ManageTenants)?;
+    Ok(Json(state.tenants.suspend(TenantId(id)).await?.into()))
+}
+
+async fn activate(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<TenantDto>, ApiError> {
+    user.require(Permission::ManageTenants)?;
+    Ok(Json(state.tenants.activate(TenantId(id)).await?.into()))
+}
+
 impl From<TenantError> for ApiError {
     fn from(e: TenantError) -> Self {
         match e {
+            TenantError::Domain(d @ DomainError::InvalidTransition { .. }) => {
+                ApiError::conflict(d.to_string())
+            }
             TenantError::Domain(d) => ApiError::bad_request(d.to_string()),
             TenantError::Invalid(m) => ApiError::bad_request(m),
             TenantError::SlugTaken => ApiError::conflict("slug already taken"),

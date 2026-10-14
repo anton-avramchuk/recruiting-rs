@@ -70,6 +70,20 @@ impl TenantService {
         Ok(tenant)
     }
 
+    pub async fn suspend(&self, id: TenantId) -> Result<Tenant, TenantError> {
+        let mut tenant = self.get(id).await?;
+        tenant.suspend()?;
+        repo::update_status(&self.pool, &tenant).await?;
+        Ok(tenant)
+    }
+
+    pub async fn activate(&self, id: TenantId) -> Result<Tenant, TenantError> {
+        let mut tenant = self.get(id).await?;
+        tenant.activate()?;
+        repo::update_status(&self.pool, &tenant).await?;
+        Ok(tenant)
+    }
+
     pub async fn get(&self, id: TenantId) -> Result<Tenant, TenantError> {
         repo::find_by_id(&self.pool, id)
             .await?

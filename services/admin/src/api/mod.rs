@@ -1,5 +1,6 @@
 //! HTTP-слой admin.
 mod auth;
+mod internal;
 mod state;
 mod tenants;
 
@@ -11,6 +12,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .merge(auth::routes())
         .merge(tenants::routes())
+        .merge(internal::routes())
         .merge(platform_core::health::router())
         .merge(platform_auth::jwks::router(&state.public_key))
         .with_state(state)
