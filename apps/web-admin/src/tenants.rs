@@ -146,6 +146,16 @@ pub fn TenantsPage() -> impl IntoView {
         |(status, query, page, _, _)| list_tenants(status, query, page),
     );
 
+    // после успешного создания форма очищается
+    let create_form = NodeRef::<leptos::html::Form>::new();
+    Effect::new(move |_| {
+        if let Some(Ok(CreateOutcome::Created)) = create.value().get()
+            && let Some(form) = create_form.get()
+        {
+            form.reset();
+        }
+    });
+
     let create_message = move || match create.value().get() {
         Some(Ok(CreateOutcome::Created)) => {
             Some((NoticeKind::Info, "Организация создана.".to_string()))
@@ -220,6 +230,7 @@ pub fn TenantsPage() -> impl IntoView {
                         Ok(Some(data)) => {
                             let total = data.total;
                             let pages = (data.total + data.page_size - 1) / data.page_size;
+                            let at_end = move || page.get() >= pages;
                             view! {
                                 <div class="table-wrap">
                                     <table data-testid="tenants">
@@ -278,7 +289,7 @@ pub fn TenantsPage() -> impl IntoView {
                                     </button>
                                     <button
                                         class="btn"
-                                        disabled=move || page.get() >= pages
+                                        disabled=at_end
                                         on:click=move |_| set_page.update(|p| *p += 1)
                                     >
                                         "Вперёд"
@@ -296,7 +307,7 @@ pub fn TenantsPage() -> impl IntoView {
         </Transition>
 
         <h2 style="margin-top: 24px">"Новая организация"</h2>
-        <ActionForm action=create attr:class="card">
+        <ActionForm action=create node_ref=create_form attr:class="card">
             <div class="form-grid">
                 <label>
                     "Адрес (slug)"
