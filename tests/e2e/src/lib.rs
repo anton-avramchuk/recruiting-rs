@@ -400,6 +400,46 @@ impl Stack {
         assert_eq!(res.status(), 201, "create user {email}");
     }
 
+    /// Приостанавливает (`suspend`) или возобновляет (`activate`) организацию от имени администратора платформы.
+    pub async fn set_tenant_status(&self, slug: &str, action: &str) {
+        let http = reqwest::Client::builder()
+            .cookie_store(true)
+            .build()
+            .expect("http client");
+        let login: serde_json::Value = http
+            .post(format!("{}/bff/login", self.bff_admin_url))
+            .header("x-csrf-token", "login")
+            .json(&serde_json::json!({"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD}))
+            .send()
+            .await
+            .expect("admin login")
+            .json()
+            .await
+            .expect("admin login body");
+        let csrf = login["csrf_token"].as_str().expect("csrf").to_string();
+        let page: serde_json::Value = http
+            .get(format!("{}/api/tenants?q={slug}", self.bff_admin_url))
+            .send()
+            .await
+            .expect("list tenants")
+            .json()
+            .await
+            .expect("tenants body");
+        let id = page["items"]
+            .as_array()
+            .and_then(|items| items.iter().find(|t| t["slug"] == slug))
+            .and_then(|t| t["id"].as_str())
+            .unwrap_or_else(|| panic!("tenant {slug} not found"))
+            .to_string();
+        let res = http
+            .post(format!("{}/api/tenants/{id}/{action}", self.bff_admin_url))
+            .header("x-csrf-token", csrf)
+            .send()
+            .await
+            .expect("tenant status");
+        assert_eq!(res.status(), 200, "{action} {slug}");
+    }
+
     /// Останавливает процессы и удаляет базы.
     pub async fn stop(mut self) {
         for svc in &mut self.services {
