@@ -3,6 +3,8 @@ mod bff;
 mod config;
 mod proxy;
 mod session;
+#[cfg(feature = "test-support")]
+pub mod testing;
 mod upstream;
 
 pub use bff::{Bff, CSRF_HEADER, router};

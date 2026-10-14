@@ -4,6 +4,10 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[features]
+# Мок бэкенда и тестовый клиент для тестов BFF-сервисов.
+test-support = ["dep:http-body-util", "dep:tower"]
+
 [dependencies]
 platform-core = { path = "../platform-core" }
 async-trait.workspace = true
@@ -17,10 +21,11 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+http-body-util = { workspace = true, optional = true }
+tower = { workspace = true, optional = true }
 
 [dev-dependencies]
-http-body-util.workspace = true
-tower.workspace = true
+bff-core = { path = ".", features = ["test-support"] }
 uuid.workspace = true
 
 [lints]
