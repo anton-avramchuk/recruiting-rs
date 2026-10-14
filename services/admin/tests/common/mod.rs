@@ -1,12 +1,19 @@
 #![allow(dead_code)]
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+};
+
 use admin::{
     MIGRATOR,
     api::{self, AppState},
+    application::provisioning::{OwnerSpec, ProvisionError, Provisioner},
     infrastructure::admins,
 };
 use axum::{Router, body::Body, http::Request};
 use http_body_util::BodyExt;
 use platform_auth::{Audience, Claims, KeyPair, Role, TokenSigner};
+use platform_core::tenant::TenantId;
 use platform_db::testing::TestDb;
 use serde_json::Value;
 use tower::ServiceExt;
@@ -16,7 +23,45 @@ pub const SERVICE_TOKEN: &str = "test-service-token";
 pub const ADMIN_EMAIL: &str = "root@platform.io";
 pub const ADMIN_PASSWORD: &str = "root-password-1";
 
+#[derive(Clone, Default)]
+pub struct FakeProvisioner {
+    pub calls: Arc<Mutex<Vec<(TenantId, OwnerSpec)>>>,
+    pub fail: Arc<AtomicBool>,
+    /// Статус тенанта в реестре на момент вызова (проверка порядка саги).
+    pub status_at_call: Arc<Mutex<Vec<String>>>,
+    pub owner_pool: Arc<Mutex<Option<sqlx::PgPool>>>,
+}
+
+#[async_trait::async_trait]
+impl Provisioner for FakeProvisioner {
+    async fn provision_owner(
+        &self,
+        tenant: TenantId,
+        owner: &OwnerSpec,
+    ) -> Result<(), ProvisionError> {
+        let pool = self.owner_pool.lock().unwrap().clone();
+        if let Some(pool) = pool {
+            let status: Option<String> =
+                sqlx::query_scalar("SELECT status FROM tenants WHERE id = $1")
+                    .bind(tenant.0)
+                    .fetch_optional(&pool)
+                    .await
+                    .unwrap();
+            self.status_at_call
+                .lock()
+                .unwrap()
+                .push(status.unwrap_or_else(|| "missing".into()));
+        }
+        self.calls.lock().unwrap().push((tenant, owner.clone()));
+        if self.fail.load(Ordering::SeqCst) {
+            return Err(ProvisionError("identity is down".into()));
+        }
+        Ok(())
+    }
+}
+
 pub struct Ctx {
+    pub prov: FakeProvisioner,
     pub db: TestDb,
     pub keys: KeyPair,
     router: Router,
@@ -28,8 +73,11 @@ pub async fn setup() -> Ctx {
         .await
         .unwrap();
     let keys = KeyPair::generate("admin-test");
-    let state = AppState::new(db.app.clone(), &keys, SERVICE_TOKEN);
+    let prov = FakeProvisioner::default();
+    *prov.owner_pool.lock().unwrap() = Some(db.owner.clone());
+    let state = AppState::new(db.app.clone(), &keys, SERVICE_TOKEN, Arc::new(prov.clone()));
     Ctx {
+        prov,
         db,
         keys,
         router: api::router(state),

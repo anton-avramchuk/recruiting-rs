@@ -36,7 +36,7 @@ docker/  docker-compose.yml
 
 **Методология: TDD + DDD, общий код в общих crates.**
 - TDD: red → green → refactor; тест пишется и коммитится раньше реализации. Порядок задач в tasks.md это отражает (тест формулируется первым).
-- DDD: каждый сервис — ограниченный контекст. identity: агрегат `User` (email, хеш пароля, роли, статус), `RefreshToken`; admin: агрегаты `Tenant` (slug, статус, переходы `provisioning → active ⇄ suspended / failed`) и `PlatformAdmin`. Инварианты и переходы статусов — в `domain` без зависимостей от axum/sqlx; репозитории — трейты, реализации в `infrastructure`; `application` оркестрирует use case'ы.
+- DDD: каждый сервис — ограниченный контекст. identity: агрегат `User` (email, хеш пароля, роли, статус), `RefreshToken`; admin: агрегаты `Tenant` (slug, статус, переходы `provisioning → active ⇄ suspended`) и `PlatformAdmin`. Инварианты и переходы статусов — в `domain` без зависимостей от axum/sqlx; репозитории — трейты, реализации в `infrastructure`; `application` оркестрирует use case'ы.
 - Общее — в crates: `platform-core`, `platform-db`, `platform-auth`, `bff-core`, `ui-kit`, `*-contracts`. Критерий выноса: код нужен двум и более сервисам и не содержит доменной логики контекста. Альтернатива «копировать в сервис» допускается только до второго использования.
 
 **Стек.** axum + tokio, sqlx (PostgreSQL, compile-time-проверка выключена, `sqlx migrate`), utoipa для OpenAPI, tracing + tracing-subscriber, argon2 для паролей, jsonwebtoken. Leptos + cargo-leptos для web; Leptos server functions ходят в свой BFF (BFF не размещается в процессе web-сервера). Альтернативы Dioxus/Yew отклонены пользователем.
@@ -47,7 +47,7 @@ docker/  docker-compose.yml
 
 **Вход без известного тенанта.** Логин требует тенанта: пользователь вводит slug (или заходит по поддомену `{slug}.host`; BFF выделяет slug из Host). identity по slug получает `tenant_id` и статус: приостановка проверяется запросом к admin (internal endpoints `GET /internal/tenants/by-slug/{slug}` и `GET /internal/tenants/{id}`) с коротким кэшем в identity. Альтернатива «глобальный email» отклонена: ломает кейс одного email в разных тенантах.
 
-**Провижининг тенанта.** admin: `INSERT tenant(status=provisioning)` → вызов identity `POST /internal/tenants/{id}/owner` → `status=active`; при ошибке — `failed`/удаление записи (спека: не остаётся активным). Без распределённых транзакций и без шины: сага из двух шагов, идемпотентная по `tenant_id`. Internal-эндпоинты защищены сервисным токеном (shared secret в конфиге на старте; mTLS — позже).
+**Провижининг тенанта.** admin: `INSERT tenant(status=provisioning)` → вызов identity `POST /internal/tenants/{id}/owner` → `status=active`; при ошибке запись удаляется (компенсация; спека: не остаётся активным), slug освобождается. Без распределённых транзакций и без шины: сага из двух шагов, идемпотентная по `tenant_id`. Internal-эндпоинты защищены сервисным токеном (shared secret в конфиге на старте; mTLS — позже).
 
 **Токены.** Access JWT (RS256 или EdDSA, ~10 мин) с `sub`, `tid`, `roles`; identity подписывает, остальные проверяют по публичному ключу (JWKS endpoint). Refresh — случайная строка, в БД хранится хеш, ротация при каждом обмене. BFF хранит токены в Redis под session id в `HttpOnly; Secure; SameSite=Lax` cookie; браузер JWT не видит.
 
@@ -65,7 +65,7 @@ docker/  docker-compose.yml
 - [RLS: забытая политика на новой таблице] → тест в CI, обходящий все таблицы со столбцом `tenant_id` и проверяющий включённый RLS.
 - [Микросервисы с первого дня усложняют локальную разработку без Aspire] → `just dev` запускает все процессы; сервисы стартуют независимо, зависимость только на identity→admin по HTTP.
 - [Связность identity→admin по HTTP при логине] → кэш статуса тенанта (TTL десятки секунд); приостановка вступает с задержкой не более TTL — зафиксировано в спеке как «блокирует новые входы».
-- [Сага провижининга без шины] → идемпотентные internal-эндпоинты и статус `provisioning`, который можно дозавершить повтором.
+- [Сага провижининга без шины] → идемпотентные internal-эндпоинты и статус `provisioning`, который виден при падении процесса посреди саги.
 
 ## Open Questions
 
