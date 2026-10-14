@@ -6,12 +6,13 @@ publish.workspace = true
 
 [features]
 # Хелперы для интеграционных тестов сервисов (создание временной БД, проверка RLS).
-test-support = []
+test-support = ["dep:url"]
 
 [dependencies]
 platform-core = { path = "../platform-core" }
 sqlx.workspace = true
 tokio.workspace = true
+url = { workspace = true, optional = true }
 uuid.workspace = true
 
 [dev-dependencies]

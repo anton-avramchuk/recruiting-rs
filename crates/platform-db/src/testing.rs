@@ -129,3 +129,67 @@ pub async fn tables_without_rls(pool: &PgPool) -> Vec<String> {
     .await
     .expect("query rls status")
 }
+
+/// Пустая БД для процессов, которые мигрируют сами (e2e): владелец и роль приложения
+/// получают корректные права по умолчанию, как в `docker/postgres-init.sql`.
+pub struct EmptyDb {
+    pub name: String,
+    /// URL владельца схемы (суперпользователь) - для миграций.
+    pub owner_url: String,
+    /// URL роли без BYPASSRLS - для обслуживания запросов.
+    pub app_url: String,
+    admin: PgPool,
+}
+
+impl EmptyDb {
+    pub async fn create(prefix: &str) -> Self {
+        let url = std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| DEFAULT_URL.into());
+        let base = PgConnectOptions::from_str(&url).expect("valid TEST_DATABASE_URL");
+        let admin = PgPoolOptions::new()
+            .max_connections(2)
+            .connect_with(base.clone())
+            .await
+            .expect("connect to test postgres (is docker compose up?)");
+        ensure_app_role(&admin).await;
+
+        let name = format!("{prefix}_{}", Uuid::new_v4().simple());
+        sqlx::raw_sql(&format!("CREATE DATABASE \"{name}\""))
+            .execute(&admin)
+            .await
+            .expect("create database");
+
+        let owner = PgPoolOptions::new()
+            .max_connections(1)
+            .connect_with(base.database(&name))
+            .await
+            .expect("connect owner");
+        sqlx::raw_sql(&format!(
+            "GRANT USAGE ON SCHEMA public TO {APP_ROLE};
+             ALTER DEFAULT PRIVILEGES IN SCHEMA public
+                 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {APP_ROLE};"
+        ))
+        .execute(&owner)
+        .await
+        .expect("default privileges");
+        owner.close().await;
+
+        let mut owner_url = url::Url::parse(&url).expect("url");
+        owner_url.set_path(&name);
+        let mut app_url = owner_url.clone();
+        app_url.set_username(APP_ROLE).expect("username");
+        app_url.set_password(Some(APP_PASSWORD)).expect("password");
+
+        Self {
+            name,
+            owner_url: owner_url.to_string(),
+            app_url: app_url.to_string(),
+            admin,
+        }
+    }
+
+    pub async fn close(self) {
+        let _ = sqlx::raw_sql(&format!("DROP DATABASE \"{}\" WITH (FORCE)", self.name))
+            .execute(&self.admin)
+            .await;
+    }
+}

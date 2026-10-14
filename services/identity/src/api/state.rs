@@ -40,6 +40,14 @@ impl AppState {
     }
 }
 
+impl AppState {
+    /// Переопределяет сроки жизни токенов (по умолчанию: access 10 минут, refresh 30 дней).
+    pub fn with_lifetimes(mut self, lifetimes: TokenLifetimes) -> Self {
+        self.auth.lifetimes = lifetimes;
+        self
+    }
+}
+
 impl FromRef<AppState> for Arc<TokenVerifier> {
     fn from_ref(state: &AppState) -> Self {
         state.verifier.clone()

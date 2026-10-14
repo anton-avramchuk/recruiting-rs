@@ -3,6 +3,7 @@ use std::{process::ExitCode, sync::Arc, time::Duration};
 use identity::{
     MIGRATOR,
     api::{self, AppState},
+    application::auth::TokenLifetimes,
     infrastructure::directory::{CachedDirectory, HttpTenantDirectory},
 };
 use platform_auth::KeyPair;
@@ -20,6 +21,7 @@ struct Config {
     service_token: String,
     jwt_private_key: Option<String>,
     tenant_cache_ttl: Duration,
+    access_ttl_secs: i64,
 }
 
 fn load() -> Result<Config, ConfigError> {
@@ -33,6 +35,9 @@ fn load() -> Result<Config, ConfigError> {
         admin_url: require(get, "ADMIN_URL")?,
         service_token: require(get, "SERVICE_TOKEN")?,
         jwt_private_key: get("JWT_PRIVATE_KEY").filter(|v| !v.is_empty()),
+        access_ttl_secs: get("ACCESS_TTL_SECS")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(TokenLifetimes::default().access_secs),
         tenant_cache_ttl: Duration::from_secs(
             get("TENANT_CACHE_TTL_SECS")
                 .and_then(|v| v.parse().ok())
@@ -80,12 +85,14 @@ async fn run(cfg: Config) -> Result<(), Box<dyn std::error::Error>> {
         HttpTenantDirectory::new(&cfg.admin_url, &cfg.service_token),
         cfg.tenant_cache_ttl,
     );
-    let app = api::router(AppState::new(
-        pool,
-        Arc::new(directory),
-        &keys,
-        cfg.service_token,
-    ));
+    let lifetimes = TokenLifetimes {
+        access_secs: cfg.access_ttl_secs,
+        ..TokenLifetimes::default()
+    };
+    let app = api::router(
+        AppState::new(pool, Arc::new(directory), &keys, cfg.service_token)
+            .with_lifetimes(lifetimes),
+    );
 
     let listener = tokio::net::TcpListener::bind(cfg.common.listen_addr).await?;
     tracing::info!(addr = %cfg.common.listen_addr, "identity listening");
