@@ -1,0 +1,18 @@
+[package]
+name = "candidate-contracts"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+utoipa.workspace = true
+# без v4: контракты собираются и в wasm, где нет источника случайности
+uuid = { version = "1", default-features = false, features = ["serde"] }
+
+[dev-dependencies]
+serde_json.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true
