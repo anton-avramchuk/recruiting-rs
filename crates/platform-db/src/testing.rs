@@ -107,3 +107,25 @@ async fn ensure_app_role(admin: &PgPool) {
         .await
         .expect("unlock");
 }
+
+/// Тест-страж: имена таблиц схемы `public` со столбцом `tenant_id`, у которых
+/// не включён RLS, не включён FORCE или нет ни одной политики. Сервисы вызывают
+/// это в своих интеграционных тестах и ожидают пустой результат.
+pub async fn tables_without_rls(pool: &PgPool) -> Vec<String> {
+    sqlx::query_scalar(
+        "SELECT c.relname::text
+         FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+         WHERE c.relkind = 'r'
+           AND EXISTS (
+               SELECT 1 FROM pg_attribute a
+               WHERE a.attrelid = c.oid AND a.attname = 'tenant_id' AND NOT a.attisdropped)
+           AND NOT (
+               c.relrowsecurity AND c.relforcerowsecurity
+               AND EXISTS (SELECT 1 FROM pg_policy p WHERE p.polrelid = c.oid))
+         ORDER BY c.relname",
+    )
+    .fetch_all(pool)
+    .await
+    .expect("query rls status")
+}
