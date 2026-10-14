@@ -1,9 +1,9 @@
 name: CI
 
+# Автозапуск отключён (исчерпаны лимиты Actions). Запуск вручную: Actions -> CI -> Run workflow.
+# Чтобы вернуть: добавить push и pull_request обратно в `on`.
 on:
-  push:
-    branches: [dev, main]
-  pull_request:
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
