@@ -1,28 +1,32 @@
 # recruiting-rs
 
-Мультитенантная рекрутинговая CRM целиком на Rust, включая фронтенд (Leptos). Это скелет платформы:
-организации (тенанты), пользователи, вход, админка платформы и оболочка приложения.
-Доменные сущности (кандидаты, вакансии, интервью) добавляются отдельными изменениями.
+Мультитенантная рекрутинговая CRM целиком на Rust, включая фронтенд (Leptos). Платформа: организации (тенанты),
+пользователи, вход, админка платформы, оболочка приложения и первый доменный раздел — **кандидаты**
+(карточка с контактами и историей, поиск и фильтры, предупреждение о дубле). Вакансии, отклики и
+интервью добавляются отдельными изменениями.
 
 ## Архитектура
 
 ```
 браузер ──► web-crm ──► bff-crm ──► identity ──┐
+                              └──► candidate (токены проверяет по JWKS identity)
 браузер ──► web-admin ► bff-admin ► admin ◄────┘ (справочник тенантов, создание владельца)
 ```
 
 | Компонент | Назначение |
 |---|---|
 | `services/identity` | пользователи тенантов, вход, JWT (EdDSA), refresh с ротацией, роли; БД `identity` |
+| `services/candidate` | кандидаты организации: контакты, места работы, образование, стаж, поиск, предупреждение о дубле; БД `candidate` |
 | `services/admin` | реестр тенантов, платформенные администраторы, жизненный цикл тенанта; БД `admin` |
 | `services/bff-crm`, `services/bff-admin` | по BFF на каждый фронтенд: серверная сессия в Redis, cookie `HttpOnly`, CSRF, прозрачный refresh, прокси по allowlist |
 | `apps/web-crm`, `apps/web-admin` | Leptos (SSR + hydrate); каждое приложение общается только со своим BFF |
 | `crates/platform-core` | конфиг из env, ошибки `problem+json`, health, shutdown, `TenantId` |
 | `crates/platform-db` | пул, миграции, `TenantTx` (контекст тенанта для RLS), помощники тестов |
-| `crates/platform-auth` | JWT, JWKS, роли и права, extractor, межсервисный токен, пароли (argon2) |
+| `crates/platform-auth` | JWT, JWKS (в том числе удалённый верификатор), роли и права, extractor, межсервисный токен, пароли (argon2) |
+| `crates/platform-values` | значимые типы `Email` и `Phone` с нормализацией |
 | `crates/bff-core` | общий код обоих BFF |
 | `crates/ui-kit` | общие Leptos-компоненты и server functions входа/сессии |
-| `crates/admin-contracts` | DTO сервиса admin, общие для сервера и фронтенда |
+| `crates/admin-contracts`, `crates/candidate-contracts` | DTO сервисов, общие для сервера и фронтенда (собираются и в wasm) |
 | `tests/e2e` | запуск платформы процессами и сквозные тесты, в том числе в браузере |
 
 Изоляция тенантов: общая БД сервиса, колонка `tenant_id` и Row-Level Security. Правила для новых
@@ -43,14 +47,14 @@
 ## Быстрый старт
 
 ```sh
-docker compose up -d --wait        # PostgreSQL (БД identity, admin, роль recruiting_app) и Redis
+docker compose up -d --wait        # PostgreSQL (БД identity, admin, candidate; роль recruiting_app) и Redis
 cargo run -p e2e --example dev     # вся платформа на свободных портах, одноразовые данные
 ```
 
 Команда соберёт сервисы и веб-приложения, поднимет их, создаст демо-организацию и напечатает адреса
 и учётные данные:
 
-- клиентское приложение: организация `demo`, `owner@demo.io` / `demo-password-1`
+- клиентское приложение: организация `demo`, `owner@demo.io` / `demo-password-1` (с тремя демо-кандидатами)
 - админка платформы: `root@platform.io` / `root-password-1`
 
 ## Тесты
@@ -74,14 +78,16 @@ Chrome и cargo-leptos; первый запуск e2e собирает все п
 | Сервис | Обязательные | Необязательные |
 |---|---|---|
 | identity | `DATABASE_URL`, `ADMIN_URL`, `SERVICE_TOKEN` | `MIGRATION_DATABASE_URL`, `JWT_PRIVATE_KEY`, `ACCESS_TTL_SECS`, `TENANT_CACHE_TTL_SECS`, `LISTEN_ADDR` |
+| candidate | `DATABASE_URL`, `IDENTITY_JWKS_URL` | `MIGRATION_DATABASE_URL`, `LISTEN_ADDR` |
 | admin | `DATABASE_URL`, `IDENTITY_URL`, `SERVICE_TOKEN` | `MIGRATION_DATABASE_URL`, `JWT_PRIVATE_KEY`, `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `LISTEN_ADDR` |
-| bff-crm | `IDENTITY_URL` | `REDIS_URL`, `COOKIE_SECURE`, `BASE_DOMAIN`, `SESSION_TTL_HOURS`, `LISTEN_ADDR` |
+| bff-crm | `IDENTITY_URL`, `CANDIDATE_URL` | `REDIS_URL`, `COOKIE_SECURE`, `BASE_DOMAIN`, `SESSION_TTL_HOURS`, `LISTEN_ADDR` |
 | bff-admin | `ADMIN_URL` | `REDIS_URL`, `COOKIE_SECURE`, `SESSION_TTL_HOURS`, `LISTEN_ADDR` |
 | web-crm / web-admin | `BFF_URL`, переменные `LEPTOS_*` | — |
 
 - Миграции применяются при старте от `MIGRATION_DATABASE_URL` (владелец схемы), а запросы обслуживаются
   от `DATABASE_URL` — роли без `BYPASSRLS` (в compose это `recruiting_app`).
 - Без `JWT_PRIVATE_KEY` сервис генерирует временный ключ: токены перестают действовать после перезапуска.
+- `candidate` проверяет токены по ключу identity (`IDENTITY_JWKS_URL`, например `http://127.0.0.1:8080/.well-known/jwks.json`): ключ загружается лениво и перечитывается при смене, поэтому сервис стартует и без identity (запросы получают 401).
 - `COOKIE_SECURE=false` нужен только при работе по http (локально).
 - Веб-приложения собираются `cargo leptos build --project web-crm` (и `web-admin`).
 

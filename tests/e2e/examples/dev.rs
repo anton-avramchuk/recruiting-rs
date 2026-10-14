@@ -10,6 +10,21 @@ async fn main() {
     stack
         .seed_tenant("demo", "owner@demo.io", "demo-password-1")
         .await;
+    let owner = stack
+        .crm_client("demo", "owner@demo.io", "demo-password-1")
+        .await;
+    for person in [
+        serde_json::json!({"full_name": "Анна Смирнова", "email": "anna@example.com",
+            "phone": "+7 916 123-45-67", "skills": ["Rust", "SQL"], "source": "hh.ru",
+            "expected_salary": 300000, "declared_experience_years": 6}),
+        serde_json::json!({"full_name": "Борис Иванов", "phone": "+7 903 555-66-77",
+            "skills": ["Go"], "source": "Реферал", "declared_experience_years": 2}),
+        serde_json::json!({"full_name": "Виктор Петров", "skills": ["Rust", "Docker"],
+            "declared_experience_years": 4}),
+    ] {
+        let res = owner.post("/api/persons", person).await;
+        assert_eq!(res.status(), 201, "demo candidate");
+    }
 
     println!();
     println!("Платформа запущена");

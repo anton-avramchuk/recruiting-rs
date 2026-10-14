@@ -42,3 +42,20 @@ CREATE POLICY tenant_isolation ON widgets
 
 Реестр тенантов и платформенные администраторы (БД `admin`) не содержат `tenant_id` и RLS не используют;
 доступ к ним ограничен самим сервисом admin.
+
+## Дочерние таблицы
+
+Если у тенантной таблицы есть дочерняя (места работы и образование кандидата), внешний ключ строится
+по паре `(tenant_id, parent_id)`, а у родителя для этого объявляется `UNIQUE (tenant_id, id)`:
+
+```sql
+CREATE TABLE employments (
+    id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id uuid NOT NULL,
+    person_id uuid NOT NULL,
+    FOREIGN KEY (tenant_id, person_id) REFERENCES persons (tenant_id, id) ON DELETE CASCADE
+);
+```
+
+Так даже запрос от владельца схемы не может привязать строку одного тенанта к родителю другого.
+Пример — `services/candidate/migrations/0001_persons.sql`; проверка — тест `history_cannot_point_at_a_person_of_another_tenant`.
