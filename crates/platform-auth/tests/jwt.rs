@@ -83,6 +83,18 @@ fn jwks_roundtrips_public_key() {
 
 #[test]
 fn permissions_follow_roles() {
+    assert!(Role::Owner.permissions().contains(&Permission::DeleteData));
+    assert!(
+        !Role::Recruiter
+            .permissions()
+            .contains(&Permission::DeleteData)
+    );
+    assert!(!Role::Viewer.permissions().contains(&Permission::DeleteData));
+    assert!(
+        !Role::PlatformAdmin
+            .permissions()
+            .contains(&Permission::DeleteData)
+    );
     assert!(Role::Owner.permissions().contains(&Permission::ManageUsers));
     assert!(
         !Role::Viewer

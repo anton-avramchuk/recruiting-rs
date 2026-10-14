@@ -14,6 +14,8 @@ pub enum Permission {
     ManageUsers,
     ReadData,
     WriteData,
+    /// Необратимое удаление данных организации (только владелец).
+    DeleteData,
     ManageTenants,
 }
 
@@ -45,7 +47,7 @@ impl Role {
     pub fn permissions(self) -> &'static [Permission] {
         use Permission::*;
         match self {
-            Role::Owner => &[ManageUsers, ReadData, WriteData],
+            Role::Owner => &[ManageUsers, ReadData, WriteData, DeleteData],
             Role::Recruiter => &[ReadData, WriteData],
             Role::Viewer => &[ReadData],
             Role::PlatformAdmin => &[ManageTenants],
