@@ -1,0 +1,46 @@
+schema: spec-driven
+
+context: |
+  Инженерные правила проекта (Rust, микросервисы, мультитенантность):
+  - Разработка ведётся по TDD: сначала падающий тест (red), затем минимальная реализация (green), затем рефакторинг. Тест пишется до кода и коммитится вместе с ним.
+  - Проектирование по DDD: ограниченные контексты = сервисы; агрегаты, value objects, доменные события и инварианты живут в слое domain без зависимостей от axum/sqlx/serde-транспорта; репозитории - трейты в domain/application, реализации в infrastructure; сквозной (ubiquitous) язык по терминам предметной области.
+  - Общий код выносится в общие crates (platform-*, bff-core, ui-kit, *-contracts), а не копируется между сервисами. Правило трёх: второе повторение - повод обсудить, третье - выносить. Общие crates не содержат доменной логики конкретного контекста.
+  - Артефакты OpenSpec пишутся на русском.
+
+# Project context (optional)
+# Add only constraints that should guide OpenSpec artifacts and workflows.
+# Include constraints an agent cannot infer by reading the code.
+# Keep general project documentation and discoverable codebase facts out.
+# Example:
+#   context: |
+#     Designs and tasks must cover Windows, macOS, and Linux
+#     Write all artifacts in Spanish
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always state what is out of scope
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
+
+rules:
+  design:
+    - Для каждого нового сервиса или контекста указывать агрегаты и границы контекста (DDD) и что выносится в общие crates
+  tasks:
+    - Каждая задача, добавляющая поведение, формулируется в порядке TDD - сначала тест, затем реализация; тест называется в описании задачи
+    - Если задача дублирует код другого сервиса, предусмотреть вынос в общий crate
