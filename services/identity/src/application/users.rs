@@ -1,4 +1,4 @@
-use platform_auth::Role;
+use platform_auth::{Role, password};
 use platform_core::tenant::TenantId;
 use platform_db::TenantTx;
 use sqlx::PgPool;
@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     domain::{DomainError, Email, User, UserStatus},
-    infrastructure::{password, users},
+    infrastructure::users,
 };
 
 #[derive(Debug, thiserror::Error)]

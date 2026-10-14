@@ -3,6 +3,7 @@ mod claims;
 mod extractor;
 pub mod jwks;
 mod keys;
+pub mod password;
 mod role;
 mod service;
 mod token;

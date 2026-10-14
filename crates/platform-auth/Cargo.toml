@@ -6,6 +6,7 @@ publish.workspace = true
 
 [dependencies]
 platform-core = { path = "../platform-core" }
+argon2.workspace = true
 axum.workspace = true
 base64.workspace = true
 ed25519-dalek.workspace = true

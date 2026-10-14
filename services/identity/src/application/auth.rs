@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use platform_auth::{Audience, Claims, TokenSigner};
+use platform_auth::{Audience, Claims, TokenSigner, password};
 use platform_db::TenantTx;
 use serde::Serialize;
 use sqlx::PgPool;
@@ -9,7 +9,6 @@ use super::tenants::{DirectoryError, TenantDirectory, TenantStatus};
 use crate::{
     domain::{DomainError, Email, User},
     infrastructure::{
-        password,
         refresh_tokens::{self, Rotation},
         users,
     },

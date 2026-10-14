@@ -10,9 +10,8 @@ use identity::{
     MIGRATOR,
     api::{self, AppState},
     application::tenants::{DirectoryError, TenantDirectory, TenantInfo, TenantStatus},
-    infrastructure::password,
 };
-use platform_auth::{Audience, KeyPair, TokenVerifier};
+use platform_auth::{Audience, KeyPair, TokenVerifier, password};
 use platform_core::tenant::TenantId;
 use platform_db::testing::TestDb;
 use serde_json::Value;
