@@ -473,3 +473,111 @@ async fn card_sections_are_edited_independently() {
 
     stack.stop().await;
 }
+
+// ---------- удаление ----------
+
+const RECRUITER: (&str, &str) = ("rec@acme.io", "recruiter-pass-1");
+
+#[tokio::test]
+async fn only_the_owner_deletes_and_only_after_confirmation() {
+    let (stack, id) = stack_with_ivan().await;
+    let owner = stack.crm_client("acme", OWNER.0, OWNER.1).await;
+    stack
+        .add_user(&owner, RECRUITER.0, RECRUITER.1, "recruiter")
+        .await;
+    let base = stack.web_crm_url.clone();
+    let card_id = id.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let browser = launch();
+        let tab = browser.new_tab().unwrap();
+        login_crm(&tab, &base, "acme", OWNER.0, OWNER.1);
+        tab.navigate_to(&format!("{base}/candidates/{card_id}"))
+            .unwrap();
+        wait_until(&tab, "card", &exists_js("[data-testid=delete]"));
+        std::thread::sleep(Duration::from_millis(1500)); // гидратация
+        set_marker(&tab);
+
+        // без подтверждения ничего не удаляется
+        click(&tab, "[data-testid=delete]");
+        wait_until(
+            &tab,
+            "confirmation",
+            &exists_js("[data-testid=delete-confirm]"),
+        );
+        assert!(main_text(&tab).contains("безвозвратно"));
+        click(&tab, "[data-testid=delete-cancel]");
+        wait_until(
+            &tab,
+            "confirmation closed",
+            &gone_js("[data-testid=delete-confirm]"),
+        );
+        assert_eq!(path_of(&tab), format!("/candidates/{card_id}"));
+        tab.navigate_to(&format!("{base}/candidates")).unwrap();
+        wait_count(&tab, "candidate is still there", ROWS, 1);
+
+        // подтверждённое удаление убирает кандидата и возвращает к списку
+        click(&tab, "[data-testid=persons] tbody tr td a");
+        wait_until(&tab, "card again", &exists_js("[data-testid=delete]"));
+        std::thread::sleep(Duration::from_millis(1500));
+        set_marker(&tab);
+        click(&tab, "[data-testid=delete]");
+        wait_until(
+            &tab,
+            "confirmation",
+            &exists_js("[data-testid=delete-confirm]"),
+        );
+        click(&tab, "[data-testid=delete-confirm]");
+        wait_until(
+            &tab,
+            "back to the list",
+            "location.pathname === '/candidates'",
+        );
+        wait_until(
+            &tab,
+            "empty list",
+            "document.querySelector('main').innerText.includes('Кандидатов пока нет')",
+        );
+        assert!(marker_alive(&tab), "deleting must not reload the page");
+        tab.navigate_to(&format!("{base}/candidates/{card_id}"))
+            .unwrap();
+        wait_until(
+            &tab,
+            "gone",
+            "document.querySelector('main').innerText.includes('Кандидат не найден')",
+        );
+    })
+    .await
+    .unwrap();
+
+    // рекрутер может править, но не удалять
+    let owner_again = stack.crm_client("acme", OWNER.0, OWNER.1).await;
+    let res = owner_again
+        .post("/api/persons", json!({"full_name": "Пётр Сидоров"}))
+        .await;
+    let other_id = res.json::<serde_json::Value>().await.unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let base = stack.web_crm_url.clone();
+    tokio::task::spawn_blocking(move || {
+        let browser = launch();
+        let tab = browser.new_tab().unwrap();
+        login_crm(&tab, &base, "acme", RECRUITER.0, RECRUITER.1);
+        tab.navigate_to(&format!("{base}/candidates/{other_id}"))
+            .unwrap();
+        wait_until(
+            &tab,
+            "card for the recruiter",
+            &exists_js("[data-testid=edit-profile]"),
+        );
+        assert!(
+            eval(&tab, &gone_js("[data-testid=delete]")) == serde_json::Value::Bool(true),
+            "recruiter has no delete button"
+        );
+    })
+    .await
+    .unwrap();
+
+    stack.stop().await;
+}

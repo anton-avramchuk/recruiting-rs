@@ -4,15 +4,18 @@
 //! поэтому страница не перестраивается, а открытые соседние разделы не сбрасываются.
 use candidate_contracts::{EducationDto, EmploymentDto, PersonDto};
 use leptos::prelude::*;
-use leptos_router::{components::A, hooks::use_params_map};
+use leptos_router::{
+    components::A,
+    hooks::{use_navigate, use_params_map},
+};
 use ui_kit::{EmptyState, Notice, NoticeKind, SessionCtx};
 
 use super::{
     fields::Field,
     format::{format_salary, years_label},
-    list::can_write,
-    outcome::{LoadOutcome, SaveOutcome},
-    server::{SaveEducations, SaveEmployments, UpdatePerson, get_person},
+    list::{can_delete, can_write},
+    outcome::{DeleteOutcome, LoadOutcome, SaveOutcome},
+    server::{DeletePerson, SaveEducations, SaveEmployments, UpdatePerson, get_person},
 };
 
 fn field_error(
@@ -108,11 +111,75 @@ fn PersonCard(person: PersonDto) -> impl IntoView {
                 <A href="/candidates" attr:class="btn">
                     "К списку"
                 </A>
+                {move || can_delete(ctx).then(|| view! { <DeleteControl id=state.get_untracked().id.to_string() /> })}
             </div>
         </div>
         <ProfileSection state=state writable=writable />
         <EmploymentsSection state=state writable=writable />
         <EducationsSection state=state writable=writable />
+    }
+}
+
+/// Удаление в два шага: кнопка, затем явное подтверждение.
+#[component]
+fn DeleteControl(id: String) -> impl IntoView {
+    let confirming = RwSignal::new(false);
+    let action = ServerAction::<DeletePerson>::new();
+    let navigate = use_navigate();
+
+    Effect::new(move |_| {
+        if let Some(Ok(DeleteOutcome::Deleted | DeleteOutcome::NotFound)) = action.value().get() {
+            navigate("/candidates", Default::default());
+        }
+    });
+    let failed = move || match action.value().get() {
+        Some(Ok(DeleteOutcome::Forbidden)) => Some("Недостаточно прав для удаления."),
+        Some(Ok(DeleteOutcome::Unavailable)) | Some(Err(_)) => {
+            Some("Не удалось удалить. Попробуйте позже.")
+        }
+        _ => None,
+    };
+
+    view! {
+        {move || {
+            if confirming.get() {
+                let id = id.clone();
+                view! {
+                    <span class="notice notice--warn" data-testid="delete-panel">
+                        "Удалить кандидата безвозвратно? "
+                        <button
+                            class="btn btn--primary"
+                            data-testid="delete-confirm"
+                            disabled=move || action.pending().get()
+                            on:click=move |_| {
+                                action.dispatch(DeletePerson { id: id.clone() });
+                            }
+                        >
+                            "Да, удалить"
+                        </button>
+                        <button
+                            class="btn"
+                            data-testid="delete-cancel"
+                            on:click=move |_| {
+                                confirming.set(false);
+                                action.value().set(None);
+                            }
+                        >
+                            "Отмена"
+                        </button>
+                        {move || failed().map(|m| view! { <span class="field-error">{m}</span> })}
+                    </span>
+                }
+                    .into_any()
+            } else {
+                view! {
+                    <button class="btn" data-testid="delete" on:click=move |_| confirming.set(true)>
+                        "Удалить"
+                    </button>
+                }
+                    .into_any()
+            }
+        }}
     }
 }
 

@@ -20,6 +20,14 @@ pub fn can_write(ctx: SessionCtx) -> bool {
         .is_some_and(|u| u.roles.iter().any(|r| r == "owner" || r == "recruiter"))
 }
 
+/// Может ли пользователь удалять данные организации (только владелец).
+pub fn can_delete(ctx: SessionCtx) -> bool {
+    ctx.current()
+        .and_then(Result::ok)
+        .and_then(|s| s.user)
+        .is_some_and(|u| u.roles.iter().any(|r| r == "owner"))
+}
+
 /// Поле, значение которого применяется после паузы в наборе.
 #[component]
 fn DebouncedInput(

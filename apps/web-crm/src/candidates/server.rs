@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use candidate_contracts::{EducationDto, EmploymentDto};
 
-use super::outcome::{CreateOutcome, ListOutcome, LoadOutcome, SaveOutcome};
+use super::outcome::{CreateOutcome, DeleteOutcome, ListOutcome, LoadOutcome, SaveOutcome};
 
 /// Поиск и фильтры списка. Пустые строки не ограничивают выборку.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -216,6 +216,17 @@ pub async fn save_educations(
     )
     .await?;
     Ok(super::outcome::classify_save(reply.status, &reply.body))
+}
+
+#[server]
+pub async fn delete_person(id: String) -> Result<DeleteOutcome, ServerFnError> {
+    use axum::http::Method;
+
+    if id.parse::<uuid_like::Id>().is_err() {
+        return Ok(DeleteOutcome::NotFound);
+    }
+    let reply = ui_kit::server::call(Method::DELETE, &format!("/api/persons/{id}"), None).await?;
+    Ok(super::outcome::classify_delete(reply.status))
 }
 
 /// Проверка формата идентификатора без лишней зависимости: в путь запроса попадает только UUID.
