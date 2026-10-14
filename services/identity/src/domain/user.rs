@@ -10,6 +10,8 @@ pub enum DomainError {
     InvalidRole(&'static str),
     #[error("user must have at least one role")]
     NoRoles,
+    #[error("password must be at least {0} characters")]
+    WeakPassword(usize),
 }
 
 /// Email в нормализованном виде (trim + нижний регистр).
@@ -93,6 +95,16 @@ impl User {
         })
     }
 
+    pub const MIN_PASSWORD_LEN: usize = 8;
+
+    pub fn validate_password(plain: &str) -> Result<(), DomainError> {
+        if plain.chars().count() < Self::MIN_PASSWORD_LEN {
+            Err(DomainError::WeakPassword(Self::MIN_PASSWORD_LEN))
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn validate_roles(roles: &[Role]) -> Result<(), DomainError> {
         if roles.is_empty() {
             return Err(DomainError::NoRoles);
@@ -157,6 +169,15 @@ mod tests {
             user(vec![Role::PlatformAdmin]).unwrap_err(),
             DomainError::InvalidRole("platform_admin")
         );
+    }
+
+    #[test]
+    fn short_password_is_rejected() {
+        assert_eq!(
+            User::validate_password("short"),
+            Err(DomainError::WeakPassword(8))
+        );
+        assert!(User::validate_password("long-enough").is_ok());
     }
 
     #[test]

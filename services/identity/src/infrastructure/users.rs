@@ -53,3 +53,49 @@ pub async fn find_by_id(conn: &mut PgConnection, id: Uuid) -> Result<Option<User
             .await?;
     Ok(row.and_then(UserRow::into_domain))
 }
+
+pub async fn list(conn: &mut PgConnection) -> Result<Vec<User>, sqlx::Error> {
+    let rows: Vec<UserRow> = sqlx::query_as(&format!("SELECT {COLUMNS} FROM users ORDER BY email"))
+        .fetch_all(conn)
+        .await?;
+    Ok(rows.into_iter().filter_map(UserRow::into_domain).collect())
+}
+
+pub async fn insert(conn: &mut PgConnection, user: &User) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO users (id, tenant_id, email, password_hash, display_name, roles, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    )
+    .bind(user.id)
+    .bind(user.tenant_id.0)
+    .bind(user.email.as_str())
+    .bind(&user.password_hash)
+    .bind(&user.display_name)
+    .bind(role_names(user))
+    .bind(user.status.as_str())
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// Сохраняет изменяемые поля (роли, статус, имя).
+pub async fn update(conn: &mut PgConnection, user: &User) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE users SET display_name = $2, roles = $3, status = $4 WHERE id = $1")
+        .bind(user.id)
+        .bind(&user.display_name)
+        .bind(role_names(user))
+        .bind(user.status.as_str())
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
+fn role_names(user: &User) -> Vec<String> {
+    user.roles.iter().map(|r| r.as_str().to_string()).collect()
+}
+
+pub fn is_unique_violation(e: &sqlx::Error) -> bool {
+    e.as_database_error()
+        .and_then(|d| d.code())
+        .is_some_and(|c| c == "23505")
+}
