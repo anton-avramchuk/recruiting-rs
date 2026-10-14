@@ -44,3 +44,59 @@ pub async fn insert(
     .await?;
     Ok(())
 }
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Rotation {
+    /// Токен действителен и погашен (отозван) этим вызовом.
+    Rotated(Uuid),
+    /// Токен уже погашен или отозван ранее: возможна кража.
+    Reused(Uuid),
+    Unknown,
+}
+
+/// Атомарно гасит токен. Контекст тенанта берётся с соединения (RLS).
+pub async fn rotate(conn: &mut PgConnection, token: &str) -> Result<Rotation, sqlx::Error> {
+    let h = hash(token);
+    let rotated: Option<Uuid> = sqlx::query_scalar(
+        "UPDATE refresh_tokens SET revoked_at = now()
+         WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now()
+         RETURNING user_id",
+    )
+    .bind(&h)
+    .fetch_optional(&mut *conn)
+    .await?;
+    if let Some(user_id) = rotated {
+        return Ok(Rotation::Rotated(user_id));
+    }
+    let existing: Option<Uuid> =
+        sqlx::query_scalar("SELECT user_id FROM refresh_tokens WHERE token_hash = $1")
+            .bind(&h)
+            .fetch_optional(conn)
+            .await?;
+    Ok(existing.map_or(Rotation::Unknown, Rotation::Reused))
+}
+
+/// Отзывает все активные refresh-токены пользователя.
+pub async fn revoke_all_for_user(
+    conn: &mut PgConnection,
+    user_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL",
+    )
+    .bind(user_id)
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// Отзывает один токен (выход). Отсутствие токена не ошибка.
+pub async fn revoke(conn: &mut PgConnection, token: &str) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL",
+    )
+    .bind(hash(token))
+    .execute(conn)
+    .await?;
+    Ok(())
+}

@@ -41,6 +41,16 @@ impl TenantDirectory for FakeDirectory {
     async fn resolve(&self, slug: &str) -> Result<Option<TenantInfo>, DirectoryError> {
         Ok(self.0.lock().unwrap().get(slug).cloned())
     }
+
+    async fn status(&self, id: TenantId) -> Result<Option<TenantStatus>, DirectoryError> {
+        Ok(self
+            .0
+            .lock()
+            .unwrap()
+            .values()
+            .find(|t| t.id == id)
+            .map(|t| t.status))
+    }
 }
 
 pub struct Ctx {

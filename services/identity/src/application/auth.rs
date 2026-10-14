@@ -8,7 +8,11 @@ use sqlx::PgPool;
 use super::tenants::{DirectoryError, TenantDirectory, TenantStatus};
 use crate::{
     domain::{DomainError, Email, User},
-    infrastructure::{password, refresh_tokens, users},
+    infrastructure::{
+        password,
+        refresh_tokens::{self, Rotation},
+        users,
+    },
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -108,6 +112,48 @@ impl AuthService {
         let pair = self.issue(&mut tx, &user).await?;
         tx.commit().await?;
         Ok(pair)
+    }
+
+    /// Обмен refresh-токена на новую пару (с ротацией).
+    pub async fn refresh(&self, refresh_token: &str) -> Result<TokenPair, AuthFailure> {
+        let tenant =
+            refresh_tokens::tenant_of(refresh_token).ok_or(AuthFailure::InvalidCredentials)?;
+        match self.directory.status(tenant).await? {
+            None => return Err(AuthFailure::InvalidCredentials),
+            Some(TenantStatus::Suspended) => return Err(AuthFailure::TenantSuspended),
+            Some(TenantStatus::Active) => {}
+        }
+
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        match refresh_tokens::rotate(&mut tx, refresh_token).await? {
+            Rotation::Rotated(user_id) => {
+                let user = users::find_by_id(&mut tx, user_id)
+                    .await?
+                    .filter(User::can_log_in)
+                    .ok_or(AuthFailure::InvalidCredentials)?;
+                let pair = self.issue(&mut tx, &user).await?;
+                tx.commit().await?;
+                Ok(pair)
+            }
+            Rotation::Reused(user_id) => {
+                // повторное предъявление погашенного токена: отзываем всю цепочку
+                refresh_tokens::revoke_all_for_user(&mut tx, user_id).await?;
+                tx.commit().await?;
+                Err(AuthFailure::InvalidCredentials)
+            }
+            Rotation::Unknown => Err(AuthFailure::InvalidCredentials),
+        }
+    }
+
+    /// Выход: отзыв refresh-токена. Идемпотентен.
+    pub async fn logout(&self, refresh_token: &str) -> Result<(), AuthFailure> {
+        let Some(tenant) = refresh_tokens::tenant_of(refresh_token) else {
+            return Ok(());
+        };
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        refresh_tokens::revoke(&mut tx, refresh_token).await?;
+        tx.commit().await?;
+        Ok(())
     }
 
     /// Выпускает пару токенов и сохраняет хеш refresh-токена в транзакции вызывающего.

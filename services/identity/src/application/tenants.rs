@@ -21,4 +21,5 @@ pub struct DirectoryError(pub String);
 #[async_trait]
 pub trait TenantDirectory: Send + Sync {
     async fn resolve(&self, slug: &str) -> Result<Option<TenantInfo>, DirectoryError>;
+    async fn status(&self, id: TenantId) -> Result<Option<TenantStatus>, DirectoryError>;
 }
