@@ -36,3 +36,30 @@ pub async fn seed(pool: &PgPool, email: &str, plain_password: &str) -> Result<bo
     .await?;
     Ok(res.rows_affected() == 1)
 }
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct PlatformAdmin {
+    pub id: uuid::Uuid,
+    pub email: String,
+    pub password_hash: String,
+}
+
+pub async fn find_by_email(
+    pool: &PgPool,
+    email: &str,
+) -> Result<Option<PlatformAdmin>, sqlx::Error> {
+    sqlx::query_as("SELECT id, email, password_hash FROM platform_admins WHERE email = $1")
+        .bind(email.trim().to_lowercase())
+        .fetch_optional(pool)
+        .await
+}
+
+pub async fn find_by_id(
+    pool: &PgPool,
+    id: uuid::Uuid,
+) -> Result<Option<PlatformAdmin>, sqlx::Error> {
+    sqlx::query_as("SELECT id, email, password_hash FROM platform_admins WHERE id = $1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+}
