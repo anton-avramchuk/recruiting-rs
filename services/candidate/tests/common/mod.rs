@@ -49,6 +49,18 @@ impl App {
         TokenSigner::new(&self.keys).sign(&claims).unwrap()
     }
 
+    /// Токен audience tenant, подписанный верно, но без тенанта.
+    pub fn tenantless_token(&self) -> String {
+        let claims = Claims::new(
+            Uuid::new_v4(),
+            None,
+            vec![Role::Owner],
+            Audience::Tenant,
+            600,
+        );
+        TokenSigner::new(&self.keys).sign(&claims).unwrap()
+    }
+
     /// Токен платформенного администратора (audience platform) тем же ключом.
     pub fn platform_token(&self) -> String {
         let claims = Claims::new(
