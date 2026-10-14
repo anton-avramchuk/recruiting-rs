@@ -1,7 +1,9 @@
 //! Доступ к PostgreSQL: пул, миграции, транзакции в контексте тенанта.
+mod like;
 mod pool;
 mod tx;
 
+pub use like::contains_pattern;
 pub use pool::{connect, migrate};
 pub use tx::TenantTx;
 

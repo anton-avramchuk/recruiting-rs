@@ -1,8 +1,8 @@
 //! Преобразование агрегата в DTO и обратно.
-use candidate_contracts::{EducationDto, EmploymentDto, PersonDto};
+use candidate_contracts::{EducationDto, EmploymentDto, PersonDto, PersonSummaryDto};
 use chrono::NaiveDate;
 
-use crate::domain::Person;
+use crate::{domain::Person, infrastructure::persons::PersonSummary};
 
 const DATE_FORMAT: &str = "%Y-%m-%d";
 
@@ -41,5 +41,19 @@ pub fn person_to_dto(person: &Person, today: NaiveDate) -> PersonDto {
             })
             .collect(),
         created_at: person.created_at.to_rfc3339(),
+    }
+}
+
+pub fn summary_to_dto(s: PersonSummary) -> PersonSummaryDto {
+    PersonSummaryDto {
+        id: s.id,
+        full_name: s.full_name,
+        source: s.source,
+        phone: s.phone,
+        email: s.email,
+        expected_salary: s.expected_salary,
+        skills: s.skills,
+        experience_years: s.experience_years,
+        created_at: s.created_at.to_rfc3339(),
     }
 }

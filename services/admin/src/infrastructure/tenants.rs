@@ -77,15 +77,6 @@ pub fn is_unique_violation(e: &sqlx::Error) -> bool {
         .is_some_and(|c| c == "23505")
 }
 
-/// Экранирует спецсимволы LIKE, чтобы поиск был буквальным.
-fn like_pattern(q: &str) -> String {
-    let escaped = q
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_");
-    format!("%{escaped}%")
-}
-
 const FILTER: &str = r"($1::text IS NULL OR status = $1)
     AND ($2::text IS NULL OR slug ILIKE $2 ESCAPE '\' OR name ILIKE $2 ESCAPE '\')";
 
@@ -97,7 +88,9 @@ pub async fn list(
     offset: i64,
 ) -> Result<(Vec<Tenant>, i64), sqlx::Error> {
     let status = status.map(TenantStatus::as_str);
-    let pattern = q.filter(|q| !q.is_empty()).map(like_pattern);
+    let pattern = q
+        .filter(|q| !q.is_empty())
+        .map(platform_db::contains_pattern);
 
     let total: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM tenants WHERE {FILTER}"))
         .bind(status)

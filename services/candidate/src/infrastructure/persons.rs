@@ -186,3 +186,88 @@ pub async fn get(conn: &mut PgConnection, id: Uuid) -> Result<Option<Person>, St
     };
     Ok(Some(Person::restore(record, employments, educations)?))
 }
+
+/// Условия выборки списка. Пустые поля не ограничивают результат.
+#[derive(Debug, Clone, Default)]
+pub struct ListFilter {
+    pub q: Option<String>,
+    pub source: Option<String>,
+    pub skill: Option<String>,
+    pub min_experience: Option<i32>,
+    pub max_experience: Option<i32>,
+    pub min_salary: Option<i64>,
+    pub max_salary: Option<i64>,
+}
+
+/// Строка списка: без истории.
+#[derive(Debug, Clone, FromRow)]
+pub struct PersonSummary {
+    pub id: Uuid,
+    pub full_name: String,
+    pub source: Option<String>,
+    pub phone: Option<String>,
+    pub email: Option<String>,
+    pub expected_salary: Option<i64>,
+    pub skills: Vec<String>,
+    pub experience_years: i32,
+    pub created_at: DateTime<Utc>,
+}
+
+const LIST_FILTER: &str = r"
+    ($1::text IS NULL
+        OR full_name ILIKE $1 ESCAPE '\'
+        OR email ILIKE $1 ESCAPE '\'
+        OR array_to_string(skills, ' ') ILIKE $1 ESCAPE '\'
+        OR ($2::text IS NOT NULL AND phone LIKE $2))
+    AND ($3::text IS NULL OR lower(source) = lower($3))
+    AND ($4::text IS NULL OR EXISTS (SELECT 1 FROM unnest(skills) s WHERE lower(s) = lower($4)))
+    AND ($5::int IS NULL OR experience_years >= $5)
+    AND ($6::int IS NULL OR experience_years <= $6)
+    AND ($7::bigint IS NULL OR expected_salary >= $7)
+    AND ($8::bigint IS NULL OR expected_salary <= $8)";
+
+pub async fn list(
+    conn: &mut PgConnection,
+    filter: &ListFilter,
+    limit: i64,
+    offset: i64,
+) -> Result<(Vec<PersonSummary>, i64), sqlx::Error> {
+    let q = filter.q.as_deref().map(str::trim).filter(|q| !q.is_empty());
+    let text_pattern = q.map(platform_db::contains_pattern);
+    // цифры из запроса ищутся в телефоне независимо от написания
+    let digits: String = q
+        .map(|q| q.chars().filter(char::is_ascii_digit).collect())
+        .unwrap_or_default();
+    let phone_pattern = (digits.len() >= 3).then(|| format!("%{digits}%"));
+
+    let total: i64 =
+        sqlx::query_scalar(&format!("SELECT count(*) FROM persons WHERE {LIST_FILTER}"))
+            .bind(&text_pattern)
+            .bind(&phone_pattern)
+            .bind(&filter.source)
+            .bind(&filter.skill)
+            .bind(filter.min_experience)
+            .bind(filter.max_experience)
+            .bind(filter.min_salary)
+            .bind(filter.max_salary)
+            .fetch_one(&mut *conn)
+            .await?;
+    let items: Vec<PersonSummary> = sqlx::query_as(&format!(
+        "SELECT id, full_name, source, phone, email, expected_salary, skills, experience_years, created_at
+         FROM persons WHERE {LIST_FILTER}
+         ORDER BY created_at DESC, id LIMIT $9 OFFSET $10"
+    ))
+    .bind(&text_pattern)
+    .bind(&phone_pattern)
+    .bind(&filter.source)
+    .bind(&filter.skill)
+    .bind(filter.min_experience)
+    .bind(filter.max_experience)
+    .bind(filter.min_salary)
+    .bind(filter.max_salary)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(conn)
+    .await?;
+    Ok((items, total))
+}

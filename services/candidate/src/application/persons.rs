@@ -3,10 +3,28 @@ use platform_core::tenant::TenantId;
 use platform_db::TenantTx;
 use sqlx::PgPool;
 
+use uuid::Uuid;
+
 use crate::{
     domain::{DomainError, Duplicate, NewPerson, Person, Probe, find_duplicate},
-    infrastructure::persons::{self as store, StoreError},
+    infrastructure::persons::{self as store, ListFilter, PersonSummary, StoreError},
 };
+
+pub const DEFAULT_PAGE_SIZE: i64 = 20;
+pub const MAX_PAGE_SIZE: i64 = 100;
+
+pub struct ListQuery {
+    pub filter: ListFilter,
+    pub page: i64,
+    pub page_size: i64,
+}
+
+pub struct Page {
+    pub items: Vec<PersonSummary>,
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum PersonError {
@@ -17,6 +35,8 @@ pub enum PersonError {
     Duplicate(Duplicate),
     #[error("person not found")]
     NotFound,
+    #[error("{0}")]
+    BadQuery(String),
     #[error(transparent)]
     Db(#[from] sqlx::Error),
     #[error(transparent)]
@@ -80,5 +100,31 @@ impl PersonService {
         store::insert(&mut tx, &person, person.experience_years(self.today())).await?;
         tx.commit().await?;
         Ok(person)
+    }
+
+    pub async fn get(&self, tenant: TenantId, id: Uuid) -> Result<Person, PersonError> {
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        let person = store::get(&mut tx, id).await?;
+        tx.rollback().await?;
+        person.ok_or(PersonError::NotFound)
+    }
+
+    pub async fn list(&self, tenant: TenantId, query: ListQuery) -> Result<Page, PersonError> {
+        if query.page < 1 || query.page_size < 1 {
+            return Err(PersonError::BadQuery(
+                "page and page_size must be positive".into(),
+            ));
+        }
+        let page_size = query.page_size.min(MAX_PAGE_SIZE);
+        let offset = (query.page - 1).saturating_mul(page_size);
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        let (items, total) = store::list(&mut tx, &query.filter, page_size, offset).await?;
+        tx.rollback().await?;
+        Ok(Page {
+            items,
+            total,
+            page: query.page,
+            page_size,
+        })
     }
 }
