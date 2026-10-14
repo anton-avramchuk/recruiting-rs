@@ -2,9 +2,11 @@ use axum::{
     Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
-    routing::{get, post},
+    routing::{get, patch, post},
 };
-use candidate_contracts::{CreatePersonRequest, DuplicateInfo, PersonDto, PersonPage};
+use candidate_contracts::{
+    CreatePersonRequest, DuplicateInfo, PersonDto, PersonPage, UpdatePersonRequest,
+};
 use platform_auth::{AuthUser, Permission};
 use platform_core::{error::ApiError, tenant::TenantId};
 use serde::Deserialize;
@@ -15,15 +17,17 @@ use super::{
     mapping::{person_to_dto, summary_to_dto},
 };
 use crate::{
-    application::{ListQuery, PersonError, persons::DEFAULT_PAGE_SIZE},
-    domain::{ContactsInput, DomainError, NewPerson},
+    application::{
+        ContactsPatch, ListQuery, PersonError, UpdatePerson, persons::DEFAULT_PAGE_SIZE,
+    },
+    domain::{ContactsInput, DomainError, NewPerson, ProfilePatch},
     infrastructure::persons::ListFilter,
 };
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/persons", post(create).get(list))
-        .route("/persons/{id}", get(get_one))
+        .route("/persons/{id}", get(get_one).patch(update))
 }
 
 /// Тенант берётся только из токена, никогда из запроса.
@@ -117,6 +121,38 @@ async fn get_one(
 ) -> Result<Json<PersonDto>, ApiError> {
     user.require(Permission::ReadData)?;
     let person = state.persons.get(tenant_of(&user)?, id).await?;
+    Ok(Json(person_to_dto(&person, state.persons.today())))
+}
+
+async fn update(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(req): Json<UpdatePersonRequest>,
+) -> Result<Json<PersonDto>, ApiError> {
+    user.require(Permission::WriteData)?;
+    let person = state
+        .persons
+        .update(
+            tenant_of(&user)?,
+            id,
+            UpdatePerson {
+                profile: ProfilePatch {
+                    full_name: req.full_name,
+                    source: req.source,
+                    expected_salary: req.expected_salary,
+                    summary: req.summary,
+                    skills: req.skills,
+                },
+                contacts: ContactsPatch {
+                    phone: req.phone,
+                    email: req.email,
+                    telegram: req.telegram,
+                    whatsapp: req.whatsapp,
+                },
+            },
+        )
+        .await?;
     Ok(Json(person_to_dto(&person, state.persons.today())))
 }
 

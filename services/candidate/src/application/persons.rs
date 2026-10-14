@@ -6,9 +6,27 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
-    domain::{DomainError, Duplicate, NewPerson, Person, Probe, find_duplicate},
+    domain::{
+        ContactsInput, DomainError, Duplicate, NewPerson, Person, Probe, ProfilePatch,
+        find_duplicate,
+    },
     infrastructure::persons::{self as store, ListFilter, PersonSummary, StoreError},
 };
+
+/// Правка контактов: `None` - не трогать, `Some(None)` - очистить, `Some(Some(v))` - заменить.
+#[derive(Debug, Clone, Default)]
+pub struct ContactsPatch {
+    pub phone: Option<Option<String>>,
+    pub email: Option<Option<String>>,
+    pub telegram: Option<Option<String>>,
+    pub whatsapp: Option<Option<String>>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct UpdatePerson {
+    pub profile: ProfilePatch,
+    pub contacts: ContactsPatch,
+}
 
 pub const DEFAULT_PAGE_SIZE: i64 = 20;
 pub const MAX_PAGE_SIZE: i64 = 100;
@@ -126,5 +144,42 @@ impl PersonService {
             page: query.page,
             page_size,
         })
+    }
+
+    /// Частичное обновление: изменения применяются к копии и сохраняются только целиком.
+    pub async fn update(
+        &self,
+        tenant: TenantId,
+        id: Uuid,
+        changes: UpdatePerson,
+    ) -> Result<Person, PersonError> {
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        let mut person = store::get(&mut tx, id)
+            .await?
+            .ok_or(PersonError::NotFound)?;
+
+        let mut contacts: ContactsInput = person.contacts_input();
+        let patch = changes.contacts;
+        if let Some(v) = patch.phone {
+            contacts.phone = v;
+        }
+        if let Some(v) = patch.email {
+            contacts.email = v;
+        }
+        if let Some(v) = patch.telegram {
+            contacts.telegram = v;
+        }
+        if let Some(v) = patch.whatsapp {
+            contacts.whatsapp = v;
+        }
+        // сначала всё проверяется на копии: при ошибке карточка остаётся прежней
+        let mut candidate = person.clone();
+        candidate.apply_profile(changes.profile)?;
+        candidate.change_contacts(contacts)?;
+        person = candidate;
+
+        store::update(&mut tx, &person, person.experience_years(self.today())).await?;
+        tx.commit().await?;
+        Ok(person)
     }
 }

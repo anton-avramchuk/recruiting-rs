@@ -93,6 +93,17 @@ pub struct NewPerson {
     pub declared_experience_years: Option<i32>,
 }
 
+/// Частичное обновление профиля. Для очищаемых полей: `None` - не трогать,
+/// `Some(None)` или пустая строка - очистить, `Some(Some(v))` - заменить.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProfilePatch {
+    pub full_name: Option<String>,
+    pub source: Option<Option<String>>,
+    pub expected_salary: Option<Option<i64>>,
+    pub summary: Option<Option<String>>,
+    pub skills: Option<Vec<String>>,
+}
+
 /// Сохранённое состояние карточки (без истории) для восстановления агрегата.
 #[derive(Debug, Clone)]
 pub struct PersonRecord {
@@ -223,6 +234,45 @@ impl Person {
         self.email = contacts.email;
         self.telegram = contacts.telegram;
         self.whatsapp = contacts.whatsapp;
+        Ok(())
+    }
+
+    /// Текущие контакты в каноническом виде - основа для частичной правки.
+    pub fn contacts_input(&self) -> ContactsInput {
+        ContactsInput {
+            phone: self.phone.as_ref().map(|p| p.as_str().to_string()),
+            email: self.email.as_ref().map(|e| e.as_str().to_string()),
+            telegram: self.telegram.as_ref().map(|t| t.as_str().to_string()),
+            whatsapp: self.whatsapp.as_ref().map(|w| w.as_str().to_string()),
+        }
+    }
+
+    /// Применяет частичное обновление целиком или не применяет вовсе.
+    pub fn apply_profile(&mut self, patch: ProfilePatch) -> Result<(), DomainError> {
+        let full_name = patch.full_name.as_deref().map(full_name).transpose()?;
+        let salary = match patch.expected_salary {
+            Some(value) => Some(salary(value)?),
+            None => None,
+        };
+        let skills = patch.skills.map(normalize_skills).transpose()?;
+
+        if let Some(name) = full_name {
+            self.full_name = name;
+        }
+        if let Some(source) = patch.source {
+            self.source = optional(source);
+        }
+        if let Some(value) = salary {
+            self.expected_salary = value;
+        }
+        if let Some(summary) = patch.summary {
+            self.summary = summary
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty());
+        }
+        if let Some(skills) = skills {
+            self.skills = skills;
+        }
         Ok(())
     }
 

@@ -1,7 +1,7 @@
 //! Домен кандидата: чистая логика без БД и HTTP.
 use candidate::domain::{
     ContactsInput, DomainError, Education, Employment, MatchedBy, NewPerson, Person, PersonKeys,
-    Probe, Telegram, WhatsApp, experience_years, find_duplicate, normalize_skills,
+    Probe, ProfilePatch, Telegram, WhatsApp, experience_years, find_duplicate, normalize_skills,
 };
 use chrono::NaiveDate;
 use platform_core::tenant::TenantId;
@@ -433,4 +433,101 @@ fn no_match_gives_none() {
 fn invalid_probe_contacts_are_reported() {
     assert!(Probe::new("Иван", Some("bad"), None).is_err());
     assert!(Probe::new("Иван", None, Some("12")).is_err());
+}
+
+// ---------- частичное обновление профиля ----------
+
+#[test]
+fn contacts_input_round_trips_the_current_contacts() {
+    let mut p = person("Иван");
+    p.change_contacts(ContactsInput {
+        phone: Some("8 916 123 45 67".into()),
+        email: Some("A@b.io".into()),
+        telegram: Some("@ivanov".into()),
+        whatsapp: None,
+    })
+    .unwrap();
+    let input = p.contacts_input();
+    assert_eq!(input.phone.as_deref(), Some("+79161234567"));
+    assert_eq!(input.email.as_deref(), Some("a@b.io"));
+    assert_eq!(input.telegram.as_deref(), Some("ivanov"));
+    assert_eq!(input.whatsapp, None);
+    let before = p.clone();
+    p.change_contacts(input).unwrap();
+    assert_eq!(p, before, "re-applying the same contacts changes nothing");
+}
+
+#[test]
+fn profile_patch_changes_only_given_fields() {
+    let mut p = Person::create(
+        TenantId::new(),
+        NewPerson {
+            full_name: "Иван".into(),
+            source: Some("hh.ru".into()),
+            expected_salary: Some(100),
+            summary: Some("кратко".into()),
+            skills: vec!["Rust".into()],
+            ..NewPerson::default()
+        },
+    )
+    .unwrap();
+    p.apply_profile(ProfilePatch {
+        full_name: Some("  Иван   Новый ".into()),
+        expected_salary: Some(None),
+        skills: Some(vec!["SQL".into(), "sql".into()]),
+        ..ProfilePatch::default()
+    })
+    .unwrap();
+    assert_eq!(p.full_name, "Иван Новый");
+    assert_eq!(p.expected_salary, None, "null clears");
+    assert_eq!(p.skills, ["SQL"]);
+    assert_eq!(p.source.as_deref(), Some("hh.ru"), "untouched");
+    assert_eq!(p.summary.as_deref(), Some("кратко"), "untouched");
+}
+
+#[test]
+fn blank_text_clears_optional_fields() {
+    let mut p = Person::create(
+        TenantId::new(),
+        NewPerson {
+            full_name: "Иван".into(),
+            source: Some("hh.ru".into()),
+            ..NewPerson::default()
+        },
+    )
+    .unwrap();
+    p.apply_profile(ProfilePatch {
+        source: Some(Some("   ".into())),
+        ..ProfilePatch::default()
+    })
+    .unwrap();
+    assert_eq!(p.source, None);
+}
+
+#[test]
+fn failed_profile_patch_changes_nothing() {
+    let mut p = person("Иван");
+    let before = p.clone();
+    let err = p
+        .apply_profile(ProfilePatch {
+            full_name: Some("Новое имя".into()),
+            expected_salary: Some(Some(-1)),
+            ..ProfilePatch::default()
+        })
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        DomainError::Invalid {
+            field: "expected_salary",
+            ..
+        }
+    ));
+    assert_eq!(p, before, "the valid name was not applied either");
+    assert!(
+        p.apply_profile(ProfilePatch {
+            full_name: Some("  ".into()),
+            ..ProfilePatch::default()
+        })
+        .is_err()
+    );
 }

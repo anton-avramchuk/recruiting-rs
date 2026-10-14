@@ -271,3 +271,37 @@ pub async fn list(
     .await?;
     Ok((items, total))
 }
+
+/// Сохраняет изменяемые поля карточки и пересчитанные ключи дедупликации.
+/// Историю (места работы, образование) не трогает.
+pub async fn update(
+    conn: &mut PgConnection,
+    person: &Person,
+    experience_years: i32,
+) -> Result<(), sqlx::Error> {
+    let keys = person.keys();
+    sqlx::query(
+        "UPDATE persons SET full_name = $2, source = $3, phone = $4, email = $5, telegram = $6,
+             whatsapp = $7, expected_salary = $8, summary = $9, skills = $10,
+             experience_years = $11, normalized_name = $12, normalized_email = $13,
+             normalized_phone = $14, updated_at = now()
+         WHERE id = $1",
+    )
+    .bind(person.id)
+    .bind(&person.full_name)
+    .bind(&person.source)
+    .bind(person.phone.as_ref().map(|p| p.as_str().to_string()))
+    .bind(person.email.as_ref().map(|e| e.as_str().to_string()))
+    .bind(person.telegram.as_ref().map(|t| t.as_str().to_string()))
+    .bind(person.whatsapp.as_ref().map(|w| w.as_str().to_string()))
+    .bind(person.expected_salary)
+    .bind(&person.summary)
+    .bind(&person.skills)
+    .bind(experience_years)
+    .bind(&keys.normalized_name)
+    .bind(&keys.normalized_email)
+    .bind(&keys.normalized_phone)
+    .execute(conn)
+    .await?;
+    Ok(())
+}
