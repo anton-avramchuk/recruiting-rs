@@ -14,6 +14,9 @@ pub struct ApiError {
     status_code: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
     detail: Option<String>,
+    /// Расширения RFC 9457: дополнительные члены объекта проблемы.
+    #[serde(flatten)]
+    extensions: serde_json::Map<String, serde_json::Value>,
 }
 
 impl ApiError {
@@ -23,11 +26,18 @@ impl ApiError {
             title: title.into(),
             status_code: status.as_u16(),
             detail: None,
+            extensions: serde_json::Map::new(),
         }
     }
 
     pub fn with_detail(mut self, detail: impl Into<String>) -> Self {
         self.detail = Some(detail.into());
+        self
+    }
+
+    /// Добавляет член проблемы (например, `field` или найденный дубль).
+    pub fn with_extension(mut self, key: &str, value: serde_json::Value) -> Self {
+        self.extensions.insert(key.to_string(), value);
         self
     }
 
@@ -112,6 +122,18 @@ mod tests {
         let v = body_json(ApiError::unauthorized().into_response()).await;
         assert_eq!(v["status"], 401);
         assert!(v.get("detail").is_none());
+    }
+
+    #[tokio::test]
+    async fn extensions_are_added_as_problem_members() {
+        let res = ApiError::bad_request("bad")
+            .with_extension("field", serde_json::json!("email"))
+            .with_extension("duplicate", serde_json::json!({"id": 1}))
+            .into_response();
+        let v = body_json(res).await;
+        assert_eq!(v["field"], "email");
+        assert_eq!(v["duplicate"]["id"], 1);
+        assert_eq!(v["status"], 400, "standard members are kept");
     }
 
     #[tokio::test]

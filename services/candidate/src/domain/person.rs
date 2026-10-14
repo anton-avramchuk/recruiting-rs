@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use platform_core::tenant::TenantId;
 use platform_values::{Email, Phone};
 use uuid::Uuid;
@@ -93,6 +93,24 @@ pub struct NewPerson {
     pub declared_experience_years: Option<i32>,
 }
 
+/// Сохранённое состояние карточки (без истории) для восстановления агрегата.
+#[derive(Debug, Clone)]
+pub struct PersonRecord {
+    pub id: Uuid,
+    pub tenant_id: TenantId,
+    pub full_name: String,
+    pub source: Option<String>,
+    pub phone: Option<String>,
+    pub email: Option<String>,
+    pub telegram: Option<String>,
+    pub whatsapp: Option<String>,
+    pub expected_salary: Option<i64>,
+    pub summary: Option<String>,
+    pub skills: Vec<String>,
+    pub declared_experience_years: i32,
+    pub created_at: DateTime<Utc>,
+}
+
 /// Агрегат «кандидат». Существует сам по себе, независимо от вакансий.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Person {
@@ -110,6 +128,7 @@ pub struct Person {
     pub declared_experience_years: i32,
     employments: Vec<Employment>,
     educations: Vec<Education>,
+    pub created_at: DateTime<Utc>,
 }
 
 fn full_name(raw: &str) -> Result<String, DomainError> {
@@ -160,6 +179,39 @@ impl Person {
             declared_experience_years: declared,
             employments: Vec::new(),
             educations: Vec::new(),
+            created_at: Utc::now(),
+        })
+    }
+
+    /// Восстановление из хранилища: значения проходят те же проверки, что и при вводе.
+    pub fn restore(
+        record: PersonRecord,
+        employments: Vec<Employment>,
+        educations: Vec<Education>,
+    ) -> Result<Self, DomainError> {
+        let contacts = ContactsInput {
+            phone: record.phone,
+            email: record.email,
+            telegram: record.telegram,
+            whatsapp: record.whatsapp,
+        }
+        .parse()?;
+        Ok(Self {
+            id: record.id,
+            tenant_id: record.tenant_id,
+            full_name: record.full_name,
+            source: record.source,
+            phone: contacts.phone,
+            email: contacts.email,
+            telegram: contacts.telegram,
+            whatsapp: contacts.whatsapp,
+            expected_salary: record.expected_salary,
+            summary: record.summary,
+            skills: record.skills,
+            declared_experience_years: record.declared_experience_years,
+            employments,
+            educations,
+            created_at: record.created_at,
         })
     }
 

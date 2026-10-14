@@ -7,12 +7,16 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/admin-contracts/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bff-core/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bff-core/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/candidate-contracts/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/candidate-contracts/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/identity-contracts/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/platform-auth/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/platform-auth/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/platform-core/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/platform-db/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/platform-db/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/platform-values/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/platform-values/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/ui-kit/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/services/admin/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/services/admin/tests" isTestSource="true" />
@@ -20,6 +24,8 @@
       <sourceFolder url="file://$MODULE_DIR$/services/bff-admin/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/services/bff-crm/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/services/bff-crm/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/services/candidate/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/services/candidate/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/services/identity/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/services/identity/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/tests/e2e/examples" isTestSource="false" />

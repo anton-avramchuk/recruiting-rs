@@ -9,4 +9,4 @@ pub use contacts::{Telegram, WhatsApp};
 pub use error::DomainError;
 pub use history::{Education, Employment, experience_years};
 pub use matcher::{Duplicate, MatchedBy, PersonKeys, Probe, find_duplicate};
-pub use person::{ContactsInput, NewPerson, Person, normalize_skills};
+pub use person::{ContactsInput, NewPerson, Person, PersonRecord, normalize_skills};
