@@ -664,6 +664,13 @@ dependencies = [
 [[package]]
 name = "identity"
 version = "0.1.0"
+dependencies = [
+ "platform-core",
+ "platform-db",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
 
 [[package]]
 name = "identity-contracts"

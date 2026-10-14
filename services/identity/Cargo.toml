@@ -4,5 +4,15 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[dependencies]
+platform-core = { path = "../../crates/platform-core" }
+platform-db = { path = "../../crates/platform-db" }
+sqlx.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+platform-db = { path = "../../crates/platform-db", features = ["test-support"] }
+
 [lints]
 workspace = true
