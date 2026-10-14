@@ -37,6 +37,11 @@ impl Role {
         }
     }
 
+    /// Роли, которые можно назначать пользователям тенанта.
+    pub fn is_tenant_role(self) -> bool {
+        !matches!(self, Role::PlatformAdmin)
+    }
+
     pub fn permissions(self) -> &'static [Permission] {
         use Permission::*;
         match self {
