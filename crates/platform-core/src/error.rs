@@ -62,6 +62,15 @@ impl ApiError {
     }
 }
 
+/// Схема `application/problem+json` для OpenAPI-документов сервисов.
+#[derive(utoipa::ToSchema)]
+#[allow(dead_code)]
+pub struct ProblemDetails {
+    title: String,
+    status: u16,
+    detail: Option<String>,
+}
+
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let body = serde_json::to_vec(&self).expect("problem serializes");

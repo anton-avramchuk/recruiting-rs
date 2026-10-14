@@ -5,7 +5,8 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new().route("/health", get(health))
 }
 
-async fn health() -> Json<Value> {
+#[utoipa::path(get, path = "/health", responses((status = 200, description = "Service is up")))]
+pub async fn health() -> Json<Value> {
     Json(json!({ "status": "ok" }))
 }
 

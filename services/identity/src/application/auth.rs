@@ -35,7 +35,7 @@ impl From<DomainError> for AuthFailure {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct TokenPair {
     pub access_token: String,
     pub refresh_token: String,

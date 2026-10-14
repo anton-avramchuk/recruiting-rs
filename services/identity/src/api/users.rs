@@ -5,7 +5,10 @@ use axum::{
     routing::{get, patch},
 };
 use platform_auth::{AuthUser, Permission, Role};
-use platform_core::{error::ApiError, tenant::TenantId};
+use platform_core::{
+    error::{ApiError, ProblemDetails},
+    tenant::TenantId,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -21,8 +24,8 @@ pub fn routes() -> Router<AppState> {
         .route("/users/{id}", patch(update))
 }
 
-#[derive(Serialize)]
-struct UserDto {
+#[derive(Serialize, utoipa::ToSchema)]
+pub(super) struct UserDto {
     id: Uuid,
     email: String,
     display_name: String,
@@ -47,7 +50,12 @@ fn tenant_of(user: &AuthUser) -> Result<TenantId, ApiError> {
     user.claims.tid.ok_or_else(ApiError::forbidden)
 }
 
-async fn list(
+#[utoipa::path(get, path = "/users", security(("bearer" = [])), responses(
+    (status = 200, body = Vec<UserDto>),
+    (status = 401, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn list(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<Json<Vec<UserDto>>, ApiError> {
@@ -56,8 +64,8 @@ async fn list(
     Ok(Json(users.into_iter().map(Into::into).collect()))
 }
 
-#[derive(Deserialize)]
-struct CreateUserRequest {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub(super) struct CreateUserRequest {
     email: String,
     password: String,
     #[serde(default)]
@@ -65,7 +73,13 @@ struct CreateUserRequest {
     roles: Vec<Role>,
 }
 
-async fn create(
+#[utoipa::path(post, path = "/users", security(("bearer" = [])), request_body = CreateUserRequest, responses(
+    (status = 201, body = UserDto),
+    (status = 400, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 409, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn create(
     State(state): State<AppState>,
     user: AuthUser,
     Json(req): Json<CreateUserRequest>,
@@ -86,14 +100,20 @@ async fn create(
     Ok((StatusCode::CREATED, Json(created.into())))
 }
 
-#[derive(Deserialize)]
-struct UpdateUserRequest {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub(super) struct UpdateUserRequest {
     roles: Option<Vec<Role>>,
     status: Option<String>,
     display_name: Option<String>,
 }
 
-async fn update(
+#[utoipa::path(patch, path = "/users/{id}", security(("bearer" = [])), request_body = UpdateUserRequest,
+    params(("id" = Uuid, Path, description = "User id")), responses(
+    (status = 200, body = UserDto),
+    (status = 404, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 409, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn update(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,

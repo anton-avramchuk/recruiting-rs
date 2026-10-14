@@ -6,7 +6,10 @@ use axum::{
     routing::post,
 };
 use platform_auth::{Role, ServiceCaller};
-use platform_core::{error::ApiError, tenant::TenantId};
+use platform_core::{
+    error::{ApiError, ProblemDetails},
+    tenant::TenantId,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -17,22 +20,28 @@ pub fn routes() -> Router<AppState> {
     Router::new().route("/internal/tenants/{tenant_id}/owner", post(ensure_owner))
 }
 
-#[derive(Deserialize)]
-struct OwnerRequest {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub(super) struct OwnerRequest {
     email: String,
     password: String,
     #[serde(default)]
     display_name: String,
 }
 
-#[derive(Serialize)]
-struct OwnerDto {
+#[derive(Serialize, utoipa::ToSchema)]
+pub(super) struct OwnerDto {
     id: Uuid,
     email: String,
     roles: Vec<Role>,
 }
 
-async fn ensure_owner(
+#[utoipa::path(post, path = "/internal/tenants/{tenant_id}/owner", security(("service" = [])),
+    request_body = OwnerRequest, params(("tenant_id" = Uuid, Path, description = "Tenant id")), responses(
+    (status = 201, body = OwnerDto),
+    (status = 200, body = OwnerDto, description = "Owner already existed"),
+    (status = 401, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn ensure_owner(
     _caller: ServiceCaller,
     State(state): State<AppState>,
     Path(tenant_id): Path<Uuid>,

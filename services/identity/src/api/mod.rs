@@ -2,6 +2,7 @@
 mod auth;
 mod error;
 mod internal;
+mod openapi;
 mod state;
 mod users;
 
@@ -14,6 +15,7 @@ pub fn router(state: AppState) -> Router {
         .merge(auth::routes())
         .merge(users::routes())
         .merge(internal::routes())
+        .merge(openapi::routes())
         .merge(platform_core::health::router())
         .merge(platform_auth::jwks::router(&state.public_key))
         .with_state(state)

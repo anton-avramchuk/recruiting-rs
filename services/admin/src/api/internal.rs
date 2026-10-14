@@ -5,7 +5,10 @@ use axum::{
     routing::get,
 };
 use platform_auth::ServiceCaller;
-use platform_core::{error::ApiError, tenant::TenantId};
+use platform_core::{
+    error::{ApiError, ProblemDetails},
+    tenant::TenantId,
+};
 use uuid::Uuid;
 
 use super::{AppState, tenants::TenantDto};
@@ -17,7 +20,12 @@ pub fn routes() -> Router<AppState> {
         .route("/internal/tenants/{id}", get(by_id))
 }
 
-async fn by_slug(
+#[utoipa::path(get, path = "/internal/tenants/by-slug/{slug}", security(("service" = [])),
+    params(("slug" = String, Path, description = "Tenant slug")), responses(
+    (status = 200, body = TenantDto),
+    (status = 404, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn by_slug(
     _caller: ServiceCaller,
     State(state): State<AppState>,
     Path(slug): Path<String>,
@@ -29,7 +37,12 @@ async fn by_slug(
         .ok_or_else(ApiError::not_found)
 }
 
-async fn by_id(
+#[utoipa::path(get, path = "/internal/tenants/{id}", security(("service" = [])),
+    params(("id" = Uuid, Path, description = "Tenant id")), responses(
+    (status = 200, body = TenantDto),
+    (status = 404, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn by_id(
     _caller: ServiceCaller,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

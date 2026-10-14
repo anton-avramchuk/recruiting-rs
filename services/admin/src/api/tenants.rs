@@ -5,7 +5,10 @@ use axum::{
     routing::{get, post},
 };
 use platform_auth::{AuthUser, Permission};
-use platform_core::{error::ApiError, tenant::TenantId};
+use platform_core::{
+    error::{ApiError, ProblemDetails},
+    tenant::TenantId,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -26,7 +29,7 @@ pub fn routes() -> Router<AppState> {
         .route("/tenants/{id}/activate", post(activate))
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct TenantDto {
     id: Uuid,
     slug: String,
@@ -45,22 +48,28 @@ impl From<Tenant> for TenantDto {
     }
 }
 
-#[derive(Deserialize)]
-struct OwnerRequest {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub(super) struct OwnerRequest {
     email: String,
     password: String,
     #[serde(default)]
     display_name: String,
 }
 
-#[derive(Deserialize)]
-struct CreateTenantRequest {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub(super) struct CreateTenantRequest {
     slug: String,
     name: String,
     owner: OwnerRequest,
 }
 
-async fn create(
+#[utoipa::path(post, path = "/tenants", security(("bearer" = [])), request_body = CreateTenantRequest, responses(
+    (status = 201, body = TenantDto),
+    (status = 400, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 409, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 502, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn create(
     State(state): State<AppState>,
     user: AuthUser,
     Json(req): Json<CreateTenantRequest>,
@@ -81,23 +90,28 @@ async fn create(
     Ok((StatusCode::CREATED, Json(tenant.into())))
 }
 
-#[derive(Deserialize)]
-struct ListParams {
+#[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub(super) struct ListParams {
     status: Option<String>,
     q: Option<String>,
     page: Option<i64>,
     page_size: Option<i64>,
 }
 
-#[derive(Serialize)]
-struct PageDto {
+#[derive(Serialize, utoipa::ToSchema)]
+pub(super) struct PageDto {
     items: Vec<TenantDto>,
     total: i64,
     page: i64,
     page_size: i64,
 }
 
-async fn list(
+#[utoipa::path(get, path = "/tenants", security(("bearer" = [])), params(ListParams), responses(
+    (status = 200, body = PageDto),
+    (status = 400, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn list(
     State(state): State<AppState>,
     user: AuthUser,
     Query(params): Query<ListParams>,
@@ -124,7 +138,12 @@ async fn list(
     }))
 }
 
-async fn get_one(
+#[utoipa::path(get, path = "/tenants/{id}", security(("bearer" = [])),
+    params(("id" = Uuid, Path, description = "Tenant id")), responses(
+    (status = 200, body = TenantDto),
+    (status = 404, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn get_one(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -133,7 +152,13 @@ async fn get_one(
     Ok(Json(state.tenants.get(TenantId(id)).await?.into()))
 }
 
-async fn suspend(
+#[utoipa::path(post, path = "/tenants/{id}/suspend", security(("bearer" = [])),
+    params(("id" = Uuid, Path, description = "Tenant id")), responses(
+    (status = 200, body = TenantDto),
+    (status = 404, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 409, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn suspend(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -142,7 +167,13 @@ async fn suspend(
     Ok(Json(state.tenants.suspend(TenantId(id)).await?.into()))
 }
 
-async fn activate(
+#[utoipa::path(post, path = "/tenants/{id}/activate", security(("bearer" = [])),
+    params(("id" = Uuid, Path, description = "Tenant id")), responses(
+    (status = 200, body = TenantDto),
+    (status = 404, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 409, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn activate(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
