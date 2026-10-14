@@ -206,6 +206,8 @@ impl Stack {
             &[
                 listen(ports[2]),
                 ("IDENTITY_URL", identity_url),
+                // сервис кандидатов подключается в стенд отдельной задачей
+                ("CANDIDATE_URL", "http://127.0.0.1:9".into()),
                 ("REDIS_URL", redis.clone()),
                 ("COOKIE_SECURE", "false".into()),
             ],
