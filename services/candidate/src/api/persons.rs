@@ -2,7 +2,7 @@ use axum::{
     Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
-    routing::{get, patch, post},
+    routing::{get, post},
 };
 use candidate_contracts::{
     CreatePersonRequest, DuplicateInfo, PersonDto, PersonPage, UpdatePersonRequest,
