@@ -9,6 +9,7 @@ fn session(tag: &str) -> Session {
         refresh_token: Some(format!("refresh-{tag}")),
         access_expires_at: 1_900_000_000,
         csrf_token: format!("csrf-{tag}"),
+        meta: serde_json::json!({ "email": format!("{tag}@x.io") }),
     }
 }
 

@@ -18,6 +18,9 @@ pub struct Session {
     /// Unix-время истечения access-токена (секунды).
     pub access_expires_at: i64,
     pub csrf_token: String,
+    /// Несекретные данные входа для интерфейса (email, тенант). Пароль сюда не попадает.
+    #[serde(default)]
+    pub meta: serde_json::Value,
 }
 
 #[derive(Debug, thiserror::Error)]

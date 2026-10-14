@@ -252,6 +252,7 @@ fn apply_grant(previous: &Session, grant: Grant) -> Session {
             .or_else(|| previous.refresh_token.clone()),
         access_expires_at: now_secs() + grant.expires_in,
         csrf_token: previous.csrf_token.clone(),
+        meta: previous.meta.clone(),
     }
 }
 
@@ -264,18 +265,34 @@ fn constant_time_eq(a: &str, b: &str) -> bool {
 }
 
 /// Безопасные поля из payload JWT для интерфейса (подпись не проверяется: токен получен от бэкенда).
-pub(crate) fn user_preview(access_token: &str) -> Value {
+pub(crate) fn user_preview(session: &Session) -> Value {
+    let access_token = &session.access_token;
     let payload = access_token
         .split('.')
         .nth(1)
         .and_then(|p| URL_SAFE_NO_PAD.decode(p).ok())
         .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
         .unwrap_or(Value::Null);
-    json!({
+    let mut user = json!({
         "id": payload["sub"],
         "tenant_id": payload["tid"],
         "roles": payload["roles"],
-    })
+    });
+    if let (Some(user), Some(meta)) = (user.as_object_mut(), session.meta.as_object()) {
+        for (k, v) in meta {
+            user.entry(k.clone()).or_insert_with(|| v.clone());
+        }
+    }
+    user
+}
+
+/// Данные входа для интерфейса без секретов.
+fn login_meta(credentials: &Value) -> Value {
+    let mut meta = credentials.clone();
+    if let Some(obj) = meta.as_object_mut() {
+        obj.remove("password");
+    }
+    meta
 }
 
 // ---- обработчики /bff/* ----
@@ -309,6 +326,7 @@ pub(crate) async fn login(
         },
         None => body,
     };
+    let meta = login_meta(&credentials);
     let grant = match bff.inner.auth.login(credentials).await {
         Ok(g) => g,
         Err(UpstreamError::Rejected { status }) => {
@@ -338,6 +356,7 @@ pub(crate) async fn login(
         refresh_token: grant.refresh_token,
         access_expires_at: now_secs() + grant.expires_in,
         csrf_token: random_token(),
+        meta,
     };
     let id = match bff
         .inner
@@ -351,7 +370,7 @@ pub(crate) async fn login(
     let mut res = Json(json!({
         "authenticated": true,
         "csrf_token": session.csrf_token,
-        "user": user_preview(&session.access_token),
+        "user": user_preview(&session),
     }))
     .into_response();
     res.headers_mut().append(
@@ -403,7 +422,7 @@ pub(crate) async fn session(State(bff): State<Bff>, headers: HeaderMap) -> Respo
         Ok(s) => Json(json!({
             "authenticated": true,
             "csrf_token": s.csrf_token,
-            "user": user_preview(&s.access_token),
+            "user": user_preview(&s),
         }))
         .into_response(),
         Err(Freshness::Expired) => {

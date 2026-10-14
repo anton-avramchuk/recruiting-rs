@@ -27,6 +27,18 @@ async fn login_sets_a_hardened_cookie_and_never_exposes_tokens() {
 }
 
 #[tokio::test]
+async fn user_preview_carries_login_metadata_but_never_the_password() {
+    let h = harness().await;
+    let login = h.client.login().await;
+    assert_eq!(login.body["user"]["email"], "a@b.io");
+    assert!(!login.raw.contains("good-password"));
+
+    let session = h.client.send("GET", "/bff/session", &[], None).await;
+    assert_eq!(session.body["user"]["email"], "a@b.io");
+    assert!(!session.raw.contains("good-password"));
+}
+
+#[tokio::test]
 async fn rejected_credentials_give_401_without_a_cookie() {
     let h = harness().await;
     let res = h
