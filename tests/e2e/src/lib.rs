@@ -23,6 +23,7 @@ struct Service {
 pub struct Stack {
     pub identity_url: String,
     pub admin_url: String,
+    pub candidate_url: String,
     pub bff_crm_url: String,
     pub bff_admin_url: String,
     /// Заполнены только в `start_with_web`.
@@ -140,7 +141,7 @@ impl Stack {
 
     async fn start_inner(with_web: bool) -> Self {
         tokio::task::spawn_blocking(move || {
-            build_binaries(&["identity", "admin", "bff-crm", "bff-admin"]);
+            build_binaries(&["identity", "admin", "candidate", "bff-crm", "bff-admin"]);
             if with_web {
                 build_web(&["web-crm", "web-admin"]);
             }
@@ -150,10 +151,12 @@ impl Stack {
 
         let identity_db = EmptyDb::create("e2e_identity").await;
         let admin_db = EmptyDb::create("e2e_admin").await;
+        let candidate_db = EmptyDb::create("e2e_candidate").await;
         let redis =
             std::env::var("TEST_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into());
 
         let ports = [
+            free_port(),
             free_port(),
             free_port(),
             free_port(),
@@ -165,10 +168,12 @@ impl Stack {
         let listen = |p: u16| ("LISTEN_ADDR", format!("127.0.0.1:{p}"));
         let (identity_url, admin_url) = (url(ports[0]), url(ports[1]));
         let (bff_crm_url, bff_admin_url) = (url(ports[2]), url(ports[3]));
+        let candidate_url = url(ports[6]);
 
         let mut stack = Stack {
             identity_url: identity_url.clone(),
             admin_url: admin_url.clone(),
+            candidate_url: candidate_url.clone(),
             bff_crm_url: bff_crm_url.clone(),
             bff_admin_url: bff_admin_url.clone(),
             web_crm_url: url(ports[4]),
@@ -202,12 +207,23 @@ impl Stack {
             ],
         ));
         stack.services.push(spawn(
+            "candidate",
+            &[
+                listen(ports[6]),
+                ("DATABASE_URL", candidate_db.app_url.clone()),
+                ("MIGRATION_DATABASE_URL", candidate_db.owner_url.clone()),
+                (
+                    "IDENTITY_JWKS_URL",
+                    format!("{identity_url}/.well-known/jwks.json"),
+                ),
+            ],
+        ));
+        stack.services.push(spawn(
             "bff-crm",
             &[
                 listen(ports[2]),
                 ("IDENTITY_URL", identity_url),
-                // сервис кандидатов подключается в стенд отдельной задачей
-                ("CANDIDATE_URL", "http://127.0.0.1:9".into()),
+                ("CANDIDATE_URL", candidate_url.clone()),
                 ("REDIS_URL", redis.clone()),
                 ("COOKIE_SECURE", "false".into()),
             ],
@@ -242,11 +258,12 @@ impl Stack {
                 ));
             }
         }
-        stack.dbs.extend([identity_db, admin_db]);
+        stack.dbs.extend([identity_db, admin_db, candidate_db]);
 
         for (url, name) in [
             (&stack.identity_url, "identity"),
             (&stack.admin_url, "admin"),
+            (&stack.candidate_url, "candidate"),
             (&stack.bff_crm_url, "bff-crm"),
             (&stack.bff_admin_url, "bff-admin"),
         ] {

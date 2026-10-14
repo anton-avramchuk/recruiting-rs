@@ -9,7 +9,10 @@ use candidate_contracts::{
     UpdatePersonRequest,
 };
 use platform_auth::{AuthUser, Permission};
-use platform_core::{error::ApiError, tenant::TenantId};
+use platform_core::{
+    error::{ApiError, ProblemDetails},
+    tenant::TenantId,
+};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -38,7 +41,14 @@ fn tenant_of(user: &AuthUser) -> Result<TenantId, ApiError> {
     user.claims.tid.ok_or_else(ApiError::forbidden)
 }
 
-async fn create(
+#[utoipa::path(post, path = "/persons", security(("bearer" = [])), request_body = CreatePersonRequest, responses(
+    (status = 201, body = PersonDto),
+    (status = 400, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 401, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 409, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn create(
     State(state): State<AppState>,
     user: AuthUser,
     Json(req): Json<CreatePersonRequest>,
@@ -71,8 +81,9 @@ async fn create(
     ))
 }
 
-#[derive(Debug, Deserialize)]
-struct ListParams {
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub(super) struct ListParams {
     q: Option<String>,
     source: Option<String>,
     skill: Option<String>,
@@ -84,7 +95,13 @@ struct ListParams {
     page_size: Option<i64>,
 }
 
-async fn list(
+#[utoipa::path(get, path = "/persons", security(("bearer" = [])), params(ListParams), responses(
+    (status = 200, body = PersonPage),
+    (status = 400, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 401, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn list(
     State(state): State<AppState>,
     user: AuthUser,
     Query(params): Query<ListParams>,
@@ -117,7 +134,13 @@ async fn list(
     }))
 }
 
-async fn get_one(
+#[utoipa::path(get, path = "/persons/{id}", security(("bearer" = [])), params(("id" = Uuid, Path, description = "Person id")), responses(
+    (status = 200, body = PersonDto),
+    (status = 401, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 404, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn get_one(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -127,7 +150,14 @@ async fn get_one(
     Ok(Json(person_to_dto(&person, state.persons.today())))
 }
 
-async fn update(
+#[utoipa::path(patch, path = "/persons/{id}", security(("bearer" = [])), params(("id" = Uuid, Path, description = "Person id")), request_body = UpdatePersonRequest, responses(
+    (status = 200, body = PersonDto),
+    (status = 400, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 401, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 404, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn update(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -159,7 +189,14 @@ async fn update(
     Ok(Json(person_to_dto(&person, state.persons.today())))
 }
 
-async fn replace_employments(
+#[utoipa::path(put, path = "/persons/{id}/employments", security(("bearer" = [])), params(("id" = Uuid, Path, description = "Person id")), request_body = Vec<EmploymentDto>, responses(
+    (status = 200, body = PersonDto),
+    (status = 400, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 401, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 404, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn replace_employments(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -174,7 +211,14 @@ async fn replace_employments(
     Ok(Json(person_to_dto(&person, state.persons.today())))
 }
 
-async fn replace_educations(
+#[utoipa::path(put, path = "/persons/{id}/educations", security(("bearer" = [])), params(("id" = Uuid, Path, description = "Person id")), request_body = Vec<EducationDto>, responses(
+    (status = 200, body = PersonDto),
+    (status = 400, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 401, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 404, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn replace_educations(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -189,7 +233,13 @@ async fn replace_educations(
     Ok(Json(person_to_dto(&person, state.persons.today())))
 }
 
-async fn remove(
+#[utoipa::path(delete, path = "/persons/{id}", security(("bearer" = [])), params(("id" = Uuid, Path, description = "Person id")), responses(
+    (status = 204, description = "Person and history deleted"),
+    (status = 401, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 404, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn remove(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
