@@ -149,3 +149,93 @@ async fn an_organization_without_candidates_sees_the_empty_state() {
 
     stack.stop().await;
 }
+
+// ---------- создание ----------
+
+const FORM_NAME: &str = "input[name=full_name]";
+
+fn fill(tab: &Tab, name: &str, value: &str) {
+    type_into(tab, &format!("input[name={name}]"), value);
+}
+
+#[tokio::test]
+async fn recruiter_creates_a_candidate_and_confirms_a_duplicate() {
+    let stack = Stack::start_with_web().await;
+    stack.seed_tenant("acme", OWNER.0, OWNER.1).await;
+    let base = stack.web_crm_url.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let browser = launch();
+        let tab = browser.new_tab().unwrap();
+        login_crm(&tab, &base, "acme", OWNER.0, OWNER.1);
+
+        // кнопка в списке ведёт на форму
+        tab.navigate_to(&format!("{base}/candidates")).unwrap();
+        wait_until(&tab, "add button", &exists_js("a[href='/candidates/new']"));
+        click(&tab, "a[href='/candidates/new']");
+        wait_until(&tab, "create form", &exists_js(FORM_NAME));
+        assert_eq!(path_of(&tab), "/candidates/new");
+        set_marker(&tab);
+
+        // 1. ошибка контакта показывается у поля, страница не перезагружается
+        fill(&tab, "full_name", "Иван Петров");
+        fill(&tab, "email", "not-an-email");
+        click(&tab, "[data-testid=submit]");
+        wait_until(&tab, "field error", &exists_js("[data-testid=error-email]"));
+        assert!(text_of(&tab, "[data-testid=error-email]").contains("email"));
+        assert!(marker_alive(&tab), "validation errors must not reload the page");
+        assert_eq!(path_of(&tab), "/candidates/new");
+
+        // 2. исправили - кандидат создан, виден в списке
+        replace_text(&tab, "input[name=email]", "ivan@mail.ru");
+        fill(&tab, "phone", "8 (916) 123-45-67");
+        fill(&tab, "skills", "Rust, SQL");
+        fill(&tab, "expected_salary", "250000");
+        click(&tab, "[data-testid=submit]");
+        wait_until(&tab, "redirect to the list", "location.pathname === '/candidates'");
+        wait_count(&tab, "new candidate in the list", ROWS, 1);
+        assert_eq!(
+            text_of(&tab, "[data-testid=persons] tbody tr td:first-child"),
+            "Иван Петров"
+        );
+        assert!(
+            eval_str(&tab, "document.querySelector('[data-testid=persons] tbody tr').innerText")
+                .contains("+79161234567"),
+            "phone is normalized"
+        );
+        assert!(marker_alive(&tab));
+
+        // 3. тот же email -> предупреждение о дубле со ссылкой на найденного
+        click(&tab, "a[href='/candidates/new']");
+        wait_until(&tab, "form again", &exists_js(FORM_NAME));
+        fill(&tab, "full_name", "Иван П.");
+        fill(&tab, "email", "IVAN@mail.ru");
+        click(&tab, "[data-testid=submit]");
+        wait_until(&tab, "duplicate banner", &exists_js("[data-testid=duplicate-banner]"));
+        let banner = text_of(&tab, "[data-testid=duplicate-banner]");
+        assert!(banner.contains("Иван Петров"), "{banner}");
+        assert!(banner.contains("email"), "{banner}");
+        wait_until(
+            &tab,
+            "link to the existing person",
+            "document.querySelector('[data-testid=duplicate-banner] a').getAttribute('href').startsWith('/candidates/')",
+        );
+        assert_eq!(path_of(&tab), "/candidates/new", "nothing was created yet");
+
+        // отмена оставляет форму и никого не создаёт
+        click(&tab, "[data-testid=duplicate-cancel]");
+        wait_until(&tab, "banner gone", &gone_js("[data-testid=duplicate-banner]"));
+
+        // 4. подтверждение создаёт второго
+        click(&tab, "[data-testid=submit]");
+        wait_until(&tab, "banner again", &exists_js("[data-testid=duplicate-banner]"));
+        click(&tab, "[data-testid=duplicate-confirm]");
+        wait_until(&tab, "list after confirm", "location.pathname === '/candidates'");
+        wait_count(&tab, "two candidates", ROWS, 2);
+        assert!(marker_alive(&tab));
+    })
+    .await
+    .unwrap();
+
+    stack.stop().await;
+}

@@ -112,3 +112,8 @@ tr:last-child td { border-bottom: 0; }
 .badge--muted { color: var(--ink-muted); }
 
 .form-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+textarea { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 9px 10px; width: 100%; }
+.field-error { color: var(--danger); font-size: 0.85rem; }
+.notice--warn { color: var(--ink); border-color: var(--warn); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.notice--warn p { margin: 0; flex: 1 1 260px; }

@@ -3,7 +3,7 @@ use leptos::prelude::*;
 use leptos::server_fn::codec::Json;
 use serde::{Deserialize, Serialize};
 
-use super::outcome::{ListOutcome, LoadOutcome};
+use super::outcome::{CreateOutcome, ListOutcome, LoadOutcome};
 
 /// Поиск и фильтры списка. Пустые строки не ограничивают выборку.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,6 +45,70 @@ pub async fn get_person(id: String) -> Result<LoadOutcome, ServerFnError> {
     }
     let reply = ui_kit::server::call(Method::GET, &format!("/api/persons/{id}"), None).await?;
     Ok(super::outcome::classify_load(reply.status, &reply.body))
+}
+
+#[server]
+#[allow(clippy::too_many_arguments)]
+pub async fn create_person(
+    full_name: String,
+    phone: String,
+    email: String,
+    telegram: String,
+    whatsapp: String,
+    source: String,
+    expected_salary: String,
+    skills: String,
+    summary: String,
+    declared_experience_years: String,
+    confirm_duplicate: String,
+) -> Result<CreateOutcome, ServerFnError> {
+    use axum::http::Method;
+    use serde_json::{Map, Value, json};
+
+    use super::format::{parse_optional_number, split_skills};
+
+    let mut body = Map::new();
+    body.insert("full_name".into(), json!(full_name.trim()));
+    for (key, value) in [
+        ("phone", &phone),
+        ("email", &email),
+        ("telegram", &telegram),
+        ("whatsapp", &whatsapp),
+        ("source", &source),
+        ("summary", &summary),
+    ] {
+        if !value.trim().is_empty() {
+            body.insert(key.into(), json!(value.trim()));
+        }
+    }
+    for (key, raw) in [
+        ("expected_salary", &expected_salary),
+        ("declared_experience_years", &declared_experience_years),
+    ] {
+        if raw.trim().is_empty() {
+            continue;
+        }
+        match parse_optional_number(raw) {
+            Some(n) => {
+                body.insert(key.into(), json!(n));
+            }
+            None => {
+                return Ok(CreateOutcome::Invalid {
+                    field: key.into(),
+                    message: "Введите число".into(),
+                });
+            }
+        }
+    }
+    body.insert("skills".into(), json!(split_skills(&skills)));
+    body.insert(
+        "confirm_duplicate".into(),
+        json!(confirm_duplicate == "true"),
+    );
+
+    let reply =
+        ui_kit::server::call(Method::POST, "/api/persons", Some(Value::Object(body))).await?;
+    Ok(super::outcome::classify_create(reply.status, &reply.body))
 }
 
 /// Проверка формата идентификатора без лишней зависимости: в путь запроса попадает только UUID.
