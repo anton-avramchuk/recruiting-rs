@@ -1,5 +1,19 @@
 name: recruiting-rs
 
+# Инфраструктура (PostgreSQL, Redis) поднимается всегда - её используют тесты:
+#   docker compose up -d --wait
+# Вся платформа целиком, чтобы посмотреть:
+#   docker compose --profile app up -d --build
+#   клиентское приложение http://localhost:3000, админка платформы http://localhost:3010
+
+x-service: &service
+  restart: unless-stopped
+  profiles: ["app"]
+
+x-backend-env: &backend-env
+  SERVICE_TOKEN: dev-service-token-change-me
+  RUST_LOG: info
+
 services:
   postgres:
     image: postgres:17
@@ -24,6 +38,111 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # ---------- сервисы платформы (профиль app) ----------
+  identity:
+    <<: *service
+    build: { context: ., dockerfile: docker/Dockerfile, target: identity }
+    environment:
+      <<: *backend-env
+      DATABASE_URL: postgres://recruiting_app:recruiting_app@postgres/identity
+      MIGRATION_DATABASE_URL: postgres://postgres:postgres@postgres/identity
+      ADMIN_URL: http://admin:8080
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck: &health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  admin:
+    <<: *service
+    build: { context: ., dockerfile: docker/Dockerfile, target: admin }
+    environment:
+      <<: *backend-env
+      DATABASE_URL: postgres://recruiting_app:recruiting_app@postgres/admin
+      MIGRATION_DATABASE_URL: postgres://postgres:postgres@postgres/admin
+      IDENTITY_URL: http://identity:8080
+      SEED_ADMIN_EMAIL: root@platform.io
+      SEED_ADMIN_PASSWORD: root-password-1
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck: *health
+
+  candidate:
+    <<: *service
+    build: { context: ., dockerfile: docker/Dockerfile, target: candidate }
+    environment:
+      RUST_LOG: info
+      DATABASE_URL: postgres://recruiting_app:recruiting_app@postgres/candidate
+      MIGRATION_DATABASE_URL: postgres://postgres:postgres@postgres/candidate
+      IDENTITY_JWKS_URL: http://identity:8080/.well-known/jwks.json
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck: *health
+
+  bff-crm:
+    <<: *service
+    build: { context: ., dockerfile: docker/Dockerfile, target: bff-crm }
+    environment:
+      RUST_LOG: info
+      IDENTITY_URL: http://identity:8080
+      CANDIDATE_URL: http://candidate:8080
+      REDIS_URL: redis://redis:6379
+      COOKIE_SECURE: "false" # локально по http
+    depends_on:
+      redis: { condition: service_healthy }
+      identity: { condition: service_healthy }
+      candidate: { condition: service_healthy }
+    healthcheck: *health
+
+  bff-admin:
+    <<: *service
+    build: { context: ., dockerfile: docker/Dockerfile, target: bff-admin }
+    environment:
+      RUST_LOG: info
+      ADMIN_URL: http://admin:8080
+      REDIS_URL: redis://redis:6379
+      COOKIE_SECURE: "false"
+    depends_on:
+      redis: { condition: service_healthy }
+      admin: { condition: service_healthy }
+    healthcheck: *health
+
+  web-crm:
+    <<: *service
+    build: { context: ., dockerfile: docker/Dockerfile, target: web-crm }
+    environment:
+      BFF_URL: http://bff-crm:8080
+    ports: ["3000:8080"]
+    depends_on:
+      bff-crm: { condition: service_healthy }
+
+  web-admin:
+    <<: *service
+    build: { context: ., dockerfile: docker/Dockerfile, target: web-admin }
+    environment:
+      BFF_URL: http://bff-admin:8080
+    ports: ["3010:8080"]
+    depends_on:
+      bff-admin: { condition: service_healthy }
+
+  # Одноразово создаёт демо-организацию и кандидатов (повторный запуск безопасен).
+  demo-seed:
+    profiles: ["app"]
+    image: curlimages/curl:8.10.1
+    entrypoint: ["/bin/sh", "/seed-demo.sh"]
+    volumes:
+      - ./docker/seed-demo.sh:/seed-demo.sh:ro
+    environment:
+      SEED_ADMIN_EMAIL: root@platform.io
+      SEED_ADMIN_PASSWORD: root-password-1
+    restart: "no"
+    depends_on:
+      bff-admin: { condition: service_healthy }
+      bff-crm: { condition: service_healthy }
 
 volumes:
   pgdata:

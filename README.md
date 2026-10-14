@@ -57,6 +57,23 @@ cargo run -p e2e --example dev     # вся платформа на свобод
 - клиентское приложение: организация `demo`, `owner@demo.io` / `demo-password-1` (с тремя демо-кандидатами)
 - админка платформы: `root@platform.io` / `root-password-1`
 
+## В Docker
+
+Вся платформа целиком, с демо-данными:
+
+```sh
+docker compose --profile app up -d --build   # первая сборка - несколько минут
+```
+
+- клиентское приложение: <http://localhost:3000>, организация `demo`, `owner@demo.io` / `demo-password-1`
+- админка платформы: <http://localhost:3010>, `root@platform.io` / `root-password-1`
+- PostgreSQL `localhost:5432`, Redis `localhost:6379`
+
+Одноразовый контейнер `demo-seed` создаёт организацию `demo` и трёх кандидатов (повторный запуск безопасен:
+`docker compose --profile app run --rm demo-seed`). Остановить: `docker compose --profile app down`
+(`-v` дополнительно удалит данные). Учётные данные и `SERVICE_TOKEN` в `docker-compose.yml` - только для
+локального просмотра. Без профиля `app` поднимаются лишь PostgreSQL и Redis (их используют тесты).
+
 ## Тесты
 
 ```sh

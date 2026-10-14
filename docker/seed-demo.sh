@@ -1,0 +1,42 @@
+#!/bin/sh
+# Создаёт демо-организацию «demo» с владельцем и тремя кандидатами через BFF (как это делает человек в интерфейсах).
+# Идемпотентен: повторный запуск ничего не дублирует.
+set -eu
+
+ADMIN_BFF="${ADMIN_BFF:-http://bff-admin:8080}"
+CRM_BFF="${CRM_BFF:-http://bff-crm:8080}"
+ADMIN_EMAIL="${SEED_ADMIN_EMAIL:-root@platform.io}"
+ADMIN_PASSWORD="${SEED_ADMIN_PASSWORD:-root-password-1}"
+OWNER_EMAIL="owner@demo.io"
+OWNER_PASSWORD="demo-password-1"
+
+csrf_of() { sed -n 's/.*"csrf_token":"\([^"]*\)".*/\1/p'; }
+
+echo "1/3 вход администратора платформы"
+ADMIN_CSRF=$(curl -fsS -c /tmp/admin.jar -H 'x-csrf-token: login' -H 'content-type: application/json' \
+  -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" "$ADMIN_BFF/bff/login" | csrf_of)
+
+echo "2/3 организация demo"
+STATUS=$(curl -sS -o /tmp/tenant.out -w '%{http_code}' -b /tmp/admin.jar \
+  -H "x-csrf-token: $ADMIN_CSRF" -H 'content-type: application/json' \
+  -d "{\"slug\":\"demo\",\"name\":\"Demo\",\"owner\":{\"email\":\"$OWNER_EMAIL\",\"password\":\"$OWNER_PASSWORD\",\"display_name\":\"Владелец\"}}" \
+  "$ADMIN_BFF/api/tenants")
+case "$STATUS" in
+  201) echo "  создана" ;;
+  409) echo "  уже существует" ;;
+  *) echo "  ошибка $STATUS: $(cat /tmp/tenant.out)"; exit 1 ;;
+esac
+
+echo "3/3 демо-кандидаты"
+CRM_CSRF=$(curl -fsS -c /tmp/crm.jar -H 'x-csrf-token: login' -H 'content-type: application/json' \
+  -d "{\"tenant\":\"demo\",\"email\":\"$OWNER_EMAIL\",\"password\":\"$OWNER_PASSWORD\"}" "$CRM_BFF/bff/login" | csrf_of)
+add() {
+  # без confirm_duplicate: уже существующий кандидат даст 409 и не задублируется
+  code=$(curl -sS -o /dev/null -w '%{http_code}' -b /tmp/crm.jar -H "x-csrf-token: $CRM_CSRF" \
+    -H 'content-type: application/json' -d "$1" "$CRM_BFF/api/persons")
+  echo "  $2: $code"
+}
+add '{"full_name":"Анна Смирнова","email":"anna@example.com","phone":"+7 916 123-45-67","skills":["Rust","SQL"],"source":"hh.ru","expected_salary":300000,"declared_experience_years":6}' "Анна Смирнова"
+add '{"full_name":"Борис Иванов","phone":"+7 903 555-66-77","skills":["Go"],"source":"Реферал","declared_experience_years":2}' "Борис Иванов"
+add '{"full_name":"Виктор Петров","skills":["Rust","Docker"],"declared_experience_years":4}' "Виктор Петров"
+echo "готово"

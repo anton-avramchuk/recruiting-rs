@@ -1,0 +1,7 @@
+target
+.git
+.claude
+node_modules
+openspec
+docs
+**/*.log
