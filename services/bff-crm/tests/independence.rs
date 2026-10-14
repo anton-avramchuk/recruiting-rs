@@ -22,6 +22,7 @@ async fn stopping_the_admin_bff_does_not_affect_the_crm_bff() {
     let (crm_url, _crm) = serve(bff_crm::build(
         &CrmConfig {
             identity_url: backend.clone(),
+            candidate_url: backend.clone(),
             cookie_secure: false,
             base_domain: None,
             session_ttl_secs: 3600,

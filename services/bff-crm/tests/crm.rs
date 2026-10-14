@@ -16,6 +16,7 @@ async fn world(base_domain: Option<&str>) -> World {
     let upstream = Upstream::new();
     let cfg = CrmConfig {
         identity_url: upstream.serve().await,
+        candidate_url: "http://127.0.0.1:9".into(),
         cookie_secure: true,
         base_domain: base_domain.map(Into::into),
         session_ttl_secs: 3600,

@@ -1,5 +1,5 @@
 //! BFF клиентского слоя: сессии пользователей тенантов, прокси в identity.
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use axum::{Json, Router, http::HeaderMap, routing::get};
 use bff_core::{AllowRule, Bff, BffConfig, HttpUpstreamAuth, LoginTransform, SessionStore};
@@ -12,6 +12,7 @@ pub const REDIS_PREFIX: &str = "bff:crm:session:";
 #[derive(Debug, Clone)]
 pub struct CrmConfig {
     pub identity_url: String,
+    pub candidate_url: String,
     pub cookie_secure: bool,
     /// Базовый домен приложения: `acme.<base_domain>` определяет тенанта `acme`.
     pub base_domain: Option<String>,
@@ -20,7 +21,10 @@ pub struct CrmConfig {
 
 /// Маршруты бэкенда, доступные клиентскому фронтенду. Admin, internal и auth сюда не входят.
 fn allowlist() -> Vec<AllowRule> {
-    vec![AllowRule::any("/users")]
+    vec![
+        AllowRule::any("/users"),
+        AllowRule::any("/persons").to("candidate"),
+    ]
 }
 
 /// `acme.crm.example.com` при базе `crm.example.com` -> `acme`.
@@ -64,7 +68,7 @@ pub fn build(cfg: &CrmConfig, store: Arc<dyn SessionStore>) -> Router {
         cookie_secure: cfg.cookie_secure,
         session_ttl: Duration::from_secs(cfg.session_ttl_secs),
         upstream_base_url: cfg.identity_url.clone(),
-        upstreams: Default::default(),
+        upstreams: HashMap::from([("candidate".to_string(), cfg.candidate_url.clone())]),
         allow: allowlist(),
         login_transform: Some(login_transform(cfg.base_domain.clone())),
     };
