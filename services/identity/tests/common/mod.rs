@@ -63,11 +63,17 @@ pub struct Ctx {
 }
 
 pub async fn setup() -> Ctx {
-    let db = TestDb::create(&MIGRATOR).await;
     let dir = FakeDirectory::default();
+    setup_with(Arc::new(dir.clone()), dir).await
+}
+
+/// `directory` — реальный порт, который видит сервис; `dir` — фейк для тестов,
+/// которые им не пользуются.
+pub async fn setup_with(directory: Arc<dyn TenantDirectory>, dir: FakeDirectory) -> Ctx {
+    let db = TestDb::create(&MIGRATOR).await;
     let keys = KeyPair::generate("test");
     let verifier = TokenVerifier::new(&keys.public_key(), Audience::Tenant);
-    let state = AppState::new(db.app.clone(), Arc::new(dir.clone()), &keys, SERVICE_TOKEN);
+    let state = AppState::new(db.app.clone(), directory, &keys, SERVICE_TOKEN);
     Ctx {
         db,
         dir,

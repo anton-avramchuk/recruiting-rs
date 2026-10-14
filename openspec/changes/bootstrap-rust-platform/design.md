@@ -45,7 +45,7 @@ docker/  docker-compose.yml
 
 **Где живут тенанты и пользователи.** Реестр тенантов — БД `admin` (таблица без RLS, доступ только admin-сервису). Пользователи тенантов — БД `identity`, `users`/`refresh_tokens` с RLS; межсервисных FK нет. Платформенные администраторы — отдельная таблица в БД `admin`, отдельные ключ/audience JWT.
 
-**Вход без известного тенанта.** Логин требует тенанта: пользователь вводит slug (или заходит по поддомену `{slug}.host`; BFF выделяет slug из Host). identity по slug получает `tenant_id` и статус: приостановка проверяется запросом к admin (internal endpoint `GET /internal/tenants/{slug}`) с коротким кэшем в identity. Альтернатива «глобальный email» отклонена: ломает кейс одного email в разных тенантах.
+**Вход без известного тенанта.** Логин требует тенанта: пользователь вводит slug (или заходит по поддомену `{slug}.host`; BFF выделяет slug из Host). identity по slug получает `tenant_id` и статус: приостановка проверяется запросом к admin (internal endpoints `GET /internal/tenants/by-slug/{slug}` и `GET /internal/tenants/{id}`) с коротким кэшем в identity. Альтернатива «глобальный email» отклонена: ломает кейс одного email в разных тенантах.
 
 **Провижининг тенанта.** admin: `INSERT tenant(status=provisioning)` → вызов identity `POST /internal/tenants/{id}/owner` → `status=active`; при ошибке — `failed`/удаление записи (спека: не остаётся активным). Без распределённых транзакций и без шины: сага из двух шагов, идемпотентная по `tenant_id`. Internal-эндпоинты защищены сервисным токеном (shared secret в конфиге на старте; mTLS — позже).
 
