@@ -4,12 +4,15 @@ use axum::extract::FromRef;
 use platform_auth::TokenVerifier;
 use sqlx::PgPool;
 
-use crate::application::{ApplicationService, Clock, PeopleSync, PersonFeed, VacancyService};
+use crate::application::{
+    AnalyticsService, ApplicationService, Clock, PeopleSync, PersonFeed, VacancyService,
+};
 
 #[derive(Clone)]
 pub struct AppState {
     pub vacancies: VacancyService,
     pub applications: ApplicationService,
+    pub analytics: AnalyticsService,
     pub verifier: Arc<TokenVerifier>,
     pool: PgPool,
     feed: Arc<dyn PersonFeed>,
@@ -34,7 +37,8 @@ impl AppState {
         let sync = PeopleSync::new(pool.clone(), feed.clone());
         Self {
             vacancies: VacancyService::new(pool.clone(), clock),
-            applications: ApplicationService::new(pool.clone(), sync, clock),
+            applications: ApplicationService::new(pool.clone(), sync.clone(), clock),
+            analytics: AnalyticsService::new(pool.clone(), sync, clock),
             verifier,
             pool,
             feed,

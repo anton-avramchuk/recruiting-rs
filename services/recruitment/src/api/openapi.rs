@@ -1,16 +1,17 @@
 use axum::{Json, Router, routing::get};
 use recruitment_contracts::{
-    ApplicationDetailDto, ApplicationDto, ApplicationPage, BatchApplicationsRequest,
+    AnalyticsDto, ApplicationDetailDto, ApplicationDto, ApplicationPage, BatchApplicationsRequest,
     BatchApplicationsResponse, BulkRequest, BulkResult, CreateApplicationRequest,
-    CreateVacancyRequest, EventDto, HandoffRequest, InterviewItemDto, InterviewRequest,
-    MoveRequest, OverviewDto, RejectRequest, Stage, StageCount, UpdateVacancyRequest, VacancyDto,
+    CreateVacancyRequest, EventDto, FunnelStepDto, HandoffRequest, InterviewItemDto,
+    InterviewRequest, MoveRequest, OverviewDto, RejectRequest, SourceStatDto, Stage, StageCount,
+    UpdateVacancyRequest, VacancyDto, VacancyLoadDto, WeekCountDto,
 };
 use utoipa::{
     Modify, OpenApi,
     openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
 };
 
-use super::{AppState, applications, vacancies};
+use super::{AppState, analytics, applications, vacancies};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -32,6 +33,7 @@ use super::{AppState, applications, vacancies};
         applications::batch,
         applications::overview,
         applications::interviews,
+        analytics::analytics,
         platform_core::health::health,
     ),
     components(schemas(
@@ -54,6 +56,11 @@ use super::{AppState, applications, vacancies};
         OverviewDto,
         StageCount,
         InterviewItemDto,
+        AnalyticsDto,
+        FunnelStepDto,
+        WeekCountDto,
+        SourceStatDto,
+        VacancyLoadDto,
         Stage,
         platform_core::error::ProblemDetails,
     )),

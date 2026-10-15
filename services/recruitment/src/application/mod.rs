@@ -1,4 +1,5 @@
 //! Сценарии воронки: транзакции, права на уровне данных (RLS) и синхронизация людей.
+pub mod analytics;
 pub mod applications;
 mod feed;
 mod sync;
@@ -6,6 +7,7 @@ mod vacancies;
 
 use chrono::{DateTime, NaiveDate, Utc};
 
+pub use analytics::{Analytics, AnalyticsService, DEFAULT_DAYS};
 pub use applications::{
     ApplicationDetail, ApplicationPage, ApplicationService, BatchOutcome, BulkAction, BulkOutcome,
     ListQuery, MAX_PAGE_SIZE, Overview,

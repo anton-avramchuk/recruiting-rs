@@ -19,6 +19,7 @@ const EXPECTED: &[(&str, &str)] = &[
     ("/applications/{id}/handoff", "post"),
     ("/overview", "get"),
     ("/interviews", "get"),
+    ("/analytics", "get"),
     ("/health", "get"),
 ];
 
@@ -43,6 +44,7 @@ async fn openapi_document_lists_every_route_and_schema() {
         "BulkRequest",
         "OverviewDto",
         "InterviewItemDto",
+        "AnalyticsDto",
         "Stage",
         "ProblemDetails",
     ] {

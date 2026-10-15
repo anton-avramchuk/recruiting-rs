@@ -118,6 +118,16 @@ async fn candidate_to_vacancy_to_stages_across_the_platform() {
     let overdue = json_of(boss.get("/api/applications?overdue=true").await).await;
     assert_eq!(overdue["total"], 0);
 
+    // аналитика через BFF: воронка идёт по пройденным этапам, а не по текущему
+    let analytics = json_of(boss.get("/api/analytics?days=30").await).await;
+    assert_eq!(analytics["period_days"], 30);
+    assert_eq!(analytics["funnel"][0]["reached"], 1);
+    assert_eq!(analytics["funnel"][1]["reached"], 1, "screening was reached before the rejection");
+    assert_eq!(analytics["funnel"][2]["reached"], 1, "and so was the HR interview");
+    assert_eq!(analytics["funnel"][3]["reached"], 0);
+    assert_eq!(analytics["vacancies"][0]["title"], "Senior Go");
+    assert_eq!(boss.get("/api/analytics?days=1").await.status(), 400);
+
     // viewer читает, но не меняет
     assert_eq!(viewer.get("/api/applications").await.status(), 200);
     let res = viewer

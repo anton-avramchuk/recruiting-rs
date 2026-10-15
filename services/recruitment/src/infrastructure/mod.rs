@@ -1,3 +1,4 @@
+pub mod analytics;
 pub mod applications;
 pub mod people;
 pub mod vacancies;
