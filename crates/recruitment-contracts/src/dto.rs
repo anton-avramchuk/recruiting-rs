@@ -254,3 +254,54 @@ pub struct BatchApplicationsResponse {
     /// Кандидата нет в организации.
     pub missing: i64,
 }
+
+// ---------- аналитика ----------
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct FunnelStepDto {
+    pub stage: Stage,
+    /// Сколько откликов дошло до этапа.
+    pub reached: i64,
+    /// Доля от дошедших до предыдущего этапа, проценты (для первого этапа 100).
+    pub conversion: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct WeekCountDto {
+    /// Понедельник недели, `YYYY-MM-DD` (UTC).
+    pub week_start: String,
+    pub count: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct SourceStatDto {
+    pub source: String,
+    pub total: i64,
+    /// Дошли до «Интервью HR» и дальше.
+    pub interviews: i64,
+    pub conversion: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct VacancyLoadDto {
+    pub id: Uuid,
+    pub title: String,
+    pub recruiter: Option<String>,
+    pub active_applications: i64,
+    pub open_days: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct AnalyticsDto {
+    pub period_days: i64,
+    pub funnel: Vec<FunnelStepDto>,
+    /// Этап с наибольшей потерей (минимальная конверсия среди этапов после первого).
+    pub worst_stage: Option<Stage>,
+    pub median_days_to_hire: Option<f64>,
+    pub median_hours_to_first_touch: Option<f64>,
+    /// Людей с более чем одним откликом.
+    pub repeat_people: i64,
+    pub weekly: Vec<WeekCountDto>,
+    pub sources: Vec<SourceStatDto>,
+    pub vacancies: Vec<VacancyLoadDto>,
+}

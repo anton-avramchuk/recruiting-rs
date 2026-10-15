@@ -1,4 +1,5 @@
 //! Предметная область воронки: чистая логика без HTTP и БД.
+pub mod analytics;
 mod application;
 mod error;
 mod vacancy;
