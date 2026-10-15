@@ -378,6 +378,9 @@ async fn viewer_sees_the_funnel_but_cannot_change_it() {
 async fn new_vacancy_and_candidate_with_a_vacancy_from_the_forms() {
     let stack = Stack::start_with_web().await;
     stack.seed_tenant("acme", OWNER.0, OWNER.1).await;
+    // вакансии нужен заказчик
+    let owner = stack.crm_client("acme", OWNER.0, OWNER.1).await;
+    stack.add_client(&owner, "Acme Corp").await;
     let base = stack.web_crm_url.clone();
 
     tokio::task::spawn_blocking(move || {
@@ -395,6 +398,15 @@ async fn new_vacancy_and_candidate_with_a_vacancy_from_the_forms() {
         // создание вакансии открывает её пустую воронку
         click(&tab, "[data-testid=new-vacancy]");
         type_into(&tab, "[data-testid=vf-title]", "Тестировщик");
+        wait_until(
+            &tab,
+            "client options",
+            "document.querySelectorAll('[data-testid=vf-client] option').length >= 2",
+        );
+        eval(
+            &tab,
+            "(() => { const s = document.querySelector('[data-testid=vf-client]');              s.value = s.options[1].value; s.dispatchEvent(new Event('change', {bubbles: true})); })()",
+        );
         click(&tab, "[data-testid=vf-submit]");
         wait_until(&tab, "empty funnel", &exists_js("[data-testid=board]"));
         assert_eq!(eval(&tab, &count_js("[data-testid=app-card]")), 0);

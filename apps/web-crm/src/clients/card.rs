@@ -442,7 +442,7 @@ fn ContactForm(
                 <button type="submit" class="btn btn--primary" data-testid="contact-submit" disabled=pending>
                     "Сохранить контакт"
                 </button>
-                <button type="button" class="btn btn--ghost" on:click=move |_| on_done.run(())>
+                <button type="button" class="btn btn--ghost" data-testid="contact-cancel" on:click=move |_| on_done.run(())>
                     "Отмена"
                 </button>
             </p>
