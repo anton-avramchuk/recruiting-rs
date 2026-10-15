@@ -4,6 +4,7 @@
 pub mod analytics;
 pub mod candidates;
 pub mod funnel;
+pub mod palette;
 
 use leptos::prelude::*;
 use leptos_meta::{MetaTags, Title, provide_meta_context};
@@ -104,21 +105,10 @@ fn nav() -> Vec<NavItem> {
 #[component]
 fn Protected() -> impl IntoView {
     let ctx = expect_context::<SessionCtx>();
-    // T открывает режим разбора (не в полях ввода и не поверх панели человека)
-    let navigate = leptos_router::hooks::use_navigate();
-    Effect::new(move |_| {
-        let navigate = navigate.clone();
-        window_event_listener(leptos::ev::keydown, move |ev| {
-            if ev.ctrl_key() || ev.meta_key() || ev.alt_key() || ev.key().to_lowercase() != "t" {
-                return;
-            }
-            if !candidates::list::can_write(ctx) || typing_in_a_field(&ev) || panel_is_open() {
-                return;
-            }
-            ev.prevent_default();
-            navigate("/triage", Default::default());
-        });
-    });
+    // клавиатура оболочки: палитра, переходы, разбор; права записи проверяются на месте
+    let palette = palette::view::PaletteCtx::new();
+    let writable = Signal::derive(move || candidates::list::can_write(ctx));
+    palette::view::install_keys(palette, writable);
     let user = move || {
         ctx.current()
             .and_then(Result::ok)
@@ -132,28 +122,11 @@ fn Protected() -> impl IntoView {
                 nav=nav()
                 context_label=Signal::derive(move || user().tenant)
                 user_label=Signal::derive(move || user().email)
+                on_search=Callback::new(move |_| palette.open.set(true))
             />
+            <palette::view::Overlays palette writable />
         </AuthGate>
     }
-}
-
-/// Фокус в поле ввода: горячие клавиши не должны перехватывать набор текста.
-fn typing_in_a_field(ev: &leptos::ev::KeyboardEvent) -> bool {
-    use leptos::wasm_bindgen::JsCast;
-    ev.target()
-        .and_then(|t| t.dyn_into::<web_sys::HtmlElement>().ok())
-        .is_some_and(|el| {
-            matches!(el.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT")
-                || el.is_content_editable()
-        })
-}
-
-fn panel_is_open() -> bool {
-    document()
-        .query_selector("[data-testid=panel]")
-        .ok()
-        .flatten()
-        .is_some()
 }
 
 #[cfg(feature = "hydrate")]

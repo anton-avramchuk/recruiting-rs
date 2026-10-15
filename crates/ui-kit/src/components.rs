@@ -87,6 +87,9 @@ pub fn AppShell(
     #[prop(into)]
     context_label: Signal<String>,
     #[prop(into)] user_label: Signal<String>,
+    /// Кнопка поиска в шапке (палитра команд); без неё не показывается.
+    #[prop(optional)]
+    on_search: Option<Callback<()>>,
 ) -> impl IntoView {
     let ctx = expect_context::<SessionCtx>();
     let logout_action = Action::new(|_: &()| async { logout().await });
@@ -104,6 +107,21 @@ pub fn AppShell(
                 <span class="brand">{brand}</span>
                 <span class="shell__context" data-testid="context-label">{move || context_label.get()}</span>
                 <span class="spacer"></span>
+                {on_search
+                    .map(|cb| {
+                        view! {
+                            <button
+                                type="button"
+                                class="btn btn--ghost shell__search"
+                                aria-label="Поиск и команды"
+                                data-testid="search-button"
+                                on:click=move |_| cb.run(())
+                            >
+                                "Поиск "
+                                <kbd>"Ctrl K"</kbd>
+                            </button>
+                        }
+                    })}
                 <span class="shell__user" data-testid="user-label">{move || user_label.get()}</span>
                 <form
                     method="post"
