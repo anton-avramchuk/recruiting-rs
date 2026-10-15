@@ -76,3 +76,7 @@ impl Phone {
         &digits[digits.len().saturating_sub(SIGNIFICANT_DIGITS)..]
     }
 }
+
+mod skills;
+
+pub use skills::{SkillsError, normalize_skills};

@@ -2755,6 +2755,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "recruitment"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "candidate-contracts",
+ "chrono",
+ "http-body-util",
+ "platform-auth",
+ "platform-core",
+ "platform-db",
+ "platform-values",
+ "recruitment-contracts",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.21",
+ "tokio",
+ "tower",
+ "tracing",
+ "utoipa",
+ "uuid",
+]
+
+[[package]]
+name = "recruitment-contracts"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "utoipa",
+ "uuid",
+]
+
+[[package]]
 name = "redis"
 version = "0.27.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,12 +1,10 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use platform_core::tenant::TenantId;
-use platform_values::{Email, Phone};
+use platform_values::{Email, Phone, SkillsError};
 use uuid::Uuid;
 
 use super::{DomainError, Education, Employment, PersonKeys, Telegram, WhatsApp, history};
 
-const MAX_SKILLS: usize = 50;
-const MAX_SKILL_LEN: usize = 50;
 const MAX_DECLARED_EXPERIENCE: i32 = 80;
 
 fn collapse(raw: &str) -> String {
@@ -19,23 +17,10 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    let mut out: Vec<String> = Vec::new();
-    for raw in skills {
-        let skill = collapse(raw.as_ref());
-        if skill.is_empty() {
-            continue;
-        }
-        if skill.chars().count() > MAX_SKILL_LEN {
-            return Err(DomainError::invalid("skills", "навык длиннее 50 символов"));
-        }
-        if !out.iter().any(|s| s.to_lowercase() == skill.to_lowercase()) {
-            out.push(skill);
-        }
-    }
-    if out.len() > MAX_SKILLS {
-        return Err(DomainError::invalid("skills", "не больше 50 навыков"));
-    }
-    Ok(out)
+    platform_values::normalize_skills(skills).map_err(|e| match e {
+        SkillsError::TooLong => DomainError::invalid("skills", "навык длиннее 50 символов"),
+        SkillsError::TooMany => DomainError::invalid("skills", "не больше 50 навыков"),
+    })
 }
 
 fn optional(raw: Option<String>) -> Option<String> {

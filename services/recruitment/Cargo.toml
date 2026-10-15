@@ -1,0 +1,32 @@
+[package]
+name = "recruitment"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+recruitment-contracts = { path = "../../crates/recruitment-contracts" }
+candidate-contracts = { path = "../../crates/candidate-contracts" }
+platform-core = { path = "../../crates/platform-core" }
+platform-db = { path = "../../crates/platform-db" }
+platform-auth = { path = "../../crates/platform-auth" }
+platform-values = { path = "../../crates/platform-values" }
+axum.workspace = true
+chrono.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+utoipa.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+platform-db = { path = "../../crates/platform-db", features = ["test-support"] }
+http-body-util.workspace = true
+tower.workspace = true
+
+[lints]
+workspace = true
