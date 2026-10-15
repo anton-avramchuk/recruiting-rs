@@ -268,6 +268,7 @@ impl Stack {
                     "IDENTITY_JWKS_URL",
                     format!("{identity_url}/.well-known/jwks.json"),
                 ),
+                ("SERVICE_TOKEN", SERVICE_TOKEN.into()),
             ],
         ));
         stack.services.push(spawn(

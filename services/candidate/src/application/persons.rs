@@ -217,6 +217,19 @@ impl PersonService {
         Ok(person)
     }
 
+    /// Лента изменений организации после позиции (для других сервисов).
+    pub async fn changes(
+        &self,
+        tenant: TenantId,
+        after: i64,
+        limit: i64,
+    ) -> Result<Vec<store::ChangeRow>, PersonError> {
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        let rows = store::changes_after(&mut tx, after, limit).await?;
+        tx.rollback().await?;
+        Ok(rows)
+    }
+
     /// Необратимое удаление вместе с историей.
     pub async fn delete(&self, tenant: TenantId, id: Uuid) -> Result<(), PersonError> {
         let mut tx = TenantTx::begin(&self.pool, tenant).await?;

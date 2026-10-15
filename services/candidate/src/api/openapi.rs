@@ -1,14 +1,15 @@
 use axum::{Json, Router, routing::get};
 use candidate_contracts::{
-    CreatePersonRequest, DuplicateInfo, EducationDto, EmploymentDto, PersonDto, PersonPage,
-    PersonSummaryDto, UpdatePersonRequest,
+    CreatePersonRequest, DuplicateInfo, EducationDto, EmploymentDto, PersonChange,
+    PersonChangesPage, PersonDto, PersonPage, PersonSnapshot, PersonSummaryDto,
+    UpdatePersonRequest,
 };
 use utoipa::{
     Modify, OpenApi,
     openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
 };
 
-use super::{AppState, persons};
+use super::{AppState, internal, persons};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -21,6 +22,7 @@ use super::{AppState, persons};
         persons::replace_employments,
         persons::replace_educations,
         persons::remove,
+        internal::person_changes,
         platform_core::health::health,
     ),
     components(schemas(
@@ -32,6 +34,9 @@ use super::{AppState, persons};
         EmploymentDto,
         EducationDto,
         DuplicateInfo,
+        PersonChange,
+        PersonChangesPage,
+        PersonSnapshot,
         platform_core::error::ProblemDetails,
     )),
     modifiers(&Security)
@@ -43,6 +48,10 @@ struct Security;
 impl Modify for Security {
     fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
         let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "service",
+            SecurityScheme::Http(HttpBuilder::new().scheme(HttpAuthScheme::Bearer).build()),
+        );
         components.add_security_scheme(
             "bearer",
             SecurityScheme::Http(

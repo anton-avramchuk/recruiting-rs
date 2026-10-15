@@ -79,6 +79,7 @@ services:
       DATABASE_URL: postgres://recruiting_app:recruiting_app@postgres/candidate
       MIGRATION_DATABASE_URL: postgres://postgres:postgres@postgres/candidate
       IDENTITY_JWKS_URL: http://identity:8080/.well-known/jwks.json
+      SERVICE_TOKEN: dev-service-token-change-me
     depends_on:
       postgres: { condition: service_healthy }
     healthcheck: *health

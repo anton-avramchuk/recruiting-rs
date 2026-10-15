@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 /// «Сегодня» в тестах фиксировано, чтобы стаж по текущему месту работы был предсказуем.
 pub const TODAY: &str = "2026-01-01";
+pub const SERVICE_TOKEN: &str = "test-service-token";
 
 pub struct App {
     pub db: TestDb,
@@ -29,7 +30,7 @@ pub async fn setup() -> App {
     let keys = KeyPair::generate("test");
     let verifier = Arc::new(TokenVerifier::new(&keys.public_key(), Audience::Tenant));
     let today = NaiveDate::parse_from_str(TODAY, "%Y-%m-%d").unwrap();
-    let state = AppState::new(db.app.clone(), verifier).with_today(today);
+    let state = AppState::new(db.app.clone(), verifier, SERVICE_TOKEN).with_today(today);
     App {
         db,
         keys,

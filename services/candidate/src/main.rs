@@ -19,6 +19,7 @@ struct Config {
     /// Владелец схемы для миграций; по умолчанию тот же URL.
     migration_database_url: String,
     identity_jwks_url: String,
+    service_token: String,
 }
 
 fn load() -> Result<Config, ConfigError> {
@@ -30,6 +31,7 @@ fn load() -> Result<Config, ConfigError> {
             .unwrap_or_else(|| database_url.clone()),
         database_url,
         identity_jwks_url: require(get, "IDENTITY_JWKS_URL")?,
+        service_token: require(get, "SERVICE_TOKEN")?,
     })
 }
 
@@ -65,7 +67,7 @@ async fn run(cfg: Config) -> Result<(), Box<dyn std::error::Error>> {
         Audience::Tenant,
         KEY_REFRESH_INTERVAL,
     ));
-    let app = api::router(AppState::new(pool, verifier));
+    let app = api::router(AppState::new(pool, verifier, cfg.service_token));
 
     let listener = tokio::net::TcpListener::bind(cfg.common.listen_addr).await?;
     tracing::info!(addr = %cfg.common.listen_addr, "candidate listening");

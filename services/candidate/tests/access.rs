@@ -217,7 +217,7 @@ async fn tokens_are_verified_against_the_identity_jwks_and_survive_key_rotation(
     let url = identity.serve().await;
     let interval = Duration::from_millis(150);
     let verifier = Arc::new(TokenVerifier::remote(&url, Audience::Tenant, interval));
-    let router = api::router(AppState::new(db.app.clone(), verifier));
+    let router = api::router(AppState::new(db.app.clone(), verifier, "svc"));
     let tenant = TenantId::new();
 
     // ключа нет: запросы отклоняются, сервис жив

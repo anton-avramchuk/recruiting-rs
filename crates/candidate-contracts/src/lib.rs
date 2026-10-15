@@ -75,6 +75,35 @@ pub struct PersonPage {
     pub page_size: i64,
 }
 
+/// Состояние человека в ленте изменений (то, что нужно воронке).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct PersonSnapshot {
+    pub full_name: String,
+    pub source: Option<String>,
+    pub city: Option<String>,
+    pub expected_salary: Option<i64>,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    pub skills: Vec<String>,
+    pub experience_years: i32,
+}
+
+/// Запись ленты: последнее состояние человека или признак удаления.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct PersonChange {
+    pub seq: i64,
+    pub person_id: Uuid,
+    pub deleted: bool,
+    pub snapshot: Option<PersonSnapshot>,
+}
+
+/// Страница ленты; `next` - позиция, с которой читать дальше.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct PersonChangesPage {
+    pub items: Vec<PersonChange>,
+    pub next: i64,
+}
+
 /// Найденный «тот же человек» при создании.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct DuplicateInfo {

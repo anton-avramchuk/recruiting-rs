@@ -28,7 +28,10 @@ async fn every_tenant_table_is_protected_by_rls() {
     .fetch_one(&db.owner)
     .await
     .unwrap();
-    assert_eq!(tables, 3, "persons, employments, educations");
+    assert_eq!(
+        tables, 4,
+        "persons, employments, educations, person_changes"
+    );
     db.close().await;
 }
 

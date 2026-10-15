@@ -384,6 +384,30 @@ pub async fn replace_educations(
     Ok(())
 }
 
+#[derive(Debug, FromRow)]
+pub struct ChangeRow {
+    pub seq: i64,
+    pub person_id: Uuid,
+    pub deleted: bool,
+    pub snapshot: Option<serde_json::Value>,
+}
+
+/// Записи ленты после позиции, по возрастанию.
+pub async fn changes_after(
+    conn: &mut PgConnection,
+    after: i64,
+    limit: i64,
+) -> Result<Vec<ChangeRow>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT seq, person_id, deleted, snapshot FROM person_changes
+         WHERE seq > $1 ORDER BY seq LIMIT $2",
+    )
+    .bind(after)
+    .bind(limit)
+    .fetch_all(conn)
+    .await
+}
+
 /// Удаляет кандидата; история уходит каскадом. `false` - такого кандидата нет.
 pub async fn delete(conn: &mut PgConnection, id: Uuid) -> Result<bool, sqlx::Error> {
     let res = sqlx::query("DELETE FROM persons WHERE id = $1")
