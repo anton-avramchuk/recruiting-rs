@@ -1,6 +1,8 @@
 //! Сценарии воронки: транзакции, права на уровне данных (RLS) и синхронизация людей.
 pub mod analytics;
 pub mod applications;
+mod client_feed;
+mod client_sync;
 mod feed;
 mod sync;
 mod vacancies;
@@ -12,6 +14,8 @@ pub use applications::{
     ApplicationDetail, ApplicationPage, ApplicationService, BatchOutcome, BulkAction, BulkOutcome,
     ListQuery, MAX_PAGE_SIZE, Overview,
 };
+pub use client_feed::{ClientFeed, HttpClientFeed};
+pub use client_sync::ClientsSync;
 pub use feed::{FeedError, HttpPersonFeed, PersonFeed};
 pub use sync::PeopleSync;
 pub use vacancies::VacancyService;
@@ -26,6 +30,9 @@ pub enum FunnelError {
     NotFound,
     #[error("application already exists")]
     Duplicate,
+    /// Сервис заказчиков недоступен, а нужного заказчика в проекции ещё нет.
+    #[error("clients are unavailable")]
+    ClientsUnavailable,
     #[error("{0}")]
     BadQuery(String),
     #[error(transparent)]

@@ -8,7 +8,7 @@ use platform_core::{
 use recruitment::{
     MIGRATOR,
     api::{self, AppState},
-    application::HttpPersonFeed,
+    application::{HttpClientFeed, HttpPersonFeed},
 };
 
 /// Как часто можно перечитывать ключ identity при неверной подписи.
@@ -22,6 +22,7 @@ struct Config {
     identity_jwks_url: String,
     service_token: String,
     candidate_url: String,
+    client_url: String,
 }
 
 fn load() -> Result<Config, ConfigError> {
@@ -35,6 +36,7 @@ fn load() -> Result<Config, ConfigError> {
         identity_jwks_url: require(get, "IDENTITY_JWKS_URL")?,
         service_token: require(get, "SERVICE_TOKEN")?,
         candidate_url: require(get, "CANDIDATE_URL")?,
+        client_url: require(get, "CLIENT_URL")?,
     })
 }
 
@@ -71,7 +73,8 @@ async fn run(cfg: Config) -> Result<(), Box<dyn std::error::Error>> {
         KEY_REFRESH_INTERVAL,
     ));
     let feed = Arc::new(HttpPersonFeed::new(&cfg.candidate_url, &cfg.service_token));
-    let app = api::router(AppState::new(pool, verifier, feed));
+    let client_feed = Arc::new(HttpClientFeed::new(&cfg.client_url, &cfg.service_token));
+    let app = api::router(AppState::new(pool, verifier, feed, client_feed));
 
     let listener = tokio::net::TcpListener::bind(cfg.common.listen_addr).await?;
     tracing::info!(addr = %cfg.common.listen_addr, "recruitment listening");

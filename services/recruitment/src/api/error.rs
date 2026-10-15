@@ -11,6 +11,11 @@ impl From<FunnelError> for ApiError {
             FunnelError::Domain(DomainError::Conflict(reason)) => ApiError::conflict(reason),
             FunnelError::NotFound => ApiError::not_found(),
             FunnelError::Duplicate => ApiError::conflict("application already exists"),
+            FunnelError::ClientsUnavailable => ApiError::new(
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                "Service Unavailable",
+            )
+            .with_detail("сервис заказчиков временно недоступен, попробуйте позже"),
             FunnelError::BadQuery(m) => ApiError::bad_request(m),
             FunnelError::Db(e) => ApiError::internal(&e),
             FunnelError::Store(e) => ApiError::internal(&e),

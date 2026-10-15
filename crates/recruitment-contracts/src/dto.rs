@@ -7,17 +7,36 @@ use crate::Stage;
 
 // ---------- вакансии ----------
 
+/// Заказчик вакансии (из проекции сервиса заказчиков).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct ClientRefDto {
+    pub id: Uuid,
+    pub name: String,
+    pub archived: bool,
+}
+
+/// Контактное лицо заказчика по вакансии.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct ContactRefDto {
+    pub id: Uuid,
+    pub full_name: String,
+    /// Название должности.
+    pub position: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct VacancyDto {
     pub id: Uuid,
     pub title: String,
-    pub department: Option<String>,
+    /// Пусто у вакансий, созданных до появления заказчиков.
+    pub client: Option<ClientRefDto>,
+    /// Пусто, если контакт не выбран или удалён у заказчика.
+    pub contact: Option<ContactRefDto>,
     pub city: Option<String>,
     /// План найма.
     pub openings: i32,
     /// `high`, `normal` или `low`.
     pub priority: String,
-    pub hiring_manager: Option<String>,
     pub recruiter: Option<String>,
     pub required_skills: Vec<String>,
     /// `YYYY-MM-DD`.
@@ -32,16 +51,18 @@ pub struct VacancyDto {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct CreateVacancyRequest {
     pub title: String,
+    /// Обязателен: активный заказчик организации.
     #[serde(default)]
-    pub department: Option<String>,
+    pub client_id: Option<Uuid>,
+    /// Контактное лицо этого заказчика.
+    #[serde(default)]
+    pub contact_id: Option<Uuid>,
     #[serde(default)]
     pub city: Option<String>,
     #[serde(default)]
     pub openings: Option<i32>,
     #[serde(default)]
     pub priority: Option<String>,
-    #[serde(default)]
-    pub hiring_manager: Option<String>,
     #[serde(default)]
     pub recruiter: Option<String>,
     #[serde(default)]
@@ -56,13 +77,21 @@ pub struct CreateVacancyRequest {
 pub struct UpdateVacancyRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    /// Сменить заказчика; `null` не допускается (заказчика нельзя убрать).
     #[serde(
         default,
         deserialize_with = "double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    #[schema(value_type = Option<String>)]
-    pub department: Option<Option<String>>,
+    #[schema(value_type = Option<Uuid>)]
+    pub client_id: Option<Option<Uuid>>,
+    #[serde(
+        default,
+        deserialize_with = "double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[schema(value_type = Option<Uuid>)]
+    pub contact_id: Option<Option<Uuid>>,
     #[serde(
         default,
         deserialize_with = "double_option",
@@ -74,13 +103,6 @@ pub struct UpdateVacancyRequest {
     pub openings: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub priority: Option<String>,
-    #[serde(
-        default,
-        deserialize_with = "double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    #[schema(value_type = Option<String>)]
-    pub hiring_manager: Option<Option<String>>,
     #[serde(
         default,
         deserialize_with = "double_option",
@@ -228,7 +250,10 @@ pub struct InterviewItemDto {
     pub scheduled_at: String,
     pub full_name: String,
     pub vacancy_title: String,
-    pub hiring_manager: Option<String>,
+    /// Заказчик вакансии.
+    pub client_name: Option<String>,
+    /// ФИО контактного лица заказчика по вакансии.
+    pub contact_name: Option<String>,
     pub stage: Stage,
 }
 

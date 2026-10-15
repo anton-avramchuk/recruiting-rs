@@ -72,7 +72,7 @@ impl AnalyticsService {
         )
         .await?;
         let repeat_people = store::repeat_people(&mut tx).await?;
-        let vacancy_views = vacancies::list(&mut tx).await?;
+        let vacancy_views = vacancies::list(&mut tx, None).await?;
         tx.rollback().await?;
 
         let today = now.date_naive();

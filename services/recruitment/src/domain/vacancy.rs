@@ -58,11 +58,12 @@ fn opened_on(open_days: i32, today: NaiveDate) -> Result<NaiveDate, DomainError>
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NewVacancy {
     pub title: String,
-    pub department: Option<String>,
+    /// Обязателен для новых вакансий.
+    pub client_id: Option<Uuid>,
+    pub contact_id: Option<Uuid>,
     pub city: Option<String>,
     pub openings: Option<i32>,
     pub priority: Option<String>,
-    pub hiring_manager: Option<String>,
     pub recruiter: Option<String>,
     pub required_skills: Vec<String>,
     /// Сколько дней вакансия уже открыта.
@@ -74,11 +75,12 @@ pub struct NewVacancy {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct VacancyPatch {
     pub title: Option<String>,
-    pub department: Option<Option<String>>,
+    /// Сменить заказчика; `Some(None)` недопустимо. Смена сбрасывает контакт.
+    pub client_id: Option<Option<Uuid>>,
+    pub contact_id: Option<Option<Uuid>>,
     pub city: Option<Option<String>>,
     pub openings: Option<i32>,
     pub priority: Option<String>,
-    pub hiring_manager: Option<Option<String>>,
     pub recruiter: Option<Option<String>>,
     pub required_skills: Option<Vec<String>>,
     pub open_days: Option<i32>,
@@ -90,11 +92,12 @@ pub struct Vacancy {
     pub id: Uuid,
     pub tenant_id: TenantId,
     pub title: String,
-    pub department: Option<String>,
+    /// Пусто у вакансий, созданных до появления заказчиков.
+    pub client_id: Option<Uuid>,
+    pub contact_id: Option<Uuid>,
     pub city: Option<String>,
     pub openings: i32,
     pub priority: Priority,
-    pub hiring_manager: Option<String>,
     pub recruiter: Option<String>,
     pub required_skills: Vec<String>,
     pub opened_on: NaiveDate,
@@ -106,18 +109,21 @@ impl Vacancy {
         new: NewVacancy,
         today: NaiveDate,
     ) -> Result<Self, DomainError> {
+        let client_id = new
+            .client_id
+            .ok_or_else(|| DomainError::invalid("client_id", "укажите заказчика"))?;
         Ok(Self {
             id: Uuid::new_v4(),
             tenant_id,
             title: title(&new.title)?,
-            department: optional(new.department),
+            client_id: Some(client_id),
+            contact_id: new.contact_id,
             city: optional(new.city),
             openings: openings(new.openings.unwrap_or(1))?,
             priority: match new.priority {
                 Some(p) => priority(&p)?,
                 None => Priority::Normal,
             },
-            hiring_manager: optional(new.hiring_manager),
             recruiter: optional(new.recruiter),
             required_skills: skills(new.required_skills)?,
             opened_on: opened_on(new.open_days.unwrap_or(0), today)?,
@@ -130,11 +136,11 @@ impl Vacancy {
         id: Uuid,
         tenant_id: TenantId,
         title: String,
-        department: Option<String>,
+        client_id: Option<Uuid>,
+        contact_id: Option<Uuid>,
         city: Option<String>,
         openings: i32,
         priority: &str,
-        hiring_manager: Option<String>,
         recruiter: Option<String>,
         required_skills: Vec<String>,
         opened_on: NaiveDate,
@@ -143,11 +149,11 @@ impl Vacancy {
             id,
             tenant_id,
             title,
-            department,
+            client_id,
+            contact_id,
             city,
             openings,
             priority: self::priority(priority)?,
-            hiring_manager,
             recruiter,
             required_skills,
             opened_on,
@@ -165,8 +171,28 @@ impl Vacancy {
         if let Some(t) = patch.title {
             next.title = title(&t)?;
         }
-        if let Some(v) = patch.department {
-            next.department = optional(v);
+        match patch.client_id {
+            Some(None) => {
+                return Err(DomainError::invalid(
+                    "client_id",
+                    "заказчика нельзя убрать, выберите другого",
+                ));
+            }
+            // смена заказчика сбрасывает контакт прежнего заказчика
+            Some(Some(id)) if next.client_id != Some(id) => {
+                next.client_id = Some(id);
+                next.contact_id = None;
+            }
+            _ => {}
+        }
+        if let Some(contact) = patch.contact_id {
+            if contact.is_some() && next.client_id.is_none() {
+                return Err(DomainError::invalid(
+                    "contact_id",
+                    "сначала выберите заказчика",
+                ));
+            }
+            next.contact_id = contact;
         }
         if let Some(v) = patch.city {
             next.city = optional(v);
@@ -176,9 +202,6 @@ impl Vacancy {
         }
         if let Some(p) = patch.priority {
             next.priority = priority(&p)?;
-        }
-        if let Some(v) = patch.hiring_manager {
-            next.hiring_manager = optional(v);
         }
         if let Some(v) = patch.recruiter {
             next.recruiter = optional(v);

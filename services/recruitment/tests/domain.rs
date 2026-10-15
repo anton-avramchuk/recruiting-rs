@@ -19,6 +19,7 @@ fn vacancy(new: NewVacancy) -> Vacancy {
 fn titled(title: &str) -> NewVacancy {
     NewVacancy {
         title: title.into(),
+        client_id: Some(Uuid::new_v4()),
         ..NewVacancy::default()
     }
 }
@@ -33,13 +34,147 @@ fn field(err: DomainError) -> &'static str {
 // ---------- вакансия ----------
 
 #[test]
-fn a_vacancy_needs_only_a_title() {
+fn a_vacancy_needs_a_title_and_a_client() {
     let v = vacancy(titled("  Senior   Go-разработчик "));
     assert_eq!(v.title, "Senior Go-разработчик");
     assert_eq!(v.openings, 1);
     assert_eq!(v.priority, Priority::Normal);
     assert_eq!(v.open_days(today()), 0);
     assert!(v.required_skills.is_empty());
+}
+
+#[test]
+fn a_new_vacancy_without_a_client_is_rejected() {
+    let err = Vacancy::create(
+        TenantId::new(),
+        NewVacancy {
+            client_id: None,
+            ..titled("A")
+        },
+        today(),
+    )
+    .unwrap_err();
+    assert_eq!(field(err), "client_id");
+}
+
+#[test]
+fn a_vacancy_keeps_its_client_and_contact() {
+    let (client, contact) = (Uuid::new_v4(), Uuid::new_v4());
+    let v = vacancy(NewVacancy {
+        client_id: Some(client),
+        contact_id: Some(contact),
+        ..titled("A")
+    });
+    assert_eq!((v.client_id, v.contact_id), (Some(client), Some(contact)));
+}
+
+#[test]
+fn switching_the_client_resets_the_contact_unless_a_new_one_is_given() {
+    let (first, second, contact) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let mut v = vacancy(NewVacancy {
+        client_id: Some(first),
+        contact_id: Some(contact),
+        ..titled("A")
+    });
+    v.apply(
+        VacancyPatch {
+            client_id: Some(Some(second)),
+            ..VacancyPatch::default()
+        },
+        today(),
+    )
+    .unwrap();
+    assert_eq!((v.client_id, v.contact_id), (Some(second), None));
+
+    let new_contact = Uuid::new_v4();
+    v.apply(
+        VacancyPatch {
+            client_id: Some(Some(first)),
+            contact_id: Some(Some(new_contact)),
+            ..VacancyPatch::default()
+        },
+        today(),
+    )
+    .unwrap();
+    assert_eq!(
+        (v.client_id, v.contact_id),
+        (Some(first), Some(new_contact))
+    );
+}
+
+#[test]
+fn the_same_client_keeps_the_contact() {
+    let (client, contact) = (Uuid::new_v4(), Uuid::new_v4());
+    let mut v = vacancy(NewVacancy {
+        client_id: Some(client),
+        contact_id: Some(contact),
+        ..titled("A")
+    });
+    v.apply(
+        VacancyPatch {
+            client_id: Some(Some(client)),
+            ..VacancyPatch::default()
+        },
+        today(),
+    )
+    .unwrap();
+    assert_eq!(v.contact_id, Some(contact));
+}
+
+#[test]
+fn the_client_cannot_be_removed() {
+    let mut v = vacancy(titled("A"));
+    let before = v.clone();
+    let err = v
+        .apply(
+            VacancyPatch {
+                client_id: Some(None),
+                ..VacancyPatch::default()
+            },
+            today(),
+        )
+        .unwrap_err();
+    assert_eq!(field(err), "client_id");
+    assert_eq!(v, before);
+}
+
+#[test]
+fn a_contact_needs_a_client() {
+    let mut legacy = Vacancy::restore(
+        Uuid::new_v4(),
+        TenantId::new(),
+        "Старая".into(),
+        None,
+        None,
+        None,
+        1,
+        "normal",
+        None,
+        vec![],
+        today(),
+    )
+    .unwrap();
+    let err = legacy
+        .apply(
+            VacancyPatch {
+                contact_id: Some(Some(Uuid::new_v4())),
+                ..VacancyPatch::default()
+            },
+            today(),
+        )
+        .unwrap_err();
+    assert_eq!(field(err), "contact_id");
+    // а назначить заказчика старой вакансии можно
+    legacy
+        .apply(
+            VacancyPatch {
+                client_id: Some(Some(Uuid::new_v4())),
+                ..VacancyPatch::default()
+            },
+            today(),
+        )
+        .unwrap();
+    assert!(legacy.client_id.is_some());
 }
 
 #[test]
@@ -112,15 +247,15 @@ fn required_skills_are_normalized_like_candidate_skills() {
 #[test]
 fn patch_changes_only_given_fields_and_clears_optional_ones() {
     let mut v = vacancy(NewVacancy {
-        department: Some("Платформа".into()),
-        hiring_manager: Some("Иванов".into()),
+        city: Some("Казань".into()),
+        recruiter: Some("Мария".into()),
         ..titled("A")
     });
     v.apply(
         VacancyPatch {
             openings: Some(3),
             priority: Some("high".into()),
-            hiring_manager: Some(None),
+            recruiter: Some(None),
             ..VacancyPatch::default()
         },
         today(),
@@ -128,8 +263,8 @@ fn patch_changes_only_given_fields_and_clears_optional_ones() {
     .unwrap();
     assert_eq!(v.openings, 3);
     assert_eq!(v.priority, Priority::High);
-    assert_eq!(v.hiring_manager, None);
-    assert_eq!(v.department.as_deref(), Some("Платформа"));
+    assert_eq!(v.recruiter, None);
+    assert_eq!(v.city.as_deref(), Some("Казань"));
     assert_eq!(v.title, "A");
 }
 

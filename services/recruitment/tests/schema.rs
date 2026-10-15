@@ -58,8 +58,8 @@ async fn every_tenant_table_is_protected_by_rls() {
     .await
     .unwrap();
     assert_eq!(
-        tables, 6,
-        "vacancies, people, people_sync, applications, application_events, interviews"
+        tables, 9,
+        "vacancies, people, people_sync, clients, client_contacts, clients_sync, applications, application_events, interviews"
     );
     db.close().await;
 }

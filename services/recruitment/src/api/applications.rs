@@ -357,7 +357,8 @@ pub(super) async fn interviews(
                 scheduled_at: r.scheduled_at.to_rfc3339(),
                 full_name: r.full_name,
                 vacancy_title: r.vacancy_title,
-                hiring_manager: r.hiring_manager,
+                client_name: r.client_name,
+                contact_name: r.contact_name,
                 stage: Stage::from_key(&r.stage).unwrap_or(Stage::New),
             })
             .collect(),

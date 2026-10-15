@@ -7,6 +7,7 @@ publish.workspace = true
 [dependencies]
 recruitment-contracts = { path = "../../crates/recruitment-contracts" }
 candidate-contracts = { path = "../../crates/candidate-contracts" }
+client-contracts = { path = "../../crates/client-contracts" }
 platform-core = { path = "../../crates/platform-core" }
 platform-db = { path = "../../crates/platform-db" }
 platform-auth = { path = "../../crates/platform-auth" }
@@ -26,6 +27,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 candidate = { path = "../candidate" }
+client = { path = "../client" }
 platform-db = { path = "../../crates/platform-db", features = ["test-support"] }
 http-body-util.workspace = true
 tower.workspace = true

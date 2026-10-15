@@ -2816,6 +2816,8 @@ dependencies = [
  "candidate",
  "candidate-contracts",
  "chrono",
+ "client",
+ "client-contracts",
  "http-body-util",
  "platform-auth",
  "platform-core",

@@ -414,7 +414,8 @@ pub struct InterviewRow {
     pub scheduled_at: DateTime<Utc>,
     pub full_name: String,
     pub vacancy_title: String,
-    pub hiring_manager: Option<String>,
+    pub client_name: Option<String>,
+    pub contact_name: Option<String>,
     pub stage: String,
 }
 
@@ -426,11 +427,14 @@ pub async fn interviews_between(
 ) -> Result<Vec<InterviewRow>, sqlx::Error> {
     sqlx::query_as(
         "SELECT i.id, i.application_id, i.scheduled_at, p.full_name,
-                v.title AS vacancy_title, v.hiring_manager, a.stage
+                v.title AS vacancy_title, c.name AS client_name,
+                k.full_name AS contact_name, a.stage
          FROM interviews i
          JOIN applications a ON a.id = i.application_id
          JOIN people p ON p.person_id = a.person_id
          JOIN vacancies v ON v.id = a.vacancy_id
+         LEFT JOIN clients c ON c.client_id = v.client_id
+         LEFT JOIN client_contacts k ON k.contact_id = v.contact_id
          WHERE i.scheduled_at >= $1 AND i.scheduled_at < $2
          ORDER BY i.scheduled_at, i.id",
     )

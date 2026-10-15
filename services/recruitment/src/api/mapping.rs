@@ -1,6 +1,8 @@
 //! Преобразование строк хранилища в DTO.
 use chrono::{NaiveDate, Utc};
-use recruitment_contracts::{ApplicationDto, EventDto, Stage, VacancyDto};
+use recruitment_contracts::{
+    ApplicationDto, ClientRefDto, ContactRefDto, EventDto, Stage, VacancyDto,
+};
 
 use crate::infrastructure::{
     applications::{ApplicationRow, EventRow},
@@ -12,11 +14,19 @@ pub fn vacancy_to_dto(view: &VacancyView, today: NaiveDate) -> VacancyDto {
     VacancyDto {
         id: v.id,
         title: v.title.clone(),
-        department: v.department.clone(),
+        client: view.client.as_ref().map(|c| ClientRefDto {
+            id: c.id,
+            name: c.name.clone(),
+            archived: c.archived,
+        }),
+        contact: view.contact.as_ref().map(|c| ContactRefDto {
+            id: c.id,
+            full_name: c.full_name.clone(),
+            position: c.position.clone(),
+        }),
         city: v.city.clone(),
         openings: v.openings,
         priority: v.priority.key().to_string(),
-        hiring_manager: v.hiring_manager.clone(),
         recruiter: v.recruiter.clone(),
         required_skills: v.required_skills.clone(),
         opened_on: v.opened_on.format("%Y-%m-%d").to_string(),

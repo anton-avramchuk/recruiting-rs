@@ -183,9 +183,14 @@ async fn interview_at(c: &Ctx, application_id: &Value, at: &str) {
 #[tokio::test]
 async fn interviews_for_a_period_come_in_time_order() {
     let c = ctx().await;
+    let client = c.app.default_client(&c.token).await;
+    let contact = c
+        .app
+        .add_contact(c.tenant, client, "Иванов", Some("HR-директор"))
+        .await;
     let v = c
         .app
-        .add_vacancy(&c.token, json!({"title": "Go", "hiring_manager": "Иванов"}))
+        .add_vacancy(&c.token, json!({"title": "Go", "contact_id": contact}))
         .await;
     let a = c.apply("Анна", &v, "tech").await;
     let b = c.apply("Борис", &v, "hr").await;
@@ -207,7 +212,8 @@ async fn interviews_for_a_period_come_in_time_order() {
     assert_eq!(items.len(), 2);
     assert_eq!(items[0]["full_name"], "Анна");
     assert_eq!(items[0]["vacancy_title"], "Go");
-    assert_eq!(items[0]["hiring_manager"], "Иванов");
+    assert_eq!(items[0]["contact_name"], "Иванов");
+    assert_eq!(items[0]["client_name"], "Заказчик по умолчанию");
     assert_eq!(items[0]["stage"], "tech");
     assert_eq!(items[1]["full_name"], "Борис");
     assert!(

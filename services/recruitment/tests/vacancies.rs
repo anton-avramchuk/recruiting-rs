@@ -9,13 +9,11 @@ use serde_json::json;
 async fn minimal_vacancy_gets_defaults() {
     let app = setup().await;
     let token = app.token(TenantId::new(), &[Role::Recruiter]);
+    let body = app
+        .with_client(&token, json!({"title": "Senior Go-разработчик"}))
+        .await;
     let (s, v) = app
-        .send(
-            "POST",
-            "/vacancies",
-            Some(&token),
-            Some(json!({"title": "Senior Go-разработчик"})),
-        )
+        .send("POST", "/vacancies", Some(&token), Some(body))
         .await;
     assert_eq!(s, 201, "{v}");
     assert_eq!(v["title"], "Senior Go-разработчик");
@@ -37,6 +35,7 @@ async fn invalid_values_name_the_field() {
         (json!({"title": "A", "priority": "urgent"}), "priority"),
         (json!({"title": "A", "open_days": -3}), "open_days"),
     ] {
+        let body = app.with_client(&token, body).await;
         let (s, p) = app
             .send("POST", "/vacancies", Some(&token), Some(body))
             .await;
@@ -138,7 +137,7 @@ async fn patch_changes_given_fields_only() {
     let v = app
         .add_vacancy(
             &token,
-            json!({"title": "A", "hiring_manager": "Иванов", "department": "Платформа", "required_skills": ["Go"]}),
+            json!({"title": "A", "city": "Казань", "recruiter": "Мария", "required_skills": ["Go"]}),
         )
         .await;
     let uri = format!("/vacancies/{}", v["id"].as_str().unwrap());
@@ -147,14 +146,14 @@ async fn patch_changes_given_fields_only() {
             "PATCH",
             &uri,
             Some(&token),
-            Some(json!({"openings": 3, "priority": "high", "hiring_manager": null, "required_skills": [" Go ", "go", "K8s"]})),
+            Some(json!({"openings": 3, "priority": "high", "recruiter": null, "required_skills": [" Go ", "go", "K8s"]})),
         )
         .await;
     assert_eq!(s, 200, "{updated}");
     assert_eq!(updated["openings"], 3);
     assert_eq!(updated["priority"], "high");
-    assert_eq!(updated["hiring_manager"], json!(null));
-    assert_eq!(updated["department"], "Платформа");
+    assert_eq!(updated["recruiter"], json!(null));
+    assert_eq!(updated["city"], "Казань");
     assert_eq!(updated["title"], "A");
     assert_eq!(updated["required_skills"], json!(["Go", "K8s"]));
 

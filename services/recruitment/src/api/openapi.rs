@@ -1,10 +1,10 @@
 use axum::{Json, Router, routing::get};
 use recruitment_contracts::{
     AnalyticsDto, ApplicationDetailDto, ApplicationDto, ApplicationPage, BatchApplicationsRequest,
-    BatchApplicationsResponse, BulkRequest, BulkResult, CreateApplicationRequest,
-    CreateVacancyRequest, EventDto, FunnelStepDto, HandoffRequest, InterviewItemDto,
-    InterviewRequest, MoveRequest, OverviewDto, RejectRequest, SourceStatDto, Stage, StageCount,
-    UpdateVacancyRequest, VacancyDto, VacancyLoadDto, WeekCountDto,
+    BatchApplicationsResponse, BulkRequest, BulkResult, ClientRefDto, ContactRefDto,
+    CreateApplicationRequest, CreateVacancyRequest, EventDto, FunnelStepDto, HandoffRequest,
+    InterviewItemDto, InterviewRequest, MoveRequest, OverviewDto, RejectRequest, SourceStatDto,
+    Stage, StageCount, UpdateVacancyRequest, VacancyDto, VacancyLoadDto, WeekCountDto,
 };
 use utoipa::{
     Modify, OpenApi,
@@ -38,6 +38,8 @@ use super::{AppState, analytics, applications, vacancies};
     ),
     components(schemas(
         VacancyDto,
+        ClientRefDto,
+        ContactRefDto,
         CreateVacancyRequest,
         UpdateVacancyRequest,
         ApplicationDto,

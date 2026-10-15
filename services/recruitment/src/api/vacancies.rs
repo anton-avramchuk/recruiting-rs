@@ -1,6 +1,6 @@
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     routing::get,
 };
@@ -10,6 +10,7 @@ use platform_core::{
     tenant::TenantId,
 };
 use recruitment_contracts::{CreateVacancyRequest, UpdateVacancyRequest, VacancyDto};
+use serde::Deserialize;
 use uuid::Uuid;
 
 use super::{AppState, mapping::vacancy_to_dto};
@@ -44,11 +45,11 @@ pub(super) async fn create(
             tenant_of(&user)?,
             NewVacancy {
                 title: req.title,
-                department: req.department,
+                client_id: req.client_id,
+                contact_id: req.contact_id,
                 city: req.city,
                 openings: req.openings,
                 priority: req.priority,
-                hiring_manager: req.hiring_manager,
                 recruiter: req.recruiter,
                 required_skills: req.required_skills,
                 open_days: req.open_days,
@@ -61,7 +62,14 @@ pub(super) async fn create(
     ))
 }
 
-#[utoipa::path(get, path = "/vacancies", security(("bearer" = [])), responses(
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub(super) struct ListParams {
+    /// Только вакансии этого заказчика.
+    client_id: Option<Uuid>,
+}
+
+#[utoipa::path(get, path = "/vacancies", security(("bearer" = [])), params(ListParams), responses(
     (status = 200, body = Vec<VacancyDto>),
     (status = 401, body = ProblemDetails, content_type = "application/problem+json"),
     (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
@@ -69,10 +77,14 @@ pub(super) async fn create(
 pub(super) async fn list(
     State(state): State<AppState>,
     user: AuthUser,
+    Query(params): Query<ListParams>,
 ) -> Result<Json<Vec<VacancyDto>>, ApiError> {
     user.require(Permission::ReadData)?;
     let today = state.vacancies.clock().today();
-    let items = state.vacancies.list(tenant_of(&user)?).await?;
+    let items = state
+        .vacancies
+        .list(tenant_of(&user)?, params.client_id)
+        .await?;
     Ok(Json(
         items.iter().map(|v| vacancy_to_dto(v, today)).collect(),
     ))
@@ -115,11 +127,11 @@ pub(super) async fn update(
             id,
             VacancyPatch {
                 title: req.title,
-                department: req.department,
+                client_id: req.client_id,
+                contact_id: req.contact_id,
                 city: req.city,
                 openings: req.openings,
                 priority: req.priority,
-                hiring_manager: req.hiring_manager,
                 recruiter: req.recruiter,
                 required_skills: req.required_skills,
                 open_days: req.open_days,
