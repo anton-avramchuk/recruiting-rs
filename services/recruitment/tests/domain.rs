@@ -324,3 +324,44 @@ fn a_letter_is_just_a_history_entry() {
         [(EventKind::Letter, "Письмо кандидату отправлено".into())]
     );
 }
+
+// ---------- этап в событиях ----------
+
+fn stages_of(app: &mut Application) -> Vec<(EventKind, Option<Stage>)> {
+    app.take_events()
+        .into_iter()
+        .map(|e| (e.kind, e.stage))
+        .collect()
+}
+
+#[test]
+fn stage_events_carry_the_stage() {
+    let mut a = app();
+    assert_eq!(stages_of(&mut a), [(EventKind::Created, None)]);
+    a.move_to(Stage::Tech, now());
+    assert_eq!(stages_of(&mut a), [(EventKind::Stage, Some(Stage::Tech))]);
+}
+
+#[test]
+fn a_rejection_event_carries_the_rejected_stage_and_its_letter_does_not() {
+    let mut a = app();
+    a.take_events();
+    a.reject(Some("мимо".into()), now());
+    assert_eq!(
+        stages_of(&mut a),
+        [
+            (EventKind::Rejected, Some(Stage::Rejected)),
+            (EventKind::Letter, None)
+        ]
+    );
+}
+
+#[test]
+fn other_events_have_no_stage() {
+    let mut a = app();
+    a.take_events();
+    a.send_letter(now());
+    a.schedule_interview(now() + Duration::days(1), 0, now())
+        .unwrap();
+    assert!(stages_of(&mut a).iter().all(|(_, stage)| stage.is_none()));
+}

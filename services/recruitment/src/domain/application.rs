@@ -47,6 +47,8 @@ pub struct NewEvent {
     pub kind: EventKind,
     pub text: String,
     pub at: DateTime<Utc>,
+    /// Этап, на который перешёл отклик (для событий перевода и отказа).
+    pub stage: Option<Stage>,
 }
 
 /// Агрегат «отклик»: связь человека с вакансией и положение в воронке.
@@ -123,7 +125,22 @@ impl Application {
     }
 
     fn record(&mut self, kind: EventKind, text: String, at: DateTime<Utc>) {
-        self.events.push(NewEvent { kind, text, at });
+        self.events.push(NewEvent {
+            kind,
+            text,
+            at,
+            stage: None,
+        });
+    }
+
+    /// Событие, связанное с этапом воронки.
+    fn record_stage(&mut self, kind: EventKind, text: String, at: DateTime<Utc>, stage: Stage) {
+        self.events.push(NewEvent {
+            kind,
+            text,
+            at,
+            stage: Some(stage),
+        });
     }
 
     /// Накопленные записи истории (забираются один раз).
@@ -138,7 +155,12 @@ impl Application {
         }
         self.stage = stage;
         self.stage_changed_at = now;
-        self.record(EventKind::Stage, format!("Этап → {}", stage.label()), now);
+        self.record_stage(
+            EventKind::Stage,
+            format!("Этап → {}", stage.label()),
+            now,
+            stage,
+        );
         true
     }
 
@@ -164,7 +186,7 @@ impl Application {
             Some(r) => format!("Отказ: {r}"),
             None => "Отказ".into(),
         };
-        self.record(EventKind::Rejected, text, now);
+        self.record_stage(EventKind::Rejected, text, now, Stage::Rejected);
         self.record(EventKind::Letter, "Письмо с отказом отправлено".into(), now);
     }
 

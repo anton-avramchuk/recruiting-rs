@@ -100,14 +100,15 @@ pub async fn insert_events(
 ) -> Result<(), sqlx::Error> {
     for e in events {
         sqlx::query(
-            "INSERT INTO application_events (tenant_id, application_id, kind, text, at)
-             VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO application_events (tenant_id, application_id, kind, text, at, stage)
+             VALUES ($1, $2, $3, $4, $5, $6)",
         )
         .bind(tenant.0)
         .bind(application_id)
         .bind(e.kind.key())
         .bind(&e.text)
         .bind(e.at)
+        .bind(e.stage.map(Stage::key))
         .execute(&mut *conn)
         .await?;
     }
