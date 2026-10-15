@@ -108,6 +108,7 @@ fn Protected() -> impl IntoView {
     // клавиатура оболочки: палитра, переходы, разбор; права записи проверяются на месте
     let palette = palette::view::PaletteCtx::new();
     let writable = Signal::derive(move || candidates::list::can_write(ctx));
+    provide_context(palette);
     palette::view::install_keys(palette, writable);
     let user = move || {
         ctx.current()

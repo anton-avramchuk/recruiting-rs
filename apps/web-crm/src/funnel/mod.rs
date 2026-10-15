@@ -1,6 +1,7 @@
 //! Воронка найма: вакансии с доской, таблица откликов и панель человека.
 pub mod applications;
 pub mod format;
+pub mod keys;
 pub mod panel;
 pub mod server;
 pub mod today;

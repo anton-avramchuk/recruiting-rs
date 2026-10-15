@@ -42,7 +42,7 @@ impl Default for PaletteCtx {
 }
 
 /// Фокус в поле ввода: горячие клавиши не должны перехватывать набор текста.
-fn typing_in_a_field(ev: &leptos::ev::KeyboardEvent) -> bool {
+pub(crate) fn typing_in_a_field(ev: &leptos::ev::KeyboardEvent) -> bool {
     use leptos::wasm_bindgen::JsCast;
     ev.target()
         .and_then(|t| t.dyn_into::<web_sys::HtmlElement>().ok())
@@ -60,8 +60,40 @@ fn panel_is_open() -> bool {
         .is_some()
 }
 
+/// Esc в поле ввода снимает фокус; возвращает, было ли поле.
+pub(crate) fn blur_active_field(ev: &leptos::ev::KeyboardEvent) -> bool {
+    use leptos::wasm_bindgen::JsCast;
+    if !typing_in_a_field(ev) {
+        return false;
+    }
+    if let Some(el) = ev
+        .target()
+        .and_then(|t| t.dyn_into::<web_sys::HtmlElement>().ok())
+    {
+        let _ = el.blur();
+    }
+    true
+}
+
+/// Нажатие в виде, удобном для разбора, без хранения строк в обработчиках.
+pub(crate) fn with_press<R>(ev: &leptos::ev::KeyboardEvent, f: impl FnOnce(Press<'_>) -> R) -> R {
+    let (key, code) = (ev.key(), ev.code());
+    f(Press {
+        key: &key,
+        code: &code,
+        shift: ev.shift_key(),
+    })
+}
+
+/// Открыты ли палитра или шпаргалка (страничные клавиши в это время молчат).
+/// Контекст берётся при вызове в теле компонента: из обработчика события его уже не достать.
+pub(crate) fn overlay_check() -> impl Fn() -> bool + Copy + 'static {
+    let palette = use_context::<PaletteCtx>();
+    move || palette.is_some_and(|p| p.open.get_untracked() || p.cheat.get_untracked())
+}
+
 /// Фокусирует элемент, как только он появится (после перехода на другой экран).
-fn focus_when_ready(selector: &'static str, tries: u32) {
+pub(crate) fn focus_when_ready(selector: &'static str, tries: u32) {
     use leptos::wasm_bindgen::JsCast;
     let found = document()
         .query_selector(selector)
@@ -99,10 +131,15 @@ pub fn install_keys(palette: PaletteCtx, writable: Signal<bool>) {
                 return;
             }
             if ev.key() == "Escape" {
+                // отмеченное событие не должно закрывать что-то ещё (панель, выделение)
                 if palette.cheat.get_untracked() {
+                    ev.prevent_default();
                     palette.cheat.set(false);
                 } else if palette.open.get_untracked() {
+                    ev.prevent_default();
                     palette.open.set(false);
+                } else if blur_active_field(&ev) {
+                    ev.prevent_default();
                 }
                 return;
             }

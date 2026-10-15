@@ -304,7 +304,7 @@ async fn the_cheatsheet_lists_the_working_shortcuts() {
 
         tab.press_key("?").unwrap();
         wait_until(&tab, "cheatsheet", &exists_js("[data-testid=cheatsheet]"));
-        assert_eq!(eval(&tab, &count_js("[data-testid=cheat-row]")), 11);
+        assert_eq!(eval(&tab, &count_js("[data-testid=cheat-row]")), 21);
         let sheet = text(&tab, "[data-testid=cheatsheet]");
         assert!(sheet.contains("Палитра команд"), "{sheet}");
         tab.press_key("Escape").unwrap();

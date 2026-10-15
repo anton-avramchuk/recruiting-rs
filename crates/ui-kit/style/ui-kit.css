@@ -265,3 +265,7 @@ label.check { display: flex; flex-direction: row; align-items: center; gap: 6px;
 .crow .k { display: flex; gap: 4px; }
 .shell__search kbd { margin-left: 4px; }
 @media (max-width: 640px) { .cheatgrid { grid-template-columns: 1fr; } .shell__search kbd { display: none; } }
+
+/* курсор списка с клавиатуры и подсказки клавиш на кнопках */
+tr.row-cursor { background: var(--bg); box-shadow: inset 3px 0 0 var(--accent); }
+.btn kbd { margin-left: 4px; }

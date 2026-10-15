@@ -1,18 +1,25 @@
 //! «Отклики»: таблица со сквозным поиском, фильтрами, сортировкой и групповыми действиями.
+use std::time::Duration;
+
 use leptos::prelude::*;
 use recruitment_contracts::{ApplicationDto, Stage};
+use serde_json::json;
 use ui_kit::{EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
 
 use super::{
     FunnelCtx,
     format::time_label,
+    keys::{ListKey, clamp_cursor, list_key, move_cursor},
     panel::PersonPanel,
-    server::{AppQuery, Reply, bulk_applications, list_applications, list_vacancies},
+    server::{
+        AppQuery, Reply, application_action, bulk_applications, list_applications, list_vacancies,
+    },
 };
 use crate::candidates::{
     format::format_salary,
     list::{DebouncedInput, can_write},
 };
+use crate::palette::view::{overlay_check, typing_in_a_field, with_press};
 
 const PAGE_SIZE: i64 = 50;
 
@@ -106,6 +113,142 @@ pub fn ApplicationsPage() -> impl IntoView {
             bulk.dispatch((action.to_string(), ids, String::new()));
         }
     };
+
+    // клавиатура: курсор по строкам, выделение, групповые действия и этап цифрой
+    let cursor = RwSignal::new(None::<usize>);
+    let items = RwSignal::new(Vec::<(String, Stage)>::new());
+    Effect::new(move |_| {
+        if let Some(Ok(Reply::Ok(data))) = results.get() {
+            let list: Vec<_> = data
+                .items
+                .iter()
+                .map(|a| (a.id.to_string(), a.stage))
+                .collect();
+            let len = list.len();
+            items.set(list);
+            cursor.update(|c| *c = clamp_cursor(*c, len));
+        }
+    });
+    // смена выборки возвращает курсор в начало (обновление данных его не трогает)
+    Effect::new(move |_| {
+        let _selection = (
+            q.get(),
+            source.get(),
+            vacancy.get(),
+            stage.get(),
+            sort.get(),
+            desc.get(),
+            page.get(),
+            overdue.get(),
+        );
+        cursor.set(None);
+    });
+    Effect::new(move |_| {
+        if cursor.get().is_some() {
+            set_timeout(
+                || {
+                    if let Ok(Some(el)) = document().query_selector("tr.row-cursor") {
+                        el.scroll_into_view();
+                    }
+                },
+                Duration::from_millis(0),
+            );
+        }
+    });
+    let stage_act = Action::new(move |(id, stage): &(String, Stage)| {
+        let (id, stage) = (id.clone(), *stage);
+        async move { application_action(id, "stage".into(), json!({"stage": stage.key()})).await }
+    });
+    Effect::new(move |_| {
+        if let Some(result) = stage_act.value().get() {
+            match result {
+                Ok(reply) => match reply.failure() {
+                    None => ctx.bump(),
+                    Some(text) => notice.set(Some((false, text))),
+                },
+                Err(_) => notice.set(Some((false, "Не удалось выполнить действие.".into()))),
+            }
+        }
+    });
+    let overlay_open = overlay_check();
+    Effect::new(move |_| {
+        window_event_listener(leptos::ev::keydown, move |ev| {
+            if ev.ctrl_key() || ev.meta_key() || ev.alt_key() || ev.default_prevented() {
+                return;
+            }
+            if ev.key() == "Escape" {
+                if ctx.open.get_untracked().is_none() && !selected.get_untracked().is_empty() {
+                    selected.set(Vec::new());
+                }
+                return;
+            }
+            if ctx.open.get_untracked().is_some() || overlay_open() || typing_in_a_field(&ev) {
+                return;
+            }
+            let Some(key) = with_press(&ev, list_key) else {
+                return;
+            };
+            if key == ListKey::Open && on_interactive(&ev) {
+                return;
+            }
+            if key.needs_write() && !writable.get_untracked() {
+                return;
+            }
+            let list = items.get_untracked();
+            let current = cursor.get_untracked().and_then(|i| list.get(i).cloned());
+            match key {
+                ListKey::Next => cursor.set(move_cursor(cursor.get_untracked(), list.len(), 1)),
+                ListKey::Prev => cursor.set(move_cursor(cursor.get_untracked(), list.len(), -1)),
+                ListKey::Open => match current {
+                    Some((id, _)) => ctx.open.set(Some(id)),
+                    None => return,
+                },
+                ListKey::Toggle => match current {
+                    Some((id, _)) => selected.update(|sel| {
+                        if let Some(pos) = sel.iter().position(|s| *s == id) {
+                            sel.remove(pos);
+                        } else {
+                            sel.push(id);
+                        }
+                    }),
+                    None => return,
+                },
+                ListKey::SelectAll => {
+                    if list.is_empty() {
+                        return;
+                    }
+                    selected.update(|sel| {
+                        for (id, _) in &list {
+                            if !sel.contains(id) {
+                                sel.push(id.clone());
+                            }
+                        }
+                    });
+                }
+                ListKey::Advance | ListKey::Reject | ListKey::Letter => {
+                    if selected.get_untracked().is_empty() || bulk.pending().get_untracked() {
+                        return;
+                    }
+                    run_bulk(match key {
+                        ListKey::Advance => "next",
+                        ListKey::Reject => "reject",
+                        _ => "letter",
+                    });
+                }
+                ListKey::Stage(n) => {
+                    let Some((id, now)) = current else { return };
+                    let Some(target) = Stage::ALL.get(usize::from(n) - 1).copied() else {
+                        return;
+                    };
+                    if target == now || stage_act.pending().get_untracked() {
+                        return;
+                    }
+                    stage_act.dispatch((id, target));
+                }
+            }
+            ev.prevent_default();
+        });
+    });
 
     let sort_by = move |key: &'static str| {
         move |_| {
@@ -315,7 +458,8 @@ pub fn ApplicationsPage() -> impl IntoView {
                                             {data
                                                 .items
                                                 .into_iter()
-                                                .map(|a| row(a, selected, ctx, writable))
+                                                .enumerate()
+                                                .map(|(i, a)| row(a, i, cursor, selected, ctx, writable))
                                                 .collect_view()}
                                         </tbody>
                                     </table>
@@ -346,16 +490,16 @@ pub fn ApplicationsPage() -> impl IntoView {
             <div class="bulkbar" data-testid="bulkbar">
                 <b data-testid="selected-count">{move || format!("Выбрано: {}", selected.get().len())}</b>
                 <button class="btn btn--primary" data-testid="bulk-next" disabled=move || bulk.pending().get() on:click=move |_| run_bulk("next")>
-                    "Дальше по воронке"
+                    "Дальше по воронке " <kbd>"E"</kbd>
                 </button>
                 <button class="btn" data-testid="bulk-reject" disabled=move || bulk.pending().get() on:click=move |_| run_bulk("reject")>
-                    "Отказ с письмом"
+                    "Отказ с письмом " <kbd>"R"</kbd>
                 </button>
                 <button class="btn" data-testid="bulk-letter" disabled=move || bulk.pending().get() on:click=move |_| run_bulk("letter")>
-                    "Написать всем"
+                    "Написать всем " <kbd>"M"</kbd>
                 </button>
                 <button class="btn btn--ghost" data-testid="bulk-clear" on:click=move |_| selected.set(Vec::new())>
-                    "Снять"
+                    "Снять " <kbd>"Esc"</kbd>
                 </button>
             </div>
         </Show>
@@ -363,8 +507,18 @@ pub fn ApplicationsPage() -> impl IntoView {
     }
 }
 
+/// Фокус на кнопке или ссылке: `Enter` должен сработать по ней, а не открывать строку.
+fn on_interactive(ev: &leptos::ev::KeyboardEvent) -> bool {
+    use leptos::wasm_bindgen::JsCast;
+    ev.target()
+        .and_then(|t| t.dyn_into::<web_sys::HtmlElement>().ok())
+        .is_some_and(|el| matches!(el.tag_name().as_str(), "BUTTON" | "A" | "SUMMARY"))
+}
+
 fn row(
     a: ApplicationDto,
+    index: usize,
+    cursor: RwSignal<Option<usize>>,
     selected: RwSignal<Vec<String>>,
     ctx: FunnelCtx,
     writable: Signal<bool>,
@@ -374,7 +528,12 @@ fn row(
     let class_id = id.clone();
     let open_id = id;
     view! {
-        <tr class:row-selected=move || selected.get().contains(&class_id) data-testid="app-row">
+        <tr
+            class:row-selected=move || selected.get().contains(&class_id)
+            class:row-cursor=move || cursor.get() == Some(index)
+            aria-current=move || (cursor.get() == Some(index)).then_some("true")
+            data-testid="app-row"
+        >
             <Show when=move || writable.get()>
                 <td>
                     <input

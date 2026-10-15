@@ -6,14 +6,18 @@ use serde_json::{Value, json};
 use super::{
     FunnelCtx,
     format::{browser_timezone_offset, local_to_rfc3339, short_moment, time_label},
+    keys::{PanelKey, panel_key},
     server::{
         Reply, application_action, create_application, get_application, list_vacancies, save_note,
     },
 };
-use crate::candidates::{
-    format::{format_salary, years_label},
-    outcome::LoadOutcome,
-    server::get_person,
+use crate::{
+    candidates::{
+        format::{format_salary, years_label},
+        outcome::LoadOutcome,
+        server::get_person,
+    },
+    palette::view::{focus_when_ready, overlay_check, typing_in_a_field, with_press},
 };
 
 type Act = Action<(String, String, Value), Result<Reply<ApplicationDto>, ServerFnError>>;
@@ -66,10 +70,15 @@ pub fn PersonPanel(ctx: FunnelCtx, #[prop(into)] writable: Signal<bool>) -> impl
         }
     });
 
-    // Esc закрывает панель
+    // Esc закрывает панель, пока человек ещё грузится; с загруженным содержимым им занимается PanelBody
     Effect::new(move |_| {
         window_event_listener(leptos::ev::keydown, move |ev| {
-            if ev.key() == "Escape" {
+            let loaded = document()
+                .query_selector("[data-testid=panel-name]")
+                .ok()
+                .flatten()
+                .is_some();
+            if ev.key() == "Escape" && !loaded && !ev.default_prevented() {
                 ctx.open.set(None);
             }
         });
@@ -138,6 +147,55 @@ fn PanelBody(
             act.dispatch((id.clone(), action.to_string(), body));
         }
     };
+
+    // клавиши панели: этап цифрой, E/R/S/N; Esc закрывает форму, затем панель
+    let can_next_key = stage.next().is_some();
+    let key_dispatch = dispatch.clone();
+    let overlay_open = overlay_check();
+    Effect::new(move |_| {
+        let dispatch = key_dispatch.clone();
+        window_event_listener(leptos::ev::keydown, move |ev| {
+            if ev.ctrl_key() || ev.meta_key() || ev.alt_key() || ev.default_prevented() {
+                return;
+            }
+            if ev.key() == "Escape" {
+                ev.prevent_default();
+                if mode.get_untracked() != Mode::Idle {
+                    mode.set(Mode::Idle);
+                } else {
+                    ctx.open.set(None);
+                }
+                return;
+            }
+            if overlay_open() || typing_in_a_field(&ev) || !writable.get_untracked() {
+                return;
+            }
+            let Some(key) = with_press(&ev, panel_key) else {
+                return;
+            };
+            if act.pending().get_untracked() {
+                return;
+            }
+            match key {
+                PanelKey::Advance if can_next_key => dispatch("next", json!({})),
+                PanelKey::Advance => return,
+                PanelKey::Reject => {
+                    mode.set(Mode::Reject);
+                    focus_when_ready("[data-testid=reject-reason]", 5);
+                }
+                PanelKey::Interview => {
+                    mode.set(Mode::Interview);
+                    focus_when_ready("[data-testid=interview-at]", 5);
+                }
+                PanelKey::Note => focus_when_ready("[data-testid=note]", 0),
+                PanelKey::Stage(n) => match Stage::ALL.get(usize::from(n) - 1) {
+                    Some(s) if *s != stage => dispatch("stage", json!({"stage": s.key()})),
+                    _ => return,
+                },
+            }
+            ev.prevent_default();
+        });
+    });
 
     let stage_buttons = Stage::ALL
         .into_iter()
@@ -347,13 +405,13 @@ fn PanelBody(
                         move |_| dispatch_next("next", json!({}))
                     }
                 >
-                    "Дальше по воронке"
+                    "Дальше по воронке " <kbd>"E"</kbd>
                 </button>
                 <button class="btn" data-testid="act-interview" on:click=move |_| mode.set(Mode::Interview)>
-                    "Интервью"
+                    "Интервью " <kbd>"S"</kbd>
                 </button>
                 <button class="btn" data-testid="act-reject" on:click=move |_| mode.set(Mode::Reject)>
-                    "Отказ"
+                    "Отказ " <kbd>"R"</kbd>
                 </button>
                 <button class="btn" data-testid="act-vacancy" on:click=move |_| mode.set(Mode::Vacancy)>
                     "На вакансию"
