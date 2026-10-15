@@ -82,6 +82,42 @@ async fn candidate_to_vacancy_to_stages_across_the_platform() {
     let page = json_of(boss.get("/api/applications").await).await;
     assert_eq!(page["items"][0]["city"], "Москва");
 
+    // сводка и интервью доступны через BFF
+    let overview = json_of(boss.get("/api/overview").await).await;
+    assert_eq!(overview["people"], 1);
+    assert_eq!(overview["by_stage"][7]["stage"], "rejected");
+    assert_eq!(overview["by_stage"][7]["count"], 1);
+    let res = boss
+        .post(
+            "/api/applications",
+            json!({"person_id": person, "vacancy_id": json_of(boss.get("/api/vacancies").await).await[0]["id"], "stage": "hr"}),
+        )
+        .await;
+    assert_eq!(res.status(), 409, "the pair is already taken");
+    let res = boss
+        .post(
+            &format!("/api/applications/{app_id}/stage"),
+            json!({"stage": "hr"}),
+        )
+        .await;
+    assert_eq!(res.status(), 200);
+    let res = boss
+        .post(
+            &format!("/api/applications/{app_id}/interviews"),
+            json!({"at": "2099-01-01T10:00:00+03:00"}),
+        )
+        .await;
+    assert_eq!(res.status(), 200);
+    let list = json_of(
+        boss.get("/api/interviews?from=2099-01-01T00:00:00Z&to=2099-01-02T00:00:00Z")
+            .await,
+    )
+    .await;
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    assert_eq!(list[0]["full_name"], "Анна Смирнова");
+    let overdue = json_of(boss.get("/api/applications?overdue=true").await).await;
+    assert_eq!(overdue["total"], 0);
+
     // viewer читает, но не меняет
     assert_eq!(viewer.get("/api/applications").await.status(), 200);
     let res = viewer

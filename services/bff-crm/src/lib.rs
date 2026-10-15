@@ -27,6 +27,8 @@ fn allowlist() -> Vec<AllowRule> {
         AllowRule::any("/persons").to("candidate"),
         AllowRule::any("/vacancies").to("recruitment"),
         AllowRule::any("/applications").to("recruitment"),
+        AllowRule::any("/overview").to("recruitment"),
+        AllowRule::any("/interviews").to("recruitment"),
     ]
 }
 

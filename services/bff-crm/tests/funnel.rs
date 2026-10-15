@@ -131,3 +131,31 @@ async fn a_dead_funnel_service_does_not_break_the_rest() {
         200
     );
 }
+
+#[tokio::test]
+async fn overview_and_interviews_reach_the_recruitment_service() {
+    let w = world(None).await;
+    for path in [
+        "/api/overview",
+        "/api/interviews?from=2026-03-10T00:00:00Z&to=2026-03-11T00:00:00Z",
+    ] {
+        let res = w.client.send("GET", path, &[], None).await;
+        assert_eq!(res.status, 200, "{path}");
+    }
+    assert_eq!(w.recruitment.api_calls.load(Ordering::SeqCst), 2);
+    assert_eq!(w.candidate.api_calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn overview_lookalike_paths_stay_closed() {
+    let w = world(None).await;
+    for path in [
+        "/api/overview-export",
+        "/api/interviews-export",
+        "/api/overviews",
+    ] {
+        let res = w.client.send("GET", path, &[], None).await;
+        assert_eq!(res.status, 404, "{path}");
+    }
+    assert_eq!(w.recruitment.api_calls.load(Ordering::SeqCst), 0);
+}

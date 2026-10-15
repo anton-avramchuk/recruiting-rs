@@ -194,3 +194,40 @@ pub struct BulkResult {
     pub changed: i64,
     pub skipped: i64,
 }
+
+// ---------- сводка и интервью ----------
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct StageCount {
+    pub stage: Stage,
+    pub count: i64,
+}
+
+/// Сводка по воронке организации.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct OverviewDto {
+    /// Все восемь этапов в порядке воронки, нули включены.
+    pub by_stage: Vec<StageCount>,
+    pub new_total: i64,
+    /// Новые отклики, ждущие дольше суток.
+    pub new_waiting_over_day: i64,
+    /// Отклики от «Новый» до «Оффер».
+    pub in_work: i64,
+    /// Просрочено по SLA.
+    pub overdue: i64,
+    /// Людей в базе организации.
+    pub people: i64,
+}
+
+/// Назначенное интервью.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct InterviewItemDto {
+    pub id: Uuid,
+    pub application_id: Uuid,
+    /// RFC 3339.
+    pub scheduled_at: String,
+    pub full_name: String,
+    pub vacancy_title: String,
+    pub hiring_manager: Option<String>,
+    pub stage: Stage,
+}

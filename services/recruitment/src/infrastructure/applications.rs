@@ -195,7 +195,8 @@ impl Sort {
         } else {
             "ASC"
         };
-        format!("{expr} {dir}{nulls}, id")
+        // при равных значениях выше те, кто ждёт дольше
+        format!("{expr} {dir}{nulls}, stage_changed_at, id")
     }
 }
 
@@ -208,15 +209,33 @@ pub struct ApplicationFilter {
     pub stage: Option<Stage>,
     pub source: Option<String>,
     pub q: Option<String>,
+    /// `Some(true)` - только просроченные по SLA.
+    pub overdue: Option<bool>,
 }
 
-const ROWS: &str = r"
+/// Часы на этапе от момента `$1` (отрицательные считаются нулём).
+const HOURS_ON_STAGE: &str =
+    "GREATEST(floor(extract(epoch FROM ($1::timestamptz - a.stage_changed_at)) / 3600), 0)";
+
+/// Просрочка по SLA: пороги берутся из контрактов, правило то же, что у `Stage::overdue`.
+fn overdue_sql() -> String {
+    format!(
+        "((a.stage = 'new' AND {HOURS_ON_STAGE} > {new}) \
+         OR (a.stage IN ('screening', 'hr', 'tech', 'final', 'offer') AND {HOURS_ON_STAGE} > {active}))",
+        new = recruitment_contracts::NEW_SLA_HOURS,
+        active = recruitment_contracts::ACTIVE_SLA_HOURS,
+    )
+}
+
+fn rows_sql() -> String {
+    format!(
+        r"
     SELECT * FROM (
         SELECT a.id, a.person_id, a.vacancy_id, v.title AS vacancy_title,
                p.full_name, p.source, p.city, p.expected_salary,
                a.stage, a.stage_changed_at, a.created_at,
                array_position(ARRAY['new','screening','hr','tech','final','offer','hired','rejected'], a.stage) AS stage_order,
-               GREATEST(floor(extract(epoch FROM ($1::timestamptz - a.stage_changed_at)) / 3600), 0)::bigint AS hours_on_stage,
+               {HOURS_ON_STAGE}::bigint AS hours_on_stage,
                CASE WHEN cardinality(v.required_skills) = 0 THEN NULL
                     ELSE round(100.0 * (SELECT count(*) FROM unnest(v.required_skills) r
                                         WHERE lower(r) IN (SELECT lower(s) FROM unnest(p.skills) s))
@@ -238,7 +257,11 @@ const ROWS: &str = r"
                OR p.city ILIKE $7 ESCAPE '\'
                OR p.email ILIKE $7 ESCAPE '\'
                OR array_to_string(p.skills, ' ') ILIKE $7 ESCAPE '\')
-    ) t";
+          AND ($10::bool IS NOT TRUE OR {overdue})
+    ) t",
+        overdue = overdue_sql(),
+    )
+}
 
 /// Строки списка и общее количество. `now` - момент отсчёта времени на этапе.
 pub async fn rows(
@@ -257,7 +280,8 @@ pub async fn rows(
         .filter(|q| !q.is_empty())
         .map(platform_db::contains_pattern);
     let rows: Vec<ApplicationRow> = sqlx::query_as(&format!(
-        "{ROWS} ORDER BY {} LIMIT $8 OFFSET $9",
+        "{} ORDER BY {} LIMIT $8 OFFSET $9",
+        rows_sql(),
         sort.order_by(descending)
     ))
     .bind(now)
@@ -269,6 +293,7 @@ pub async fn rows(
     .bind(q)
     .bind(limit)
     .bind(offset)
+    .bind(filter.overdue)
     .fetch_all(conn)
     .await?;
     let total = rows.first().map_or(0, |r| r.total);
@@ -320,6 +345,70 @@ pub async fn history(
          ORDER BY at DESC, seq DESC",
     )
     .bind(application_id)
+    .fetch_all(conn)
+    .await
+}
+
+/// Счётчики одного этапа: сколько откликов и сколько из них просрочено.
+#[derive(Debug, FromRow)]
+pub struct StageTally {
+    pub stage: String,
+    pub total: i64,
+    pub overdue: i64,
+}
+
+/// Отклики по этапам с числом просроченных (одним запросом).
+pub async fn stage_tallies(
+    conn: &mut PgConnection,
+    now: DateTime<Utc>,
+) -> Result<Vec<StageTally>, sqlx::Error> {
+    sqlx::query_as(&format!(
+        "SELECT a.stage, count(*) AS total,
+                count(*) FILTER (WHERE {overdue}) AS overdue
+         FROM applications a GROUP BY a.stage",
+        overdue = overdue_sql(),
+    ))
+    .bind(now)
+    .fetch_all(conn)
+    .await
+}
+
+/// Людей в проекции организации.
+pub async fn people_count(conn: &mut PgConnection) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar("SELECT count(*) FROM people")
+        .fetch_one(conn)
+        .await
+}
+
+#[derive(Debug, FromRow)]
+pub struct InterviewRow {
+    pub id: Uuid,
+    pub application_id: Uuid,
+    pub scheduled_at: DateTime<Utc>,
+    pub full_name: String,
+    pub vacancy_title: String,
+    pub hiring_manager: Option<String>,
+    pub stage: String,
+}
+
+/// Интервью за период `[from, to)` по возрастанию времени.
+pub async fn interviews_between(
+    conn: &mut PgConnection,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> Result<Vec<InterviewRow>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT i.id, i.application_id, i.scheduled_at, p.full_name,
+                v.title AS vacancy_title, v.hiring_manager, a.stage
+         FROM interviews i
+         JOIN applications a ON a.id = i.application_id
+         JOIN people p ON p.person_id = a.person_id
+         JOIN vacancies v ON v.id = a.vacancy_id
+         WHERE i.scheduled_at >= $1 AND i.scheduled_at < $2
+         ORDER BY i.scheduled_at, i.id",
+    )
+    .bind(from)
+    .bind(to)
     .fetch_all(conn)
     .await
 }

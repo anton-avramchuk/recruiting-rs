@@ -102,3 +102,14 @@ fn match_is_undefined_without_required_skills() {
 fn duplicates_in_requirements_count_once() {
     assert_eq!(match_percent(&s(&["Go", "go"]), &s(&["Go"])), Some(100));
 }
+
+#[test]
+fn sla_thresholds_are_public_and_match_the_overdue_rule() {
+    use recruitment_contracts::{ACTIVE_SLA_HOURS, NEW_SLA_HOURS};
+    assert_eq!(NEW_SLA_HOURS, 24);
+    assert_eq!(ACTIVE_SLA_HOURS, 120);
+    assert!(!Stage::New.overdue(NEW_SLA_HOURS));
+    assert!(Stage::New.overdue(NEW_SLA_HOURS + 1));
+    assert!(!Stage::Final.overdue(ACTIVE_SLA_HOURS));
+    assert!(Stage::Final.overdue(ACTIVE_SLA_HOURS + 1));
+}

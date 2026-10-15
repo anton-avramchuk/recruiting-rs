@@ -3,9 +3,9 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 /// Просрочка нового отклика, часов.
-const NEW_SLA_HOURS: i64 = 24;
+pub const NEW_SLA_HOURS: i64 = 24;
 /// Просрочка отклика на остальных активных этапах, часов (5 суток).
-const ACTIVE_SLA_HOURS: i64 = 5 * 24;
+pub const ACTIVE_SLA_HOURS: i64 = 5 * 24;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
 pub enum Stage {

@@ -5,7 +5,7 @@
 mod dto;
 mod stage;
 
-pub use stage::{Stage, match_percent};
+pub use stage::{ACTIVE_SLA_HOURS, NEW_SLA_HOURS, Stage, match_percent};
 
 mod vacancy;
 

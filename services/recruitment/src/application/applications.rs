@@ -9,7 +9,9 @@ use super::{Clock, FunnelError, PeopleSync};
 use crate::{
     domain::{Application, DomainError},
     infrastructure::{
-        applications::{self as store, ApplicationFilter, ApplicationRow, EventRow, Sort},
+        applications::{
+            self as store, ApplicationFilter, ApplicationRow, EventRow, InterviewRow, Sort,
+        },
         is_unique_violation, people, vacancies,
     },
 };
@@ -17,6 +19,7 @@ use crate::{
 pub const DEFAULT_PAGE_SIZE: i64 = 50;
 pub const MAX_PAGE_SIZE: i64 = 200;
 const MAX_BULK: usize = 200;
+const MAX_INTERVIEW_DAYS: i64 = 31;
 
 pub struct ListQuery {
     pub filter: ApplicationFilter,
@@ -45,6 +48,16 @@ pub struct ApplicationPage {
     pub page_size: i64,
     /// Данные людей могут отставать: источник был недоступен.
     pub stale: bool,
+}
+
+/// Сводка по воронке: этапы в порядке воронки и производные счётчики.
+pub struct Overview {
+    pub by_stage: Vec<(Stage, i64)>,
+    pub new_total: i64,
+    pub new_waiting_over_day: i64,
+    pub in_work: i64,
+    pub overdue: i64,
+    pub people: i64,
 }
 
 pub struct ApplicationDetail {
@@ -180,6 +193,61 @@ impl ApplicationService {
             history,
             person_applications,
         })
+    }
+
+    /// Сводка по воронке организации.
+    pub async fn overview(&self, tenant: TenantId) -> Result<Overview, FunnelError> {
+        self.sync.sync(tenant).await;
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        let tallies = store::stage_tallies(&mut tx, self.clock.now()).await?;
+        let people = store::people_count(&mut tx).await?;
+        tx.rollback().await?;
+
+        let of = |stage: Stage| tallies.iter().find(|t| t.stage == stage.key());
+        let by_stage: Vec<(Stage, i64)> = Stage::ALL
+            .into_iter()
+            .map(|s| (s, of(s).map_or(0, |t| t.total)))
+            .collect();
+        Ok(Overview {
+            new_total: by_stage[0].1,
+            // «новый» просрочен ровно тогда, когда ждёт дольше суток
+            new_waiting_over_day: of(Stage::New).map_or(0, |t| t.overdue),
+            in_work: by_stage
+                .iter()
+                .filter(|(s, _)| s.is_active())
+                .map(|(_, n)| n)
+                .sum(),
+            overdue: tallies.iter().map(|t| t.overdue).sum(),
+            by_stage,
+            people,
+        })
+    }
+
+    /// Интервью организации за период `[from, to)`; период не длиннее 31 суток.
+    pub async fn interviews(
+        &self,
+        tenant: TenantId,
+        from: &str,
+        to: &str,
+    ) -> Result<Vec<InterviewRow>, FunnelError> {
+        let parse = |field: &'static str, raw: &str| {
+            DateTime::parse_from_rfc3339(raw.trim())
+                .map(|d| d.with_timezone(&Utc))
+                .map_err(|_| DomainError::invalid(field, "дата и время в формате RFC 3339"))
+        };
+        let (from, to) = (parse("from", from)?, parse("to", to)?);
+        if to <= from {
+            return Err(
+                DomainError::invalid("to", "конец периода должен быть позже начала").into(),
+            );
+        }
+        if to - from > chrono::Duration::days(MAX_INTERVIEW_DAYS) {
+            return Err(DomainError::invalid("to", "период не длиннее 31 суток").into());
+        }
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        let rows = store::interviews_between(&mut tx, from, to).await?;
+        tx.rollback().await?;
+        Ok(rows)
     }
 
     /// Применяет изменение к отклику и сохраняет его вместе с историей.
