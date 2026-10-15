@@ -80,3 +80,13 @@ impl Phone {
 mod skills;
 
 pub use skills::{SkillsError, normalize_skills};
+
+/// Для PATCH-запросов: отличает «поля нет в теле» (`None`) от «передан null» (`Some(None)`).
+/// Подключается как `#[serde(default, deserialize_with = "double_option")]`.
+pub fn double_option<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: serde::Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    <Option<T> as serde::Deserialize>::deserialize(deserializer).map(Some)
+}

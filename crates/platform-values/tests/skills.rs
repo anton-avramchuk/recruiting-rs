@@ -8,7 +8,10 @@ fn trims_collapses_and_deduplicates_ignoring_case() {
 
 #[test]
 fn too_long_skill_is_rejected() {
-    assert_eq!(normalize_skills(["x".repeat(51)]), Err(SkillsError::TooLong));
+    assert_eq!(
+        normalize_skills(["x".repeat(51)]),
+        Err(SkillsError::TooLong)
+    );
 }
 
 #[test]

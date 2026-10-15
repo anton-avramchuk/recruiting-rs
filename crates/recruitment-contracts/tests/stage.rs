@@ -5,7 +5,16 @@ fn there_are_eight_stages_in_funnel_order() {
     let keys: Vec<&str> = Stage::ALL.iter().map(|s| s.key()).collect();
     assert_eq!(
         keys,
-        ["new", "screening", "hr", "tech", "final", "offer", "hired", "rejected"]
+        [
+            "new",
+            "screening",
+            "hr",
+            "tech",
+            "final",
+            "offer",
+            "hired",
+            "rejected"
+        ]
     );
     assert_eq!(Stage::ALL[0].label(), "Новый");
     assert_eq!(Stage::ALL[7].label(), "Отказ");
@@ -24,7 +33,10 @@ fn keys_round_trip_and_unknown_is_rejected() {
 #[test]
 fn serde_uses_the_same_keys() {
     assert_eq!(serde_json::to_string(&Stage::Hr).unwrap(), "\"hr\"");
-    assert_eq!(serde_json::from_str::<Stage>("\"offer\"").unwrap(), Stage::Offer);
+    assert_eq!(
+        serde_json::from_str::<Stage>("\"offer\"").unwrap(),
+        Stage::Offer
+    );
     assert!(serde_json::from_str::<Stage>("\"nope\"").is_err());
 }
 
@@ -74,7 +86,10 @@ fn s(items: &[&str]) -> Vec<String> {
 fn match_is_the_share_of_required_skills_the_person_has() {
     let required = s(&["Go", "K8s", "PostgreSQL"]);
     assert_eq!(match_percent(&required, &s(&["go", "k8S"])), Some(67));
-    assert_eq!(match_percent(&required, &s(&["Go", "K8s", "PostgreSQL", "Rust"])), Some(100));
+    assert_eq!(
+        match_percent(&required, &s(&["Go", "K8s", "PostgreSQL", "Rust"])),
+        Some(100)
+    );
     assert_eq!(match_percent(&required, &s(&["Java"])), Some(0));
 }
 

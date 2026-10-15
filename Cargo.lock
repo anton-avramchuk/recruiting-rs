@@ -412,6 +412,7 @@ dependencies = [
 name = "candidate-contracts"
 version = "0.1.0"
 dependencies = [
+ "platform-values",
  "serde",
  "serde_json",
  "utoipa",
@@ -2758,7 +2759,9 @@ dependencies = [
 name = "recruitment"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "axum",
+ "candidate",
  "candidate-contracts",
  "chrono",
  "http-body-util",
@@ -2783,6 +2786,7 @@ dependencies = [
 name = "recruitment-contracts"
 version = "0.1.0"
 dependencies = [
+ "platform-values",
  "serde",
  "serde_json",
  "utoipa",

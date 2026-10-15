@@ -293,10 +293,7 @@ fn interview_time_is_shown_in_the_offset_given_by_the_user() {
     let at = Utc.with_ymd_and_hms(2026, 1, 11, 12, 0, 0).unwrap();
     // +3 часа от UTC (в секундах)
     a.schedule_interview(at, 3 * 3600, now()).unwrap();
-    assert_eq!(
-        kinds(&mut a)[0].1,
-        "Интервью назначено на 11.01.2026 15:00"
-    );
+    assert_eq!(kinds(&mut a)[0].1, "Интервью назначено на 11.01.2026 15:00");
 }
 
 #[test]

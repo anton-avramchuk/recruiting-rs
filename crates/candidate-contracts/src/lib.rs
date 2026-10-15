@@ -2,7 +2,8 @@
 //!
 //! Даты - строки `YYYY-MM-DD`, моменты времени - RFC 3339: контракты собираются и в wasm,
 //! где не нужны ни chrono, ни источник случайности.
-use serde::{Deserialize, Deserializer, Serialize};
+use platform_values::double_option;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -142,15 +143,6 @@ pub struct CreatePersonRequest {
     /// Подтверждение создания, когда сервис уже сообщил о возможном дубле.
     #[serde(default)]
     pub confirm_duplicate: bool,
-}
-
-/// Достаёт «поле передано» отдельно от «передано null».
-fn double_option<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
-where
-    T: Deserialize<'de>,
-    D: Deserializer<'de>,
-{
-    Option::<T>::deserialize(deserializer).map(Some)
 }
 
 /// Частичное обновление. Для очищаемых полей: нет в теле - не трогать, `null` (или пустая

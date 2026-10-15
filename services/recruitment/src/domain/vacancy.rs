@@ -38,14 +38,19 @@ fn priority(raw: &str) -> Result<Priority, DomainError> {
 
 fn skills(items: Vec<String>) -> Result<Vec<String>, DomainError> {
     normalize_skills(items).map_err(|e| match e {
-        SkillsError::TooLong => DomainError::invalid("required_skills", "навык длиннее 50 символов"),
+        SkillsError::TooLong => {
+            DomainError::invalid("required_skills", "навык длиннее 50 символов")
+        }
         SkillsError::TooMany => DomainError::invalid("required_skills", "не больше 50 навыков"),
     })
 }
 
 fn opened_on(open_days: i32, today: NaiveDate) -> Result<NaiveDate, DomainError> {
     if open_days < 0 {
-        return Err(DomainError::invalid("open_days", "не может быть отрицательным"));
+        return Err(DomainError::invalid(
+            "open_days",
+            "не может быть отрицательным",
+        ));
     }
     Ok(today - Duration::days(i64::from(open_days)))
 }

@@ -10,6 +10,7 @@ const EXPECTED: &[(&str, &str)] = &[
     ("/persons/{id}", "delete"),
     ("/persons/{id}/employments", "put"),
     ("/persons/{id}/educations", "put"),
+    ("/internal/tenants/{tenant_id}/person-changes", "get"),
     ("/health", "get"),
 ];
 
