@@ -96,7 +96,7 @@ fn registry() -> Vec<Command> {
             "Создать вакансию",
             "",
             Group::Actions,
-            go("/vacancies"),
+            go("/vacancies?new=1"),
             true,
         ),
         command(

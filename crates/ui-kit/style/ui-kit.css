@@ -271,3 +271,17 @@ label.check { display: flex; flex-direction: row; align-items: center; gap: 6px;
 /* курсор списка с клавиатуры и подсказки клавиш на кнопках */
 tr.row-cursor { background: var(--bg); box-shadow: inset 3px 0 0 var(--accent); }
 .btn kbd { margin-left: 4px; }
+
+/* быстрые действия в шапке */
+.topbtn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); font: inherit; font-size: 0.9rem; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.topbtn:hover { background: var(--bg); }
+.topbtn--pri { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.topbtn--pri:hover { background: var(--ink); opacity: 0.88; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-muted); flex: none; }
+.dot--hot { background: var(--accent); }
+.topmenu { position: relative; }
+.topmenu__list { position: absolute; z-index: 45; top: 38px; right: 0; width: 250px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22); padding: 5px; display: flex; flex-direction: column; }
+.topmenu__list a { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 7px; color: var(--ink); text-decoration: none; }
+.topmenu__list a:hover { background: var(--bg); }
+.topmenu__list .s { color: var(--ink-muted); font-size: 0.8rem; }
+@media (max-width: 640px) { .topbtn__text, .topbtn kbd:not(:only-child) { display: none; } }

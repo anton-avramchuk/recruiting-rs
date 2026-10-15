@@ -124,6 +124,7 @@ fn Protected() -> impl IntoView {
                 context_label=Signal::derive(move || user().tenant)
                 user_label=Signal::derive(move || user().email)
                 on_search=Callback::new(move |_| palette.open.set(true))
+                actions=ViewFn::from(move || view! { <palette::actions::ShellActions palette writable /> })
             />
             <palette::view::Overlays palette writable />
         </AuthGate>

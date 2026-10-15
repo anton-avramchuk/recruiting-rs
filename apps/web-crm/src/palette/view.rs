@@ -24,6 +24,8 @@ const SEARCH_DEBOUNCE_MS: u64 = 200;
 pub struct PaletteCtx {
     pub open: RwSignal<bool>,
     pub cheat: RwSignal<bool>,
+    /// Меню «+ Добавить» в шапке.
+    pub menu: RwSignal<bool>,
 }
 
 impl PaletteCtx {
@@ -31,6 +33,7 @@ impl PaletteCtx {
         Self {
             open: RwSignal::new(false),
             cheat: RwSignal::new(false),
+            menu: RwSignal::new(false),
         }
     }
 }
@@ -124,6 +127,7 @@ pub fn install_keys(palette: PaletteCtx, writable: Signal<bool>) {
                 ev.prevent_default();
                 sequence.update_value(Sequence::reset);
                 palette.cheat.set(false);
+                palette.menu.set(false);
                 palette.open.update(|o| *o = !*o);
                 return;
             }
@@ -138,6 +142,9 @@ pub fn install_keys(palette: PaletteCtx, writable: Signal<bool>) {
                 } else if palette.open.get_untracked() {
                     ev.prevent_default();
                     palette.open.set(false);
+                } else if palette.menu.get_untracked() {
+                    ev.prevent_default();
+                    palette.menu.set(false);
                 } else if blur_active_field(&ev) {
                     ev.prevent_default();
                 }

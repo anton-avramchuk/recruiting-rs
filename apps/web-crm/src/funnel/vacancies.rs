@@ -26,6 +26,11 @@ fn number(raw: &str) -> Result<Option<i32>, ()> {
     }
 }
 
+/// Нужно ли развернуть форму создания: адрес `?new=1` и право записи.
+pub fn wants_new_form(value: Option<&str>, writable: bool) -> bool {
+    writable && matches!(value, Some("1" | "true"))
+}
+
 #[component]
 pub fn VacanciesPage() -> impl IntoView {
     let session = expect_context::<SessionCtx>();
@@ -33,6 +38,13 @@ pub fn VacanciesPage() -> impl IntoView {
     let writable = Signal::derive(move || can_write(session));
     let selected = RwSignal::new(String::new());
     let creating = RwSignal::new(false);
+    // ссылка из шапки и палитры раскрывает форму, в том числе когда экран уже открыт
+    let query = leptos_router::hooks::use_query_map();
+    Effect::new(move |_| {
+        if wants_new_form(query.get().get("new").as_deref(), writable.get()) {
+            creating.set(true);
+        }
+    });
 
     // список перечитывается только при создании вакансии: доска не должна пересоздаваться
     let list_version = RwSignal::new(0u32);
@@ -425,5 +437,19 @@ fn Board(
                 })
                 .collect_view()}
         </div>
+    }
+}
+
+#[cfg(test)]
+mod new_form_tests {
+    use super::wants_new_form;
+
+    #[test]
+    fn the_form_opens_only_for_new_1_and_a_writer() {
+        assert!(wants_new_form(Some("1"), true));
+        assert!(wants_new_form(Some("true"), true));
+        assert!(!wants_new_form(Some("1"), false));
+        assert!(!wants_new_form(Some("0"), true));
+        assert!(!wants_new_form(None, true));
     }
 }

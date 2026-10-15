@@ -90,6 +90,9 @@ pub fn AppShell(
     /// Кнопка поиска в шапке (палитра команд); без неё не показывается.
     #[prop(optional)]
     on_search: Option<Callback<()>>,
+    /// Кнопки быстрых действий справа в шапке; без них шапка остаётся прежней.
+    #[prop(optional)]
+    actions: Option<ViewFn>,
 ) -> impl IntoView {
     let ctx = expect_context::<SessionCtx>();
     let logout_action = Action::new(|_: &()| async { logout().await });
@@ -126,6 +129,7 @@ pub fn AppShell(
                         }
                     })}
                 <span class="spacer"></span>
+                {actions.map(|a| a.run())}
                 <span class="shell__user" data-testid="user-label">{move || user_label.get()}</span>
                 <form
                     method="post"
