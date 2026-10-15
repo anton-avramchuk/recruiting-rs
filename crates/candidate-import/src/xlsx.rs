@@ -68,7 +68,8 @@ fn read_entry(zip: &[u8], e: &Entry) -> Result<Vec<u8>, ImportError> {
     if zip.get(at..at + 4) != Some(&[0x50, 0x4b, 0x03, 0x04]) {
         return Err(bad());
     }
-    let start = at + 30 + u16_at(zip, at + 26).ok_or_else(bad)? + u16_at(zip, at + 28).ok_or_else(bad)?;
+    let start =
+        at + 30 + u16_at(zip, at + 26).ok_or_else(bad)? + u16_at(zip, at + 28).ok_or_else(bad)?;
     let data = zip.get(start..start + e.compressed).ok_or_else(bad)?;
     match e.method {
         0 => Ok(data.to_vec()),
@@ -145,9 +146,9 @@ fn decode_entities(raw: &str) -> String {
             "gt" => Some('>'),
             "quot" => Some('"'),
             "apos" => Some('\''),
-            e if e.starts_with("#x") || e.starts_with("#X") => {
-                u32::from_str_radix(&e[2..], 16).ok().and_then(char::from_u32)
-            }
+            e if e.starts_with("#x") || e.starts_with("#X") => u32::from_str_radix(&e[2..], 16)
+                .ok()
+                .and_then(char::from_u32),
             e if e.starts_with('#') => e[1..].parse().ok().and_then(char::from_u32),
             _ => None,
         };

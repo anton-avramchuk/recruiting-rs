@@ -3,6 +3,8 @@
 //! Чистая логика без ввода-вывода: работает и в браузере (wasm), и в тестах на образцах.
 pub mod delimited;
 mod error;
+pub mod pdf;
+pub mod resume;
 pub mod xlsx;
 
 pub use error::ImportError;

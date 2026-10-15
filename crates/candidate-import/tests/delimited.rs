@@ -12,7 +12,10 @@ fn semicolon_sample_has_nine_columns_and_two_rows() {
     assert_eq!(grid[0][0], "Имя");
     assert_eq!(grid[0][8], "Образование");
     assert_eq!(grid[1][0], "Пётр Гусев");
-    assert_eq!(grid[1][6], "Go, K8s, PostgreSQL", "quoted value with commas stays whole");
+    assert_eq!(
+        grid[1][6], "Go, K8s, PostgreSQL",
+        "quoted value with commas stays whole"
+    );
     assert_eq!(grid[1][7], "2021 — наст. время — Яндекс — Разработчик");
     assert_eq!(grid[2][2], "maria@mail.ru");
     assert!(grid.iter().all(|r| r.len() == 9));
@@ -63,7 +66,10 @@ fn a_file_without_data_rows_is_an_error() {
     assert_eq!(delimited::parse("a;b;c"), Err(ImportError::NoData));
     assert_eq!(delimited::parse(""), Err(ImportError::NoData));
     assert_eq!(delimited::parse("\n\n  \n"), Err(ImportError::NoData));
-    assert_eq!(ImportError::NoData.to_string(), "в файле нет строк с данными");
+    assert_eq!(
+        ImportError::NoData.to_string(),
+        "в файле нет строк с данными"
+    );
 }
 
 #[test]

@@ -90,7 +90,9 @@ pub fn workbook(sheet_rows: &str, strings: &[&str], deflate: bool) -> Vec<u8> {
         .map(|s| format!("<si><t>{s}</t></si>"))
         .collect();
     let shared = format!(r#"<?xml version="1.0"?><sst>{sst}</sst>"#);
-    let sheet = format!(r#"<?xml version="1.0"?><worksheet><sheetData>{sheet_rows}</sheetData></worksheet>"#);
+    let sheet = format!(
+        r#"<?xml version="1.0"?><worksheet><sheetData>{sheet_rows}</sheetData></worksheet>"#
+    );
     zip(&[
         entry("xl/sharedStrings.xml", shared.as_bytes(), deflate),
         entry("xl/worksheets/sheet1.xml", sheet.as_bytes(), deflate),

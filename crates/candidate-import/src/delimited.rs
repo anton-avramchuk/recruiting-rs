@@ -38,7 +38,7 @@ pub fn parse(text: &str) -> Result<Grid, ImportError> {
     let mut in_quotes = false;
     let mut chars = text.chars().peekable();
 
-    let mut finish_cell = |row: &mut Vec<String>, cell: &mut String| {
+    let finish_cell = |row: &mut Vec<String>, cell: &mut String| {
         row.push(cell.trim().to_string());
         cell.clear();
     };

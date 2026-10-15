@@ -13,7 +13,15 @@ fn sample_with_a_broken_crc_is_read() {
     assert_eq!(grid.len(), 2, "header + one row");
     assert_eq!(
         grid[0],
-        ["ФИО", "Телефон", "Почта", "Город", "Должность", "Ожидания", "Навыки"]
+        [
+            "ФИО",
+            "Телефон",
+            "Почта",
+            "Город",
+            "Должность",
+            "Ожидания",
+            "Навыки"
+        ]
     );
     assert_eq!(
         grid[1],
@@ -73,7 +81,11 @@ fn numbers_are_written_without_exponents() {
 
 #[test]
 fn the_first_sheet_by_number_is_used() {
-    let sheet = |v: &str| format!(r#"<worksheet><sheetData><row><c t="inlineStr"><is><t>h</t></is></c></row><row><c t="inlineStr"><is><t>{v}</t></is></c></row></sheetData></worksheet>"#);
+    let sheet = |v: &str| {
+        format!(
+            r#"<worksheet><sheetData><row><c t="inlineStr"><is><t>h</t></is></c></row><row><c t="inlineStr"><is><t>{v}</t></is></c></row></sheetData></worksheet>"#
+        )
+    };
     let (s2, s10, s1) = (sheet("two"), sheet("ten"), sheet("one"));
     let book = zip(&[
         entry("xl/worksheets/sheet2.xml", s2.as_bytes(), false),
@@ -96,10 +108,16 @@ fn a_sheet_without_data_rows_is_an_error() {
 fn not_an_archive_is_reported() {
     let err = xlsx::read_grid("это текст, а не книга".as_bytes()).unwrap_err();
     assert!(matches!(err, ImportError::Unreadable(_)), "{err:?}");
-    assert!(matches!(xlsx::read_grid(&[]), Err(ImportError::Unreadable(_))));
+    assert!(matches!(
+        xlsx::read_grid(&[]),
+        Err(ImportError::Unreadable(_))
+    ));
     // архив без листа
     let empty = zip(&[entry("docProps/app.xml", b"<x/>", false)]);
-    assert!(matches!(xlsx::read_grid(&empty), Err(ImportError::Unreadable(_))));
+    assert!(matches!(
+        xlsx::read_grid(&empty),
+        Err(ImportError::Unreadable(_))
+    ));
 }
 
 #[test]
@@ -109,7 +127,10 @@ fn a_corrupt_deflate_stream_is_reported_not_panicked() {
     for b in book.iter_mut().skip(40).take(12) {
         *b = 0xFF;
     }
-    assert!(matches!(xlsx::read_grid(&book), Err(ImportError::Unreadable(_))));
+    assert!(matches!(
+        xlsx::read_grid(&book),
+        Err(ImportError::Unreadable(_))
+    ));
 }
 
 #[test]
