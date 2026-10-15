@@ -12,11 +12,11 @@ OWNER_PASSWORD="demo-password-1"
 
 csrf_of() { sed -n 's/.*"csrf_token":"\([^"]*\)".*/\1/p'; }
 
-echo "1/3 вход администратора платформы"
+echo "1/4 вход администратора платформы"
 ADMIN_CSRF=$(curl -fsS -c /tmp/admin.jar -H 'x-csrf-token: login' -H 'content-type: application/json' \
   -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" "$ADMIN_BFF/bff/login" | csrf_of)
 
-echo "2/3 организация demo"
+echo "2/4 организация demo"
 STATUS=$(curl -sS -o /tmp/tenant.out -w '%{http_code}' -b /tmp/admin.jar \
   -H "x-csrf-token: $ADMIN_CSRF" -H 'content-type: application/json' \
   -d "{\"slug\":\"demo\",\"name\":\"Demo\",\"owner\":{\"email\":\"$OWNER_EMAIL\",\"password\":\"$OWNER_PASSWORD\",\"display_name\":\"Владелец\"}}" \
@@ -27,7 +27,7 @@ case "$STATUS" in
   *) echo "  ошибка $STATUS: $(cat /tmp/tenant.out)"; exit 1 ;;
 esac
 
-echo "3/3 демо-кандидаты"
+echo "3/4 демо-кандидаты"
 CRM_CSRF=$(curl -fsS -c /tmp/crm.jar -H 'x-csrf-token: login' -H 'content-type: application/json' \
   -d "{\"tenant\":\"demo\",\"email\":\"$OWNER_EMAIL\",\"password\":\"$OWNER_PASSWORD\"}" "$CRM_BFF/bff/login" | csrf_of)
 add() {
@@ -39,4 +39,27 @@ add() {
 add '{"full_name":"Анна Смирнова","email":"anna@example.com","phone":"+7 916 123-45-67","skills":["Rust","SQL"],"source":"hh.ru","expected_salary":300000,"declared_experience_years":6}' "Анна Смирнова"
 add '{"full_name":"Борис Иванов","phone":"+7 903 555-66-77","skills":["Go"],"source":"Реферал","declared_experience_years":2}' "Борис Иванов"
 add '{"full_name":"Виктор Петров","skills":["Rust","Docker"],"declared_experience_years":4}' "Виктор Петров"
+
+echo "4/4 демо-вакансии и отклики"
+post() {
+  curl -sS -b /tmp/crm.jar -H "x-csrf-token: $CRM_CSRF" -H 'content-type: application/json' -d "$2" "$CRM_BFF$1"
+}
+id_after() { sed -n 's/.*"id":"\([^"]*\)".*//p' | head -n 1; }
+if [ "$(curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/vacancies")" = "[]" ]; then
+  RUST=$(post /api/vacancies '{"title":"Senior Rust-разработчик","department":"Платформа","openings":2,"priority":"high","hiring_manager":"Иванов","recruiter":"Мария","required_skills":["Rust","SQL","Docker"],"open_days":52}' | id_after)
+  GO=$(post /api/vacancies '{"title":"Go-разработчик","department":"Платформа","required_skills":["Go","SQL"],"open_days":12}' | id_after)
+  PEOPLE=$(curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/persons?page_size=100" | tr '{' '
+')
+  person() { printf '%s' "$PEOPLE" | sed -n "s/.*\"id\":\"\([^\"]*\)\",\"full_name\":\"$1\".*//p" | head -n 1; }
+  apply() { # кандидат, вакансия, этап
+    code=$(curl -sS -o /dev/null -w '%{http_code}' -b /tmp/crm.jar -H "x-csrf-token: $CRM_CSRF"       -H 'content-type: application/json'       -d "{\"person_id\":\"$(person "$1")\",\"vacancy_id\":\"$2\",\"stage\":\"$3\"}" "$CRM_BFF/api/applications")
+    echo "  $1: $code"
+  }
+  apply "Анна Смирнова" "$RUST" screening
+  apply "Борис Иванов" "$GO" new
+  apply "Виктор Петров" "$RUST" new
+  apply "Анна Смирнова" "$GO" hr
+else
+  echo "  вакансии уже есть"
+fi
 echo "готово"

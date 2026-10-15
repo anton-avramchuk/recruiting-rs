@@ -1,15 +1,17 @@
 # recruiting-rs
 
 Мультитенантная рекрутинговая CRM целиком на Rust, включая фронтенд (Leptos). Платформа: организации (тенанты),
-пользователи, вход, админка платформы, оболочка приложения и первый доменный раздел — **кандидаты**
-(карточка с контактами и историей, поиск и фильтры, предупреждение о дубле). Вакансии, отклики и
-интервью добавляются отдельными изменениями.
+пользователи, вход, админка платформы, оболочка приложения («Ритм»), **кандидаты** (карточка с
+контактами и историей, поиск и фильтры, предупреждение о дубле) и **воронка найма**: вакансии, отклики,
+доска по этапам с перетаскиванием, таблица откликов с групповыми действиями и панель человека. Импорт
+файлов, режим разбора, аналитика и палитра команд добавляются отдельными изменениями.
 
 ## Архитектура
 
 ```
 браузер ──► web-crm ──► bff-crm ──► identity ──┐
-                              └──► candidate (токены проверяет по JWKS identity)
+                              ├──► candidate (токены проверяет по JWKS identity)
+                              └──► recruitment ──► candidate (лента изменений людей)
 браузер ──► web-admin ► bff-admin ► admin ◄────┘ (справочник тенантов, создание владельца)
 ```
 
@@ -17,6 +19,7 @@
 |---|---|
 | `services/identity` | пользователи тенантов, вход, JWT (EdDSA), refresh с ротацией, роли; БД `identity` |
 | `services/candidate` | кандидаты организации: контакты, места работы, образование, стаж, поиск, предупреждение о дубле; БД `candidate` |
+| `services/recruitment` | вакансии, отклики и воронка (8 этапов, SLA, совпадение по навыкам, история, групповые действия); БД `recruitment`; людей берёт из `candidate` (см. ниже) |
 | `services/admin` | реестр тенантов, платформенные администраторы, жизненный цикл тенанта; БД `admin` |
 | `services/bff-crm`, `services/bff-admin` | по BFF на каждый фронтенд: серверная сессия в Redis, cookie `HttpOnly`, CSRF, прозрачный refresh, прокси по allowlist |
 | `apps/web-crm`, `apps/web-admin` | Leptos (SSR + hydrate); каждое приложение общается только со своим BFF |
@@ -26,7 +29,7 @@
 | `crates/platform-values` | значимые типы `Email` и `Phone` с нормализацией |
 | `crates/bff-core` | общий код обоих BFF |
 | `crates/ui-kit` | общие Leptos-компоненты и server functions входа/сессии |
-| `crates/admin-contracts`, `crates/candidate-contracts` | DTO сервисов, общие для сервера и фронтенда (собираются и в wasm) |
+| `crates/admin-contracts`, `crates/candidate-contracts`, `crates/recruitment-contracts` | DTO сервисов, общие для сервера и фронтенда (собираются и в wasm) |
 | `tests/e2e` | запуск платформы процессами и сквозные тесты, в том числе в браузере |
 
 Изоляция тенантов: общая БД сервиса, колонка `tenant_id` и Row-Level Security. Правила для новых
@@ -47,14 +50,14 @@
 ## Быстрый старт
 
 ```sh
-docker compose up -d --wait        # PostgreSQL (БД identity, admin, candidate; роль recruiting_app) и Redis
+docker compose up -d --wait        # PostgreSQL (БД identity, admin, candidate, recruitment; роль recruiting_app) и Redis
 cargo run -p e2e --example dev     # вся платформа на свободных портах, одноразовые данные
 ```
 
 Команда соберёт сервисы и веб-приложения, поднимет их, создаст демо-организацию и напечатает адреса
 и учётные данные:
 
-- клиентское приложение: организация `demo`, `owner@demo.io` / `demo-password-1` (с тремя демо-кандидатами)
+- клиентское приложение: организация `demo`, `owner@demo.io` / `demo-password-1` (с тремя демо-кандидатами, двумя вакансиями и откликами)
 - админка платформы: `root@platform.io` / `root-password-1`
 
 ## В Docker
@@ -69,7 +72,7 @@ docker compose --profile app up -d --build   # первая сборка - не�
 - админка платформы: <http://localhost:3010>, `root@platform.io` / `root-password-1`
 - PostgreSQL `localhost:5432`, Redis `localhost:6379`
 
-Одноразовый контейнер `demo-seed` создаёт организацию `demo` и трёх кандидатов (повторный запуск безопасен:
+Одноразовый контейнер `demo-seed` создаёт организацию `demo` и трёх кандидатов, двух вакансий и четырёх откликов (повторный запуск безопасен:
 `docker compose --profile app run --rm demo-seed`). Остановить: `docker compose --profile app down`
 (`-v` дополнительно удалит данные). Учётные данные и `SERVICE_TOKEN` в `docker-compose.yml` - только для
 локального просмотра. Без профиля `app` поднимаются лишь PostgreSQL и Redis (их используют тесты).
@@ -96,8 +99,9 @@ Chrome и cargo-leptos; первый запуск e2e собирает все п
 |---|---|---|
 | identity | `DATABASE_URL`, `ADMIN_URL`, `SERVICE_TOKEN` | `MIGRATION_DATABASE_URL`, `JWT_PRIVATE_KEY`, `ACCESS_TTL_SECS`, `TENANT_CACHE_TTL_SECS`, `LISTEN_ADDR` |
 | candidate | `DATABASE_URL`, `IDENTITY_JWKS_URL`, `SERVICE_TOKEN` | `MIGRATION_DATABASE_URL`, `LISTEN_ADDR` |
+| recruitment | `DATABASE_URL`, `IDENTITY_JWKS_URL`, `SERVICE_TOKEN`, `CANDIDATE_URL` | `MIGRATION_DATABASE_URL`, `LISTEN_ADDR` |
 | admin | `DATABASE_URL`, `IDENTITY_URL`, `SERVICE_TOKEN` | `MIGRATION_DATABASE_URL`, `JWT_PRIVATE_KEY`, `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `LISTEN_ADDR` |
-| bff-crm | `IDENTITY_URL`, `CANDIDATE_URL` | `REDIS_URL`, `COOKIE_SECURE`, `BASE_DOMAIN`, `SESSION_TTL_HOURS`, `LISTEN_ADDR` |
+| bff-crm | `IDENTITY_URL`, `CANDIDATE_URL`, `RECRUITMENT_URL` | `REDIS_URL`, `COOKIE_SECURE`, `BASE_DOMAIN`, `SESSION_TTL_HOURS`, `LISTEN_ADDR` |
 | bff-admin | `ADMIN_URL` | `REDIS_URL`, `COOKIE_SECURE`, `SESSION_TTL_HOURS`, `LISTEN_ADDR` |
 | web-crm / web-admin | `BFF_URL`, переменные `LEPTOS_*` | — |
 
@@ -107,6 +111,16 @@ Chrome и cargo-leptos; первый запуск e2e собирает все п
 - `candidate` проверяет токены по ключу identity (`IDENTITY_JWKS_URL`, например `http://127.0.0.1:8080/.well-known/jwks.json`): ключ загружается лениво и перечитывается при смене, поэтому сервис стартует и без identity (запросы получают 401).
 - `COOKIE_SECURE=false` нужен только при работе по http (локально).
 - Веб-приложения собираются `cargo leptos build --project web-crm` (и `web-admin`).
+
+## Воронка и данные людей
+
+`recruitment` хранит вакансии и отклики, а людей (имя, источник, город, ожидания, навыки, стаж) держит у себя
+**проекцией** — копией, нужной для фильтров, поиска и сортировки одним SQL-запросом. Проекция обновляется при
+каждом чтении по ленте изменений `candidate` (`GET /internal/tenants/{id}/person-changes?after=`, сервисный
+токен): кандидат создан или изменён — воронка видит это сразу, а при недоступности `candidate` отвечает по
+последним известным данным (заголовок `x-people-stale: true`). Удаление кандидата удаляет его отклики.
+Письма, приглашения на интервью и передача вышедшего в кадровую систему **имитируются записью в историю
+отклика** — реальных интеграций нет. Подробности — в `openspec/changes/add-hiring-funnel/design.md`.
 
 ## Структура сервиса
 
