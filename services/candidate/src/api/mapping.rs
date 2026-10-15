@@ -1,9 +1,10 @@
 //! Преобразование агрегата в DTO и обратно.
-use candidate_contracts::{EducationDto, EmploymentDto, PersonDto, PersonSummaryDto};
+use candidate_contracts::{EducationDto, EmploymentDto, ImportRow, PersonDto, PersonSummaryDto};
 use chrono::NaiveDate;
 
 use crate::{
-    domain::{DomainError, Education, Employment, Person},
+    application::ImportItem,
+    domain::{ContactsInput, DomainError, Education, Employment, NewPerson, Person},
     infrastructure::persons::PersonSummary,
 };
 
@@ -67,6 +68,38 @@ pub fn summary_to_dto(s: PersonSummary) -> PersonSummaryDto {
 fn parse_date(field: &'static str, raw: &str) -> Result<NaiveDate, DomainError> {
     NaiveDate::parse_from_str(raw.trim(), DATE_FORMAT)
         .map_err(|_| DomainError::invalid(field, "дата в формате ГГГГ-ММ-ДД"))
+}
+
+/// Строка импорта -> доменные значения; источник по умолчанию подставляется, если в строке его нет.
+pub fn import_item(
+    row: ImportRow,
+    default_source: Option<&str>,
+) -> Result<ImportItem, DomainError> {
+    let employments = employments_from_dto(row.employments)?;
+    let educations = educations_from_dto(row.educations)?;
+    let source = row
+        .source
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| default_source.map(str::to_string));
+    Ok(ImportItem {
+        new: NewPerson {
+            full_name: row.full_name,
+            contacts: ContactsInput {
+                phone: row.phone,
+                email: row.email,
+                ..ContactsInput::default()
+            },
+            source,
+            expected_salary: row.expected_salary,
+            summary: row.summary,
+            skills: row.skills,
+            declared_experience_years: row.declared_experience_years,
+            city: row.city,
+            note: row.note,
+        },
+        employments,
+        educations,
+    })
 }
 
 pub fn employments_from_dto(items: Vec<EmploymentDto>) -> Result<Vec<Employment>, DomainError> {

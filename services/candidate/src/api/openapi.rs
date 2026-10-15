@@ -1,8 +1,8 @@
 use axum::{Json, Router, routing::get};
 use candidate_contracts::{
-    CreatePersonRequest, DuplicateInfo, EducationDto, EmploymentDto, PersonChange,
-    PersonChangesPage, PersonDto, PersonPage, PersonSnapshot, PersonSummaryDto,
-    UpdatePersonRequest,
+    CreatePersonRequest, DuplicateInfo, EducationDto, EmploymentDto, ImportRequest, ImportResponse,
+    ImportRow, ImportRowResult, PersonChange, PersonChangesPage, PersonDto, PersonPage,
+    PersonSnapshot, PersonSummaryDto, UpdatePersonRequest,
 };
 use utoipa::{
     Modify, OpenApi,
@@ -16,6 +16,7 @@ use super::{AppState, internal, persons};
     info(title = "Candidate API", version = "0.1.0"),
     paths(
         persons::create,
+        persons::import,
         persons::list,
         persons::get_one,
         persons::update,
@@ -34,6 +35,10 @@ use super::{AppState, internal, persons};
         EmploymentDto,
         EducationDto,
         DuplicateInfo,
+        ImportRequest,
+        ImportResponse,
+        ImportRowResult,
+        ImportRow,
         PersonChange,
         PersonChangesPage,
         PersonSnapshot,

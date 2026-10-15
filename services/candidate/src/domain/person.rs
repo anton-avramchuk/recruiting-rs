@@ -279,6 +279,55 @@ impl Person {
         Ok(())
     }
 
+    /// Дополняет карточку данными того же человека из другого источника (импорт): заполняются
+    /// только пустые поля, существующие значения не меняются; навыки объединяются, места
+    /// работы и образование добавляются, только если их ещё нет. Возвращает `true`, если что-то
+    /// изменилось.
+    pub fn merge_missing(&mut self, other: &Person) -> bool {
+        let before = self.clone();
+        if self.phone.is_none() {
+            self.phone = other.phone.clone();
+        }
+        if self.email.is_none() {
+            self.email = other.email.clone();
+        }
+        if self.telegram.is_none() {
+            self.telegram = other.telegram.clone();
+        }
+        if self.whatsapp.is_none() {
+            self.whatsapp = other.whatsapp.clone();
+        }
+        if self.city.is_none() {
+            self.city = other.city.clone();
+        }
+        if self.source.is_none() {
+            self.source = other.source.clone();
+        }
+        if self.expected_salary.is_none() {
+            self.expected_salary = other.expected_salary;
+        }
+        if self.summary.is_none() {
+            self.summary = other.summary.clone();
+        }
+        if self.note.is_none() {
+            self.note = other.note.clone();
+        }
+        if self.declared_experience_years == 0 {
+            self.declared_experience_years = other.declared_experience_years;
+        }
+        let united: Vec<&String> = self.skills.iter().chain(&other.skills).collect();
+        if let Ok(skills) = normalize_skills(united) {
+            self.skills = skills;
+        }
+        if self.employments.is_empty() {
+            self.employments = other.employments.clone();
+        }
+        if self.educations.is_empty() {
+            self.educations = other.educations.clone();
+        }
+        *self != before
+    }
+
     pub fn employments(&self) -> &[Employment] {
         &self.employments
     }

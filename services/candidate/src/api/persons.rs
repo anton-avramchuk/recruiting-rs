@@ -5,8 +5,8 @@ use axum::{
     routing::{get, post, put},
 };
 use candidate_contracts::{
-    CreatePersonRequest, DuplicateInfo, EducationDto, EmploymentDto, PersonDto, PersonPage,
-    UpdatePersonRequest,
+    CreatePersonRequest, DuplicateInfo, EducationDto, EmploymentDto, ImportRequest, ImportResponse,
+    ImportRowResult, PersonDto, PersonPage, UpdatePersonRequest,
 };
 use platform_auth::{AuthUser, Permission};
 use platform_core::{
@@ -18,11 +18,14 @@ use uuid::Uuid;
 
 use super::{
     AppState,
-    mapping::{educations_from_dto, employments_from_dto, person_to_dto, summary_to_dto},
+    mapping::{
+        educations_from_dto, employments_from_dto, import_item, person_to_dto, summary_to_dto,
+    },
 };
 use crate::{
     application::{
-        ContactsPatch, ListQuery, PersonError, UpdatePerson, persons::DEFAULT_PAGE_SIZE,
+        ContactsPatch, ImportOutcome, ListQuery, PersonError, UpdatePerson,
+        persons::DEFAULT_PAGE_SIZE,
     },
     domain::{ContactsInput, DomainError, NewPerson, ProfilePatch},
     infrastructure::persons::ListFilter,
@@ -31,6 +34,7 @@ use crate::{
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/persons", post(create).get(list))
+        .route("/persons/import", post(import))
         .route("/persons/{id}", get(get_one).patch(update).delete(remove))
         .route("/persons/{id}/employments", put(replace_employments))
         .route("/persons/{id}/educations", put(replace_educations))
@@ -81,6 +85,78 @@ pub(super) async fn create(
         StatusCode::CREATED,
         Json(person_to_dto(&person, state.persons.today())),
     ))
+}
+
+/// Не больше стольких строк за один запрос импорта.
+const MAX_IMPORT_ROWS: usize = 500;
+
+#[utoipa::path(post, path = "/persons/import", security(("bearer" = [])), request_body = ImportRequest, responses(
+    (status = 200, body = ImportResponse),
+    (status = 400, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 401, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn import(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(req): Json<ImportRequest>,
+) -> Result<Json<ImportResponse>, ApiError> {
+    user.require(Permission::WriteData)?;
+    if req.rows.len() > MAX_IMPORT_ROWS {
+        return Err(ApiError::bad_request("не больше 500 строк за запрос")
+            .with_extension("field", "rows".into()));
+    }
+    let default_source = req.default_source.as_deref();
+    let items = req
+        .rows
+        .into_iter()
+        .map(|row| import_item(row, default_source))
+        .collect();
+    let outcomes = state.persons.import(tenant_of(&user)?, items).await?;
+
+    let (mut created, mut merged, mut rejected) = (0, 0, 0);
+    let results = outcomes
+        .into_iter()
+        .enumerate()
+        .map(|(row, outcome)| match outcome {
+            ImportOutcome::Created(id) => {
+                created += 1;
+                ImportRowResult {
+                    row,
+                    outcome: "created".into(),
+                    id: Some(id),
+                    field: None,
+                    message: None,
+                }
+            }
+            ImportOutcome::Merged(id) => {
+                merged += 1;
+                ImportRowResult {
+                    row,
+                    outcome: "merged".into(),
+                    id: Some(id),
+                    field: None,
+                    message: None,
+                }
+            }
+            ImportOutcome::Rejected { field, message } => {
+                rejected += 1;
+                ImportRowResult {
+                    row,
+                    outcome: "rejected".into(),
+                    id: None,
+                    field: Some(field),
+                    message: Some(message),
+                }
+            }
+        })
+        .collect();
+    Ok(Json(ImportResponse {
+        results,
+        created,
+        merged,
+        rejected,
+    }))
 }
 
 #[derive(Debug, Deserialize, utoipa::IntoParams)]

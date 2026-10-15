@@ -28,6 +28,31 @@ pub struct UpdatePerson {
     pub contacts: ContactsPatch,
 }
 
+/// Строка импорта после преобразования в доменные значения.
+#[derive(Debug, Clone)]
+pub struct ImportItem {
+    pub new: NewPerson,
+    pub employments: Vec<Employment>,
+    pub educations: Vec<Education>,
+}
+
+/// Что стало со строкой импорта.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImportOutcome {
+    Created(Uuid),
+    Merged(Uuid),
+    Rejected { field: String, message: String },
+}
+
+fn rejected(e: DomainError) -> ImportOutcome {
+    match e {
+        DomainError::Invalid { field, reason } => ImportOutcome::Rejected {
+            field: field.to_string(),
+            message: reason,
+        },
+    }
+}
+
 pub const DEFAULT_PAGE_SIZE: i64 = 20;
 pub const MAX_PAGE_SIZE: i64 = 100;
 
@@ -228,6 +253,101 @@ impl PersonService {
         let rows = store::changes_after(&mut tx, after, limit).await?;
         tx.rollback().await?;
         Ok(rows)
+    }
+
+    /// Пакетный импорт в одной транзакции организации. Строки обрабатываются по порядку, поэтому
+    /// следующая строка видит людей, созданных предыдущими. Строка с ошибкой проверки
+    /// отклоняется, остальные принимаются. Найденный «тот же человек» дополняется только
+    /// пустыми полями.
+    pub async fn import(
+        &self,
+        tenant: TenantId,
+        items: Vec<Result<ImportItem, DomainError>>,
+    ) -> Result<Vec<ImportOutcome>, PersonError> {
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        let mut outcomes = Vec::with_capacity(items.len());
+        for item in items {
+            let item = match item {
+                Ok(i) => i,
+                Err(e) => {
+                    outcomes.push(rejected(e));
+                    continue;
+                }
+            };
+            let mut person = match Person::create(tenant, item.new) {
+                Ok(p) => p,
+                Err(e) => {
+                    outcomes.push(rejected(e));
+                    continue;
+                }
+            };
+            person.replace_employments(item.employments);
+            person.replace_educations(item.educations);
+
+            let keys = person.keys();
+            let probe = Probe {
+                normalized_name: keys.normalized_name,
+                normalized_email: keys.normalized_email,
+                normalized_phone: keys.normalized_phone,
+            };
+            let candidates = store::find_candidates(&mut tx, &probe).await?;
+            match find_duplicate(&candidates, &probe) {
+                Some(duplicate) => {
+                    let mut existing = store::get(&mut tx, duplicate.id)
+                        .await?
+                        .ok_or(PersonError::NotFound)?;
+                    let (jobs, schools) = (
+                        existing.employments().to_vec(),
+                        existing.educations().to_vec(),
+                    );
+                    if existing.merge_missing(&person) {
+                        let years = existing.experience_years(self.today());
+                        store::update(&mut tx, &existing, years).await?;
+                        if existing.employments() != jobs.as_slice() {
+                            store::replace_employments(
+                                &mut tx,
+                                tenant,
+                                existing.id,
+                                existing.employments(),
+                                years,
+                            )
+                            .await?;
+                        }
+                        if existing.educations() != schools.as_slice() {
+                            store::replace_educations(
+                                &mut tx,
+                                tenant,
+                                existing.id,
+                                existing.educations(),
+                            )
+                            .await?;
+                        }
+                    }
+                    outcomes.push(ImportOutcome::Merged(existing.id));
+                }
+                None => {
+                    let years = person.experience_years(self.today());
+                    store::insert(&mut tx, &person, years).await?;
+                    if !person.employments().is_empty() {
+                        store::replace_employments(
+                            &mut tx,
+                            tenant,
+                            person.id,
+                            person.employments(),
+                            years,
+                        )
+                        .await?;
+                    }
+                    if !person.educations().is_empty() {
+                        store::replace_educations(&mut tx, tenant, person.id, person.educations())
+                            .await?;
+                    }
+                    outcomes.push(ImportOutcome::Created(person.id));
+                }
+            }
+        }
+        tx.commit().await?;
+        Ok(outcomes)
     }
 
     /// Необратимое удаление вместе с историей.

@@ -2,5 +2,6 @@
 pub mod persons;
 
 pub use persons::{
-    Clock, ContactsPatch, ListQuery, Page, PersonError, PersonService, UpdatePerson,
+    Clock, ContactsPatch, ImportItem, ImportOutcome, ListQuery, Page, PersonError, PersonService,
+    UpdatePerson,
 };

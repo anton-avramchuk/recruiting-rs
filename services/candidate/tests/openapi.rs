@@ -5,6 +5,7 @@ use common::setup;
 const EXPECTED: &[(&str, &str)] = &[
     ("/persons", "get"),
     ("/persons", "post"),
+    ("/persons/import", "post"),
     ("/persons/{id}", "get"),
     ("/persons/{id}", "patch"),
     ("/persons/{id}", "delete"),
