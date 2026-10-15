@@ -56,10 +56,11 @@ async fn seed() -> Stack {
     stack.seed_tenant("acme", OWNER.0, OWNER.1).await;
     let owner = stack.crm_client("acme", OWNER.0, OWNER.1).await;
     stack.add_user(&owner, VIEWER.0, VIEWER.1, "viewer").await;
+    let client = stack.add_client(&owner, "Acme").await;
     let vacancy: Value = owner
         .post(
             "/api/vacancies",
-            json!({"title": "Senior Go", "recruiter": "Мария", "open_days": 60}),
+            json!({"title": "Senior Go", "client_id": client, "recruiter": "Мария", "open_days": 60}),
         )
         .await
         .json()

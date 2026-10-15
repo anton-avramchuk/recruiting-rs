@@ -28,18 +28,22 @@ async fn seed() -> Seed {
     let owner = stack.crm_client("acme", OWNER.0, OWNER.1).await;
     stack.add_user(&owner, VIEWER.0, VIEWER.1, "viewer").await;
 
+    let client = stack.add_client(&owner, "Acme").await;
     let go = json_of(
         owner
             .post(
                 "/api/vacancies",
-                json!({"title": "Senior Go", "required_skills": ["Go", "SQL"], "hiring_manager": "Иванов"}),
+                json!({"title": "Senior Go", "client_id": client, "required_skills": ["Go", "SQL"]}),
             )
             .await,
     )
     .await;
     let qa = json_of(
         owner
-            .post("/api/vacancies", json!({"title": "QA инженер"}))
+            .post(
+                "/api/vacancies",
+                json!({"title": "QA инженер", "client_id": client}),
+            )
             .await,
     )
     .await;

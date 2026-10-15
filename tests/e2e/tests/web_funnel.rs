@@ -24,17 +24,29 @@ async fn seed() -> Seed {
     let owner = stack.crm_client("acme", OWNER.0, OWNER.1).await;
     stack.add_user(&owner, VIEWER.0, VIEWER.1, "viewer").await;
 
+    let client = stack.add_client(&owner, "Acme").await;
+    let contact = owner
+        .post(
+            &format!("/api/clients/{client}/contacts"),
+            json!({"full_name": "Иван Орлов"}),
+        )
+        .await;
+    assert_eq!(contact.status(), 201);
+    let contact: Value = contact.json().await.unwrap();
     let vacancy = owner
         .post(
             "/api/vacancies",
             json!({"title": "Senior Go", "required_skills": ["Go", "SQL"], "open_days": 52,
-                   "hiring_manager": "Иванов", "priority": "high"}),
+                   "client_id": client, "contact_id": contact["id"], "priority": "high"}),
         )
         .await;
     assert_eq!(vacancy.status(), 201);
     let vacancy: Value = vacancy.json().await.unwrap();
     let other = owner
-        .post("/api/vacancies", json!({"title": "QA инженер"}))
+        .post(
+            "/api/vacancies",
+            json!({"title": "QA инженер", "client_id": client}),
+        )
         .await;
     assert_eq!(other.status(), 201);
     let other: Value = other.json().await.unwrap();
@@ -133,7 +145,11 @@ async fn board_panel_and_actions_in_the_browser() {
             8,
             "eight stage columns"
         );
-        assert!(text(&tab, "[data-testid=vacancy-facts]").contains("Иванов"));
+        let facts = text(&tab, "[data-testid=vacancy-facts]");
+        assert!(
+            facts.contains("Acme") && facts.contains("Иван Орлов"),
+            "{facts}"
+        );
         assert_eq!(
             eval(
                 &tab,

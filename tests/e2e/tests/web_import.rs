@@ -57,8 +57,12 @@ async fn setup() -> (Stack, Value) {
     stack.seed_tenant("acme", OWNER.0, OWNER.1).await;
     let owner = stack.crm_client("acme", OWNER.0, OWNER.1).await;
     stack.add_user(&owner, VIEWER.0, VIEWER.1, "viewer").await;
+    let client = stack.add_client(&owner, "Acme").await;
     let vacancy: Value = owner
-        .post("/api/vacancies", json!({"title": "Go-разработчик"}))
+        .post(
+            "/api/vacancies",
+            json!({"title": "Go-разработчик", "client_id": client}),
+        )
         .await
         .json()
         .await

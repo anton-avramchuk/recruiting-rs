@@ -32,10 +32,11 @@ async fn seed() -> (Stack, String) {
         .json()
         .await
         .unwrap();
+    let client = stack.add_client(&owner, "Платформа").await;
     let res = owner
         .post(
             "/api/vacancies",
-            json!({"title": "Senior Go", "department": "Платформа", "recruiter": "Мария", "open_days": 3}),
+            json!({"title": "Senior Go", "client_id": client, "recruiter": "Мария", "open_days": 3}),
         )
         .await;
     assert_eq!(res.status(), 201);

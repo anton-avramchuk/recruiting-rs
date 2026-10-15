@@ -1,5 +1,5 @@
 #!/bin/sh
-# Создаёт демо-организацию «demo» с владельцем и тремя кандидатами через BFF (как это делает человек в интерфейсах).
+# Создаёт демо-организацию «demo» с владельцем, заказчиком, тремя кандидатами и вакансиями через BFF (как это делает человек в интерфейсах).
 # Идемпотентен: повторный запуск ничего не дублирует.
 set -eu
 
@@ -12,11 +12,11 @@ OWNER_PASSWORD="demo-password-1"
 
 csrf_of() { sed -n 's/.*"csrf_token":"\([^"]*\)".*/\1/p'; }
 
-echo "1/4 вход администратора платформы"
+echo "1/5 вход администратора платформы"
 ADMIN_CSRF=$(curl -fsS -c /tmp/admin.jar -H 'x-csrf-token: login' -H 'content-type: application/json' \
   -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" "$ADMIN_BFF/bff/login" | csrf_of)
 
-echo "2/4 организация demo"
+echo "2/5 организация demo"
 STATUS=$(curl -sS -o /tmp/tenant.out -w '%{http_code}' -b /tmp/admin.jar \
   -H "x-csrf-token: $ADMIN_CSRF" -H 'content-type: application/json' \
   -d "{\"slug\":\"demo\",\"name\":\"Demo\",\"owner\":{\"email\":\"$OWNER_EMAIL\",\"password\":\"$OWNER_PASSWORD\",\"display_name\":\"Владелец\"}}" \
@@ -27,7 +27,7 @@ case "$STATUS" in
   *) echo "  ошибка $STATUS: $(cat /tmp/tenant.out)"; exit 1 ;;
 esac
 
-echo "3/4 демо-кандидаты"
+echo "3/5 демо-кандидаты"
 CRM_CSRF=$(curl -fsS -c /tmp/crm.jar -H 'x-csrf-token: login' -H 'content-type: application/json' \
   -d "{\"tenant\":\"demo\",\"email\":\"$OWNER_EMAIL\",\"password\":\"$OWNER_PASSWORD\"}" "$CRM_BFF/bff/login" | csrf_of)
 add() {
@@ -40,13 +40,27 @@ add '{"full_name":"Анна Смирнова","email":"anna@example.com","phone"
 add '{"full_name":"Борис Иванов","phone":"+7 903 555-66-77","skills":["Go"],"source":"Реферал","declared_experience_years":2}' "Борис Иванов"
 add '{"full_name":"Виктор Петров","skills":["Rust","Docker"],"declared_experience_years":4}' "Виктор Петров"
 
-echo "4/4 демо-вакансии и отклики"
 post() {
   curl -sS -b /tmp/crm.jar -H "x-csrf-token: $CRM_CSRF" -H 'content-type: application/json' -d "$2" "$CRM_BFF$1"
 }
+id_of() { sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -n 1; }
+
+echo "4/5 демо-заказчик, должность и контакт"
+if [ "$(curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/clients")" = "[]" ]; then
+  POSITION=$(post /api/positions '{"name":"HR-директор"}' | id_of)
+  NEW_CLIENT=$(post /api/clients '{"name":"Acme Corp","note":"Крупный заказчик"}' | id_of)
+  post "/api/clients/$NEW_CLIENT/contacts" "{\"full_name\":\"Мария Петрова\",\"position_id\":\"$POSITION\",\"email\":\"maria@acme.io\"}" >/dev/null
+  echo "  создан"
+else
+  echo "  уже есть"
+fi
+CLIENT=$(curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/clients" | id_of)
+CONTACT=$(curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/clients/$CLIENT" | sed -n 's/.*"contacts":\[{"id":"\([^"]*\)".*/\1/p')
+
+echo "5/5 демо-вакансии и отклики"
 if [ "$(curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/vacancies")" = "[]" ]; then
-  post /api/vacancies '{"title":"Senior Rust-разработчик","department":"Платформа","openings":2,"priority":"high","hiring_manager":"Иванов","recruiter":"Мария","required_skills":["Rust","SQL","Docker"],"open_days":52}' >/dev/null
-  post /api/vacancies '{"title":"Go-разработчик","department":"Платформа","required_skills":["Go","SQL"],"open_days":12}' >/dev/null
+  post /api/vacancies "{\"title\":\"Senior Rust-разработчик\",\"client_id\":\"$CLIENT\",\"contact_id\":\"$CONTACT\",\"openings\":2,\"priority\":\"high\",\"recruiter\":\"Мария\",\"required_skills\":[\"Rust\",\"SQL\",\"Docker\"],\"open_days\":52}" >/dev/null
+  post /api/vacancies "{\"title\":\"Go-разработчик\",\"client_id\":\"$CLIENT\",\"required_skills\":[\"Go\",\"SQL\"],\"open_days\":12}" >/dev/null
 fi
 # отклики создаются, только пока их нет вообще (повторный запуск ничего не дублирует)
 if curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/applications?page_size=1" | grep -q '"total":0'; then

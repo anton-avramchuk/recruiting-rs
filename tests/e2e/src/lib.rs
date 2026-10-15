@@ -25,6 +25,7 @@ pub struct Stack {
     pub admin_url: String,
     pub candidate_url: String,
     pub recruitment_url: String,
+    pub client_url: String,
     pub bff_crm_url: String,
     pub bff_admin_url: String,
     /// Заполнены только в `start_with_web`.
@@ -207,6 +208,7 @@ impl Stack {
                     "identity",
                     "admin",
                     "candidate",
+                    "client",
                     "recruitment",
                     "bff-crm",
                     "bff-admin",
@@ -223,10 +225,12 @@ impl Stack {
         let admin_db = EmptyDb::create("e2e_admin").await;
         let candidate_db = EmptyDb::create("e2e_candidate").await;
         let recruitment_db = EmptyDb::create("e2e_recruitment").await;
+        let client_db = EmptyDb::create("e2e_client").await;
         let redis =
             std::env::var("TEST_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into());
 
         let ports = [
+            free_port(),
             free_port(),
             free_port(),
             free_port(),
@@ -242,12 +246,14 @@ impl Stack {
         let (bff_crm_url, bff_admin_url) = (url(ports[2]), url(ports[3]));
         let candidate_url = url(ports[6]);
         let recruitment_url = url(ports[7]);
+        let client_url = url(ports[8]);
 
         let mut stack = Stack {
             identity_url: identity_url.clone(),
             admin_url: admin_url.clone(),
             candidate_url: candidate_url.clone(),
             recruitment_url: recruitment_url.clone(),
+            client_url: client_url.clone(),
             bff_crm_url: bff_crm_url.clone(),
             bff_admin_url: bff_admin_url.clone(),
             web_crm_url: url(ports[4]),
@@ -294,6 +300,19 @@ impl Stack {
             ],
         ));
         stack.services.push(spawn(
+            "client",
+            &[
+                listen(ports[8]),
+                ("DATABASE_URL", client_db.app_url.clone()),
+                ("MIGRATION_DATABASE_URL", client_db.owner_url.clone()),
+                (
+                    "IDENTITY_JWKS_URL",
+                    format!("{identity_url}/.well-known/jwks.json"),
+                ),
+                ("SERVICE_TOKEN", SERVICE_TOKEN.into()),
+            ],
+        ));
+        stack.services.push(spawn(
             "recruitment",
             &[
                 listen(ports[7]),
@@ -305,6 +324,7 @@ impl Stack {
                 ),
                 ("SERVICE_TOKEN", SERVICE_TOKEN.into()),
                 ("CANDIDATE_URL", candidate_url.clone()),
+                ("CLIENT_URL", client_url.clone()),
             ],
         ));
         stack.services.push(spawn(
@@ -314,6 +334,7 @@ impl Stack {
                 ("IDENTITY_URL", identity_url),
                 ("CANDIDATE_URL", candidate_url.clone()),
                 ("RECRUITMENT_URL", recruitment_url.clone()),
+                ("CLIENT_URL", client_url.clone()),
                 ("REDIS_URL", redis.clone()),
                 ("COOKIE_SECURE", "false".into()),
                 // браузер ходит в BFF напрямую, источник — адрес веб-приложения
@@ -352,15 +373,20 @@ impl Stack {
                 ));
             }
         }
-        stack
-            .dbs
-            .extend([identity_db, admin_db, candidate_db, recruitment_db]);
+        stack.dbs.extend([
+            identity_db,
+            admin_db,
+            candidate_db,
+            recruitment_db,
+            client_db,
+        ]);
 
         for (url, name) in [
             (&stack.identity_url, "identity"),
             (&stack.admin_url, "admin"),
             (&stack.candidate_url, "candidate"),
             (&stack.recruitment_url, "recruitment"),
+            (&stack.client_url, "client"),
             (&stack.bff_crm_url, "bff-crm"),
             (&stack.bff_admin_url, "bff-admin"),
         ] {
@@ -435,6 +461,16 @@ impl Stack {
     }
 
     /// Создаёт пользователя организации с ролью (от имени владельца).
+    /// Создаёт заказчика и возвращает его идентификатор (вакансиям нужен заказчик).
+    pub async fn add_client(&self, owner: &CrmClient, name: &str) -> String {
+        let res = owner
+            .post("/api/clients", serde_json::json!({ "name": name }))
+            .await;
+        assert_eq!(res.status(), 201, "create client");
+        let body: serde_json::Value = res.json().await.expect("client json");
+        body["id"].as_str().expect("client id").to_string()
+    }
+
     pub async fn add_user(&self, owner: &CrmClient, email: &str, password: &str, role: &str) {
         let res = owner
             .post(

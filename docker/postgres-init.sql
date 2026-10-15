@@ -7,6 +7,7 @@ CREATE DATABASE identity;
 CREATE DATABASE admin;
 CREATE DATABASE candidate;
 CREATE DATABASE recruitment;
+CREATE DATABASE client;
 
 \connect identity
 GRANT USAGE ON SCHEMA public TO recruiting_app;
@@ -21,5 +22,9 @@ GRANT USAGE ON SCHEMA public TO recruiting_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO recruiting_app;
 
 \connect recruitment
+GRANT USAGE ON SCHEMA public TO recruiting_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO recruiting_app;
+
+\connect client
 GRANT USAGE ON SCHEMA public TO recruiting_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO recruiting_app;

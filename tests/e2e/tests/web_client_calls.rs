@@ -14,8 +14,12 @@ async fn stack_with_vacancy() -> Stack {
     let stack = Stack::start_with_web().await;
     stack.seed_tenant("acme", OWNER.0, OWNER.1).await;
     let owner = stack.crm_client("acme", OWNER.0, OWNER.1).await;
+    let client = stack.add_client(&owner, "Acme").await;
     let res = owner
-        .post("/api/vacancies", json!({"title": "Senior Go"}))
+        .post(
+            "/api/vacancies",
+            json!({"title": "Senior Go", "client_id": client}),
+        )
         .await;
     assert_eq!(res.status(), 201);
     stack

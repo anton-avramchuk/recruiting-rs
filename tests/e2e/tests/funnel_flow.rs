@@ -25,11 +25,12 @@ async fn candidate_to_vacancy_to_stages_across_the_platform() {
         .crm_client("globex", GLOBEX_BOSS.0, GLOBEX_BOSS.1)
         .await;
 
-    // вакансия и кандидат
+    // заказчик, вакансия и кандидат
+    let client = stack.add_client(&boss, "Acme").await;
     let res = boss
         .post(
             "/api/vacancies",
-            json!({"title": "Senior Go", "required_skills": ["Go", "SQL"], "priority": "high"}),
+            json!({"title": "Senior Go", "client_id": client, "required_skills": ["Go", "SQL"], "priority": "high"}),
         )
         .await;
     assert_eq!(res.status(), 201);

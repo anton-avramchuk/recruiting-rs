@@ -34,9 +34,9 @@
 
 ## 6. Окружение
 
-- [ ] 6.1 `docker/Dockerfile` (этап `client`), `docker-compose.yml`, `postgres-init.sql`, переменные `CLIENT_URL` у `recruitment` и `bff-crm`
-- [ ] 6.2 `tests/e2e::Stack`: запуск сервиса `client`, URL в `recruitment` и `bff-crm`; обновить помощников создания вакансий в существующих e2e и демо-сиде
-- [ ] 6.3 Демо-сид: заказчики, должности, контакты, привязка вакансий; README (сервис, ручное создание БД `client`), `docs/tenancy.md`
+- [x] 6.1 `docker/Dockerfile` (этап `client`), `docker-compose.yml`, `postgres-init.sql`, переменные `CLIENT_URL` у `recruitment` и `bff-crm`
+- [x] 6.2 `tests/e2e::Stack`: запуск сервиса `client`, URL в `recruitment` и `bff-crm`; обновить помощников создания вакансий в существующих e2e и демо-сиде
+- [x] 6.3 Демо-сид: заказчики, должности, контакты, привязка вакансий; README (сервис, ручное создание БД `client`), `docs/tenancy.md`
 
 ## 7. Проверка
 
