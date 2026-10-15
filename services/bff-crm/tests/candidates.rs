@@ -23,6 +23,7 @@ async fn world() -> World {
     let cfg = CrmConfig {
         identity_url: identity.serve().await,
         candidate_url: candidate.serve().await,
+        recruitment_url: "http://127.0.0.1:9".into(),
         cookie_secure: true,
         base_domain: None,
         session_ttl_secs: 3600,

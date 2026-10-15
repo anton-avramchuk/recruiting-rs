@@ -24,6 +24,7 @@ pub struct Stack {
     pub identity_url: String,
     pub admin_url: String,
     pub candidate_url: String,
+    pub recruitment_url: String,
     pub bff_crm_url: String,
     pub bff_admin_url: String,
     /// Заполнены только в `start_with_web`.
@@ -164,6 +165,16 @@ impl CrmClient {
             .expect("crm put")
     }
 
+    pub async fn patch(&self, path: &str, body: serde_json::Value) -> reqwest::Response {
+        self.http
+            .patch(format!("{}{path}", self.base))
+            .header("x-csrf-token", &self.csrf)
+            .json(&body)
+            .send()
+            .await
+            .expect("crm patch")
+    }
+
     pub async fn delete(&self, path: &str) -> reqwest::Response {
         self.http
             .delete(format!("{}{path}", self.base))
@@ -192,7 +203,14 @@ impl Stack {
             static BACKEND: std::sync::Once = std::sync::Once::new();
             static WEB: std::sync::Once = std::sync::Once::new();
             BACKEND.call_once(|| {
-                build_binaries(&["identity", "admin", "candidate", "bff-crm", "bff-admin"]);
+                build_binaries(&[
+                    "identity",
+                    "admin",
+                    "candidate",
+                    "recruitment",
+                    "bff-crm",
+                    "bff-admin",
+                ]);
             });
             if with_web {
                 WEB.call_once(|| build_web(&["web-crm", "web-admin"]));
@@ -204,10 +222,12 @@ impl Stack {
         let identity_db = EmptyDb::create("e2e_identity").await;
         let admin_db = EmptyDb::create("e2e_admin").await;
         let candidate_db = EmptyDb::create("e2e_candidate").await;
+        let recruitment_db = EmptyDb::create("e2e_recruitment").await;
         let redis =
             std::env::var("TEST_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into());
 
         let ports = [
+            free_port(),
             free_port(),
             free_port(),
             free_port(),
@@ -221,11 +241,13 @@ impl Stack {
         let (identity_url, admin_url) = (url(ports[0]), url(ports[1]));
         let (bff_crm_url, bff_admin_url) = (url(ports[2]), url(ports[3]));
         let candidate_url = url(ports[6]);
+        let recruitment_url = url(ports[7]);
 
         let mut stack = Stack {
             identity_url: identity_url.clone(),
             admin_url: admin_url.clone(),
             candidate_url: candidate_url.clone(),
+            recruitment_url: recruitment_url.clone(),
             bff_crm_url: bff_crm_url.clone(),
             bff_admin_url: bff_admin_url.clone(),
             web_crm_url: url(ports[4]),
@@ -272,11 +294,26 @@ impl Stack {
             ],
         ));
         stack.services.push(spawn(
+            "recruitment",
+            &[
+                listen(ports[7]),
+                ("DATABASE_URL", recruitment_db.app_url.clone()),
+                ("MIGRATION_DATABASE_URL", recruitment_db.owner_url.clone()),
+                (
+                    "IDENTITY_JWKS_URL",
+                    format!("{identity_url}/.well-known/jwks.json"),
+                ),
+                ("SERVICE_TOKEN", SERVICE_TOKEN.into()),
+                ("CANDIDATE_URL", candidate_url.clone()),
+            ],
+        ));
+        stack.services.push(spawn(
             "bff-crm",
             &[
                 listen(ports[2]),
                 ("IDENTITY_URL", identity_url),
                 ("CANDIDATE_URL", candidate_url.clone()),
+                ("RECRUITMENT_URL", recruitment_url.clone()),
                 ("REDIS_URL", redis.clone()),
                 ("COOKIE_SECURE", "false".into()),
             ],
@@ -311,12 +348,15 @@ impl Stack {
                 ));
             }
         }
-        stack.dbs.extend([identity_db, admin_db, candidate_db]);
+        stack
+            .dbs
+            .extend([identity_db, admin_db, candidate_db, recruitment_db]);
 
         for (url, name) in [
             (&stack.identity_url, "identity"),
             (&stack.admin_url, "admin"),
             (&stack.candidate_url, "candidate"),
+            (&stack.recruitment_url, "recruitment"),
             (&stack.bff_crm_url, "bff-crm"),
             (&stack.bff_admin_url, "bff-admin"),
         ] {

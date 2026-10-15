@@ -23,6 +23,7 @@ async fn stopping_the_admin_bff_does_not_affect_the_crm_bff() {
         &CrmConfig {
             identity_url: backend.clone(),
             candidate_url: backend.clone(),
+            recruitment_url: "http://127.0.0.1:9".into(),
             cookie_secure: false,
             base_domain: None,
             session_ttl_secs: 3600,

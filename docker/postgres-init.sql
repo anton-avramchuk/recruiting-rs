@@ -6,6 +6,7 @@ CREATE ROLE recruiting_app LOGIN PASSWORD 'recruiting_app' NOSUPERUSER NOBYPASSR
 CREATE DATABASE identity;
 CREATE DATABASE admin;
 CREATE DATABASE candidate;
+CREATE DATABASE recruitment;
 
 \connect identity
 GRANT USAGE ON SCHEMA public TO recruiting_app;
@@ -16,5 +17,9 @@ GRANT USAGE ON SCHEMA public TO recruiting_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO recruiting_app;
 
 \connect candidate
+GRANT USAGE ON SCHEMA public TO recruiting_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO recruiting_app;
+
+\connect recruitment
 GRANT USAGE ON SCHEMA public TO recruiting_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO recruiting_app;

@@ -84,6 +84,20 @@ services:
       postgres: { condition: service_healthy }
     healthcheck: *health
 
+  recruitment:
+    <<: *service
+    build: { context: ., dockerfile: docker/Dockerfile, target: recruitment }
+    environment:
+      RUST_LOG: info
+      DATABASE_URL: postgres://recruiting_app:recruiting_app@postgres/recruitment
+      MIGRATION_DATABASE_URL: postgres://postgres:postgres@postgres/recruitment
+      IDENTITY_JWKS_URL: http://identity:8080/.well-known/jwks.json
+      SERVICE_TOKEN: dev-service-token-change-me
+      CANDIDATE_URL: http://candidate:8080
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck: *health
+
   bff-crm:
     <<: *service
     build: { context: ., dockerfile: docker/Dockerfile, target: bff-crm }
@@ -91,12 +105,14 @@ services:
       RUST_LOG: info
       IDENTITY_URL: http://identity:8080
       CANDIDATE_URL: http://candidate:8080
+      RECRUITMENT_URL: http://recruitment:8080
       REDIS_URL: redis://redis:6379
       COOKIE_SECURE: "false" # локально по http
     depends_on:
       redis: { condition: service_healthy }
       identity: { condition: service_healthy }
       candidate: { condition: service_healthy }
+      recruitment: { condition: service_healthy }
     healthcheck: *health
 
   bff-admin:

@@ -13,6 +13,7 @@ pub const REDIS_PREFIX: &str = "bff:crm:session:";
 pub struct CrmConfig {
     pub identity_url: String,
     pub candidate_url: String,
+    pub recruitment_url: String,
     pub cookie_secure: bool,
     /// Базовый домен приложения: `acme.<base_domain>` определяет тенанта `acme`.
     pub base_domain: Option<String>,
@@ -24,6 +25,8 @@ fn allowlist() -> Vec<AllowRule> {
     vec![
         AllowRule::any("/users"),
         AllowRule::any("/persons").to("candidate"),
+        AllowRule::any("/vacancies").to("recruitment"),
+        AllowRule::any("/applications").to("recruitment"),
     ]
 }
 
@@ -68,7 +71,10 @@ pub fn build(cfg: &CrmConfig, store: Arc<dyn SessionStore>) -> Router {
         cookie_secure: cfg.cookie_secure,
         session_ttl: Duration::from_secs(cfg.session_ttl_secs),
         upstream_base_url: cfg.identity_url.clone(),
-        upstreams: HashMap::from([("candidate".to_string(), cfg.candidate_url.clone())]),
+        upstreams: HashMap::from([
+            ("candidate".to_string(), cfg.candidate_url.clone()),
+            ("recruitment".to_string(), cfg.recruitment_url.clone()),
+        ]),
         allow: allowlist(),
         login_transform: Some(login_transform(cfg.base_domain.clone())),
     };

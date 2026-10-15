@@ -9,7 +9,7 @@
 ## 2. Контракты и домен воронки
 
 - [x] 2.1 Crate `recruitment-contracts`: `Stage`, `next`, `is_active`, `overdue`, DTO вакансий/откликов/событий/групповых действий (юнит-тесты на этапы, SLA на границах 24 ч и 5 сут)
-- [ ] 2.2 Сервис `services/recruitment`: каркас (domain/application/infrastructure/api), конфигурация, `main`, health, OpenAPI
+- [x] 2.2 Сервис `services/recruitment`: каркас (domain/application/infrastructure/api), конфигурация, `main`, health, OpenAPI
 - [x] 2.3 Домен: `Vacancy` (валидация, срок открытия), `Application` (переходы, `next`, отказ, передача только из «Выход», интервью не в прошлом), функция совпадения; `Clock` — тесты сначала
 
 ## 3. Хранилище recruitment
@@ -28,8 +28,8 @@
 
 ## 5. BFF
 
-- [ ] 5.1 `bff-crm`: upstream `recruitment` (`RECRUITMENT_URL`), allowlist `/vacancies*`, `/applications*`, закрытие internal; тесты (проксирование, 404 на internal, 502 при недоступности)
-- [ ] 5.2 Тесты e2e через BFF: сценарий «кандидат → вакансия → отклик → этапы → отказ», изоляция организаций
+- [x] 5.1 `bff-crm`: upstream `recruitment` (`RECRUITMENT_URL`), allowlist `/vacancies*`, `/applications*`, закрытие internal; тесты (проксирование, 404 на internal, 502 при недоступности)
+- [x] 5.2 Тесты e2e через BFF: сценарий «кандидат → вакансия → отклик → этапы → отказ», изоляция организаций
 
 ## 6. Оформление «Ритм» и общие компоненты
 
@@ -48,6 +48,6 @@
 
 ## 8. Инфраструктура и документация
 
-- [ ] 8.1 docker-compose, Dockerfile (цель `recruitment`), `postgres-init.sql`, переменные окружения, e2e-стенд
+- [x] 8.1 docker-compose, Dockerfile (цель `recruitment`), `postgres-init.sql`, переменные окружения, e2e-стенд
 - [ ] 8.2 Демо-сид: вакансии и отклики в `seed-demo`
 - [ ] 8.3 README и `docs/`: схема воронки, проекция людей, имитации; финальный прогон `cargo fmt`, `clippy`, тестов, Docker-сборки
