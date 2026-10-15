@@ -600,3 +600,35 @@ pub fn parse(text: &str, current_year: i32) -> ParsedResume {
     }
     r
 }
+
+/// Место работы из одной строки вида «2021 — наст. время — Яндекс — Разработчик»;
+/// `None`, если в строке нет периода лет.
+pub fn job_from_text(line: &str) -> Option<Job> {
+    let chars: Vec<char> = line.chars().collect();
+    let p = period(&chars)?;
+    let rest = cut(&format!(
+        "{}{}",
+        chars[..p.range.0].iter().collect::<String>(),
+        chars[p.range.1..].iter().collect::<String>()
+    ));
+    let mut parts = split_parts(&rest).into_iter();
+    Some(Job {
+        start_year: p.start,
+        end_year: p.end,
+        company: parts.next().unwrap_or_default(),
+        role: parts.next().unwrap_or_default(),
+        note: parts.collect::<Vec<_>>().join(", "),
+    })
+}
+
+/// Образование из строки вида «2019 — МФТИ — Прикладная математика» (год необязателен).
+pub fn education_from_text(text: &str) -> Education {
+    let chars: Vec<char> = text.chars().collect();
+    let rest = cut(&remove_years(&chars));
+    let mut parts = split_parts(&rest).into_iter();
+    Education {
+        year: years_in(&chars).last().copied(),
+        institution: parts.next().unwrap_or_default(),
+        specialty: parts.collect::<Vec<_>>().join(", "),
+    }
+}

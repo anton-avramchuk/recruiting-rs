@@ -6,6 +6,7 @@ publish.workspace = true
 
 [dependencies]
 miniz_oxide = "0.8"
+candidate-contracts = { path = "../candidate-contracts" }
 
 [lints]
 workspace = true

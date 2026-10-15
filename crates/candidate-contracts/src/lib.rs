@@ -217,3 +217,63 @@ pub struct UpdatePersonRequest {
     #[schema(value_type = Option<String>)]
     pub note: Option<Option<String>>,
 }
+
+// ---------- пакетный импорт ----------
+
+/// Строка импорта: уже разобранные поля кандидата (файл разбирается в браузере).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct ImportRow {
+    pub full_name: String,
+    #[serde(default)]
+    pub phone: Option<String>,
+    #[serde(default)]
+    pub email: Option<String>,
+    #[serde(default)]
+    pub city: Option<String>,
+    #[serde(default)]
+    pub source: Option<String>,
+    #[serde(default)]
+    pub expected_salary: Option<i64>,
+    #[serde(default)]
+    pub declared_experience_years: Option<i32>,
+    #[serde(default)]
+    pub skills: Vec<String>,
+    #[serde(default)]
+    pub summary: Option<String>,
+    #[serde(default)]
+    pub note: Option<String>,
+    #[serde(default)]
+    pub employments: Vec<EmploymentDto>,
+    #[serde(default)]
+    pub educations: Vec<EducationDto>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct ImportRequest {
+    pub rows: Vec<ImportRow>,
+    /// Источник для строк, где он не указан.
+    #[serde(default)]
+    pub default_source: Option<String>,
+}
+
+/// Результат по одной строке пакета.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct ImportRowResult {
+    /// Номер строки в пакете, с нуля.
+    pub row: usize,
+    /// `created`, `merged` или `rejected`.
+    pub outcome: String,
+    /// Кандидат (для `created` и `merged`).
+    pub id: Option<Uuid>,
+    /// Поле с ошибкой (для `rejected`).
+    pub field: Option<String>,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct ImportResponse {
+    pub results: Vec<ImportRowResult>,
+    pub created: i64,
+    pub merged: i64,
+    pub rejected: i64,
+}

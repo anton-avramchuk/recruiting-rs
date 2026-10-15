@@ -423,6 +423,7 @@ dependencies = [
 name = "candidate-import"
 version = "0.1.0"
 dependencies = [
+ "candidate-contracts",
  "miniz_oxide 0.8.9",
 ]
 
