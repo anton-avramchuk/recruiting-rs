@@ -18,6 +18,7 @@ async fn world(base_domain: Option<&str>) -> World {
         identity_url: upstream.serve().await,
         candidate_url: "http://127.0.0.1:9".into(),
         recruitment_url: "http://127.0.0.1:9".into(),
+        cors_origins: Vec::new(),
         cookie_secure: true,
         base_domain: base_domain.map(Into::into),
         session_ttl_secs: 3600,
@@ -151,4 +152,43 @@ async fn serves_health_and_openapi() {
             "{method} {path}"
         );
     }
+}
+
+#[tokio::test]
+async fn cors_is_enabled_by_configuration() {
+    let upstream = Upstream::new();
+    let cfg = CrmConfig {
+        identity_url: upstream.serve().await,
+        candidate_url: "http://127.0.0.1:9".into(),
+        recruitment_url: "http://127.0.0.1:9".into(),
+        cors_origins: vec!["http://localhost:3000".into()],
+        cookie_secure: true,
+        base_domain: None,
+        session_ttl_secs: 3600,
+    };
+    let client = Client::new(
+        build(&cfg, Arc::new(MemorySessionStore::new())),
+        "crm_session",
+    );
+    let res = client
+        .send(
+            "GET",
+            "/bff/session",
+            &[("origin", "http://localhost:3000")],
+            None,
+        )
+        .await;
+    assert_eq!(
+        res.headers["access-control-allow-origin"],
+        "http://localhost:3000"
+    );
+    let other = client
+        .send(
+            "GET",
+            "/bff/session",
+            &[("origin", "http://evil.example")],
+            None,
+        )
+        .await;
+    assert!(other.headers.get("access-control-allow-origin").is_none());
 }

@@ -11,6 +11,8 @@ pub const REDIS_PREFIX: &str = "bff:admin:session:";
 
 #[derive(Debug, Clone)]
 pub struct AdminConfig {
+    /// Источники браузера для запросов напрямую в BFF (пусто - CORS выключен).
+    pub cors_origins: Vec<String>,
     pub admin_url: String,
     pub cookie_secure: bool,
     /// Не больше срока жизни токена администратора: refresh в этом слое не предусмотрен.
@@ -42,6 +44,7 @@ pub fn build(cfg: &AdminConfig, store: Arc<dyn SessionStore>) -> Router {
         upstream_base_url: cfg.admin_url.clone(),
         upstreams: Default::default(),
         allow: allowlist(),
+        cors_origins: cfg.cors_origins.clone(),
         login_transform: Some(login_transform()),
     };
     // у токена администратора нет refresh и отзыва: по истечении нужно войти заново

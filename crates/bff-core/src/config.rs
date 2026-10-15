@@ -65,6 +65,8 @@ pub struct BffConfig {
     pub upstreams: HashMap<String, String>,
     pub allow: Vec<AllowRule>,
     pub login_transform: Option<LoginTransform>,
+    /// Источники браузера, которым разрешены запросы с cookie (пусто - CORS выключен).
+    pub cors_origins: Vec<String>,
 }
 
 #[cfg(test)]

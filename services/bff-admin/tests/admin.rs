@@ -19,6 +19,7 @@ async fn world() -> World {
     let upstream = Upstream::new();
     let cfg = AdminConfig {
         admin_url: upstream.serve().await,
+        cors_origins: Vec::new(),
         cookie_secure: true,
         session_ttl_secs: 3600,
     };
@@ -135,4 +136,46 @@ async fn serves_health_and_openapi() {
     assert_eq!(doc.status, 200);
     assert!(doc.body["paths"]["/bff/login"]["post"].is_object());
     assert_eq!(doc.body["info"]["title"], "Admin BFF");
+}
+
+#[tokio::test]
+async fn cors_is_enabled_by_configuration() {
+    let upstream = Upstream::new();
+    let cfg = AdminConfig {
+        admin_url: upstream.serve().await,
+        cors_origins: vec!["http://localhost:3010".into()],
+        cookie_secure: true,
+        session_ttl_secs: 3600,
+    };
+    let client = Client::new(
+        build(&cfg, Arc::new(MemorySessionStore::new())),
+        "admin_session",
+    );
+    let res = client
+        .send(
+            "GET",
+            "/bff/session",
+            &[("origin", "http://localhost:3010")],
+            None,
+        )
+        .await;
+    assert_eq!(
+        res.headers["access-control-allow-origin"],
+        "http://localhost:3010"
+    );
+    let preflight = client
+        .send(
+            "OPTIONS",
+            "/api/tenants",
+            &[
+                ("origin", "http://localhost:3010"),
+                ("access-control-request-method", "POST"),
+            ],
+            None,
+        )
+        .await;
+    assert_eq!(
+        preflight.headers["access-control-allow-credentials"],
+        "true"
+    );
 }

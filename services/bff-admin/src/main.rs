@@ -7,11 +7,21 @@ use platform_core::{
     shutdown, telemetry,
 };
 
+/// `CORS_ORIGINS`: источники через запятую; подстановка `*` и мусор отклоняются при запуске.
+fn cors_origins(raw: Option<String>) -> Result<Vec<String>, ConfigError> {
+    let raw = raw.unwrap_or_default();
+    bff_core::parse_cors_origins(&raw).map_err(|_| ConfigError::Invalid {
+        key: "CORS_ORIGINS".into(),
+        value: raw,
+    })
+}
+
 fn load() -> Result<(CommonConfig, AdminConfig, String), ConfigError> {
     let get = |k: &str| std::env::var(k).ok();
     let common = CommonConfig::from_lookup(get)?;
     let cfg = AdminConfig {
         admin_url: require(get, "ADMIN_URL")?,
+        cors_origins: cors_origins(get("CORS_ORIGINS"))?,
         cookie_secure: get("COOKIE_SECURE").is_none_or(|v| v != "false"),
         session_ttl_secs: get("SESSION_TTL_HOURS")
             .and_then(|v| v.parse::<u64>().ok())

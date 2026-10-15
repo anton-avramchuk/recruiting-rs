@@ -298,12 +298,21 @@ fn login_meta(credentials: &Value) -> Value {
 // ---- обработчики /bff/* ----
 
 pub fn router(bff: Bff) -> Router {
-    Router::new()
+    let origins = Arc::new(bff.inner.config.cors_origins.clone());
+    let router = Router::new()
         .route("/bff/login", post(login))
         .route("/bff/logout", post(logout))
         .route("/bff/session", get(session))
         .merge(crate::proxy::routes())
-        .with_state(bff)
+        .with_state(bff);
+    if origins.is_empty() {
+        router
+    } else {
+        router.layer(axum::middleware::from_fn_with_state(
+            origins,
+            crate::cors::layer,
+        ))
+    }
 }
 
 #[utoipa::path(post, path = "/bff/login", request_body = serde_json::Value, responses(

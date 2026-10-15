@@ -23,6 +23,7 @@ pub fn config(base: &str) -> BffConfig {
         allow: vec![AllowRule::any("/users")],
         upstreams: Default::default(),
         login_transform: None,
+        cors_origins: Vec::new(),
     }
 }
 

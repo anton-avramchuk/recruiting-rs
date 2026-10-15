@@ -14,6 +14,8 @@ pub struct CrmConfig {
     pub identity_url: String,
     pub candidate_url: String,
     pub recruitment_url: String,
+    /// Источники браузера для запросов напрямую в BFF (пусто - CORS выключен).
+    pub cors_origins: Vec<String>,
     pub cookie_secure: bool,
     /// Базовый домен приложения: `acme.<base_domain>` определяет тенанта `acme`.
     pub base_domain: Option<String>,
@@ -78,6 +80,7 @@ pub fn build(cfg: &CrmConfig, store: Arc<dyn SessionStore>) -> Router {
             ("recruitment".to_string(), cfg.recruitment_url.clone()),
         ]),
         allow: allowlist(),
+        cors_origins: cfg.cors_origins.clone(),
         login_transform: Some(login_transform(cfg.base_domain.clone())),
     };
     let auth = Arc::new(HttpUpstreamAuth::new(

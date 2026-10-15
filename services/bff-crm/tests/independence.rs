@@ -24,6 +24,7 @@ async fn stopping_the_admin_bff_does_not_affect_the_crm_bff() {
             identity_url: backend.clone(),
             candidate_url: backend.clone(),
             recruitment_url: "http://127.0.0.1:9".into(),
+            cors_origins: Vec::new(),
             cookie_secure: false,
             base_domain: None,
             session_ttl_secs: 3600,
@@ -33,6 +34,7 @@ async fn stopping_the_admin_bff_does_not_affect_the_crm_bff() {
     .await;
     let (admin_url, admin) = serve(bff_admin::build(
         &AdminConfig {
+            cors_origins: Vec::new(),
             admin_url: backend,
             cookie_secure: false,
             session_ttl_secs: 3600,

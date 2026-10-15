@@ -27,6 +27,7 @@ async fn world(recruitment_url: Option<String>) -> World {
     let cfg = CrmConfig {
         identity_url: identity.serve().await,
         candidate_url: candidate.serve().await,
+        cors_origins: Vec::new(),
         recruitment_url: match recruitment_url {
             Some(url) => url,
             None => recruitment.serve().await,
