@@ -74,6 +74,9 @@ docker compose --profile app up -d --build   # первая сборка - не�
 
 Одноразовый контейнер `demo-seed` создаёт организацию `demo` и трёх кандидатов, двух вакансий и четырёх откликов (повторный запуск безопасен:
 `docker compose --profile app run --rm demo-seed`). Остановить: `docker compose --profile app down`
+
+Скрипт `docker/postgres-init.sql` выполняется только на пустом томе PostgreSQL. Если том создан до появления `recruitment`, создайте базу вручную:
+`docker compose exec postgres psql -U postgres -c "CREATE DATABASE recruitment"` и выдайте роли `recruiting_app` права, как в init-скрипте (либо пересоздайте том: `docker compose down -v`).
 (`-v` дополнительно удалит данные). Учётные данные и `SERVICE_TOKEN` в `docker-compose.yml` - только для
 локального просмотра. Без профиля `app` поднимаются лишь PostgreSQL и Redis (их используют тесты).
 

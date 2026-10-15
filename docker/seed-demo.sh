@@ -44,22 +44,29 @@ echo "4/4 демо-вакансии и отклики"
 post() {
   curl -sS -b /tmp/crm.jar -H "x-csrf-token: $CRM_CSRF" -H 'content-type: application/json' -d "$2" "$CRM_BFF$1"
 }
-id_after() { sed -n 's/.*"id":"\([^"]*\)".*//p' | head -n 1; }
 if [ "$(curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/vacancies")" = "[]" ]; then
-  RUST=$(post /api/vacancies '{"title":"Senior Rust-разработчик","department":"Платформа","openings":2,"priority":"high","hiring_manager":"Иванов","recruiter":"Мария","required_skills":["Rust","SQL","Docker"],"open_days":52}' | id_after)
-  GO=$(post /api/vacancies '{"title":"Go-разработчик","department":"Платформа","required_skills":["Go","SQL"],"open_days":12}' | id_after)
+  post /api/vacancies '{"title":"Senior Rust-разработчик","department":"Платформа","openings":2,"priority":"high","hiring_manager":"Иванов","recruiter":"Мария","required_skills":["Rust","SQL","Docker"],"open_days":52}' >/dev/null
+  post /api/vacancies '{"title":"Go-разработчик","department":"Платформа","required_skills":["Go","SQL"],"open_days":12}' >/dev/null
+fi
+# отклики создаются, только пока их нет вообще (повторный запуск ничего не дублирует)
+if curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/applications?page_size=1" | grep -q '"total":0'; then
+  VACANCIES=$(curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/vacancies" | tr '{' '
+')
   PEOPLE=$(curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/persons?page_size=100" | tr '{' '
 ')
-  person() { printf '%s' "$PEOPLE" | sed -n "s/.*\"id\":\"\([^\"]*\)\",\"full_name\":\"$1\".*//p" | head -n 1; }
+  vacancy() { printf '%s' "$VACANCIES" | sed -n "s/.*\"id\":\"\([^\"]*\)\",\"title\":\"$1\".*/\1/p" | head -n 1; }
+  person() { printf '%s' "$PEOPLE" | sed -n "s/.*\"id\":\"\([^\"]*\)\",\"full_name\":\"$1\".*/\1/p" | head -n 1; }
   apply() { # кандидат, вакансия, этап
-    code=$(curl -sS -o /dev/null -w '%{http_code}' -b /tmp/crm.jar -H "x-csrf-token: $CRM_CSRF"       -H 'content-type: application/json'       -d "{\"person_id\":\"$(person "$1")\",\"vacancy_id\":\"$2\",\"stage\":\"$3\"}" "$CRM_BFF/api/applications")
+    code=$(curl -sS -o /dev/null -w '%{http_code}' -b /tmp/crm.jar -H "x-csrf-token: $CRM_CSRF" \
+      -H 'content-type: application/json' \
+      -d "{\"person_id\":\"$(person "$1")\",\"vacancy_id\":\"$(vacancy "$2")\",\"stage\":\"$3\"}" "$CRM_BFF/api/applications")
     echo "  $1: $code"
   }
-  apply "Анна Смирнова" "$RUST" screening
-  apply "Борис Иванов" "$GO" new
-  apply "Виктор Петров" "$RUST" new
-  apply "Анна Смирнова" "$GO" hr
+  apply "Анна Смирнова" "Senior Rust-разработчик" screening
+  apply "Борис Иванов" "Go-разработчик" new
+  apply "Виктор Петров" "Senior Rust-разработчик" new
+  apply "Анна Смирнова" "Go-разработчик" hr
 else
-  echo "  вакансии уже есть"
+  echo "  отклики уже есть"
 fi
 echo "готово"
