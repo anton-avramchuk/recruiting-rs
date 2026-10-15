@@ -179,7 +179,7 @@ async fn time_to_hire_and_first_touch_are_medians() {
         let id: Uuid = a["id"].as_str().unwrap().parse().unwrap();
         sqlx::query("UPDATE applications SET created_at = now() - make_interval(days => $2::int) WHERE id = $1")
             .bind(id)
-            .bind(days as i32)
+            .bind(days)
             .execute(&c.app.db.owner)
             .await
             .unwrap();

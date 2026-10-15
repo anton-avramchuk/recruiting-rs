@@ -1,6 +1,7 @@
 //! Клиентское приложение рекрутеров (Leptos, SSR + hydrate). Общается только с bff-crm.
 // глубокие вложенные представления доски превышают лимит по умолчанию при сборке wasm в release
 #![recursion_limit = "1024"]
+pub mod analytics;
 pub mod candidates;
 pub mod funnel;
 
@@ -66,6 +67,7 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/candidates/new") view=candidates::create::CreateCandidatePage ssr=SsrMode::Async />
                     <Route path=path!("/candidates/:id") view=candidates::card::CandidateCardPage ssr=SsrMode::Async />
                     <Route path=path!("/vacancies") view=funnel::vacancies::VacanciesPage ssr=SsrMode::Async />
+                    <Route path=path!("/analytics") view=analytics::AnalyticsPage ssr=SsrMode::Async />
                     <Route path=path!("/applications") view=funnel::applications::ApplicationsPage ssr=SsrMode::Async />
                 </ParentRoute>
             </Routes>
@@ -90,6 +92,10 @@ fn nav() -> Vec<NavItem> {
         NavItem {
             href: "/candidates",
             label: "Кандидаты",
+        },
+        NavItem {
+            href: "/analytics",
+            label: "Аналитика",
         },
     ]
 }

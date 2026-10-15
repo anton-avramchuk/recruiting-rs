@@ -1,0 +1,289 @@
+//! «Аналитика»: воронка, сроки, источники, динамика откликов и нагрузка на вакансии.
+use leptos::prelude::*;
+use recruitment_contracts::{AnalyticsDto, FunnelStepDto, Stage};
+use ui_kit::{Notice, NoticeKind, PageHeader};
+
+use crate::funnel::{
+    format::LONG_OPEN_DAYS,
+    server::{Reply, get_analytics},
+};
+
+/// Периоды переключателя, суток.
+pub const PERIODS: [i64; 4] = [30, 90, 180, 365];
+
+/// Доля `value` от `max` в процентах для ширины полосы (0…100).
+pub fn bar_percent(value: i64, max: i64) -> f64 {
+    if max <= 0 {
+        0.0
+    } else {
+        (value as f64 / max as f64 * 100.0).clamp(0.0, 100.0)
+    }
+}
+
+/// Число с запятой вместо точки; целое — без дробной части: `20` -> «20», `2.5` -> «2,5».
+pub fn number(value: f64) -> String {
+    let rounded = (value * 10.0).round() / 10.0;
+    if rounded.fract() == 0.0 {
+        format!("{rounded:.0}")
+    } else {
+        format!("{rounded:.1}").replace('.', ",")
+    }
+}
+
+/// Значение показателя или прочерк, если данных нет.
+pub fn metric(value: Option<f64>, unit: &str) -> String {
+    value.map_or("—".to_string(), |v| format!("{} {unit}", number(v)))
+}
+
+/// «02.03» из «2026-03-02».
+pub fn week_label(week_start: &str) -> String {
+    match (week_start.get(8..10), week_start.get(5..7)) {
+        (Some(day), Some(month)) => format!("{day}.{month}"),
+        _ => week_start.to_string(),
+    }
+}
+
+/// «30 дней», «365 дней».
+pub fn period_label(days: i64) -> String {
+    format!("{days} дней")
+}
+
+/// Нет ли в организации откликов за период (воронка пуста).
+pub fn is_empty(a: &AnalyticsDto) -> bool {
+    a.funnel.first().is_none_or(|s| s.reached == 0)
+}
+
+#[component]
+pub fn AnalyticsPage() -> impl IntoView {
+    let days = RwSignal::new(90i64);
+    let report = Resource::new(move || days.get(), get_analytics);
+
+    view! {
+        <PageHeader title="Аналитика">
+            <div class="toolbar" role="group" aria-label="Период">
+                {PERIODS
+                    .into_iter()
+                    .map(|p| {
+                        view! {
+                            <button
+                                class="btn"
+                                class:btn--primary=move || days.get() == p
+                                data-testid=format!("period-{p}")
+                                aria-pressed=move || (days.get() == p).to_string()
+                                on:click=move |_| days.set(p)
+                            >
+                                {period_label(p)}
+                            </button>
+                        }
+                    })
+                    .collect_view()}
+            </div>
+        </PageHeader>
+        <Transition fallback=|| view! { <p class="muted">"Загрузка…"</p> }>
+            {move || {
+                report
+                    .get()
+                    .map(|result| match result {
+                        Ok(Reply::Ok(a)) => view! { <Report a=a /> }.into_any(),
+                        _ => {
+                            view! {
+                                <Notice kind=NoticeKind::Error>"Не удалось загрузить аналитику. Попробуйте позже."</Notice>
+                            }
+                                .into_any()
+                        }
+                    })
+            }}
+        </Transition>
+    }
+}
+
+#[component]
+fn Report(a: AnalyticsDto) -> impl IntoView {
+    let empty = is_empty(&a);
+    let max = a.funnel.iter().map(|s| s.reached).max().unwrap_or(0);
+    let weekly_max = a.weekly.iter().map(|w| w.count).max().unwrap_or(0);
+    let worst = a.worst_stage;
+    let last_week = a.weekly.len().saturating_sub(1);
+
+    let funnel = a
+        .funnel
+        .iter()
+        .map(|s| funnel_row(s, max, worst == Some(s.stage)))
+        .collect_view();
+    let weeks = a
+        .weekly
+        .iter()
+        .enumerate()
+        .map(|(i, w)| {
+            view! {
+                <div
+                    class="b"
+                    class:b--now=(i == last_week)
+                    style=format!("height:{:.0}%", bar_percent(w.count, weekly_max).max(2.0))
+                    title=format!("{}: {} откликов", week_label(&w.week_start), w.count)
+                    data-testid="week-bar"
+                    data-count=w.count.to_string()
+                ></div>
+            }
+        })
+        .collect_view();
+    let sources = a
+        .sources
+        .iter()
+        .map(|s| {
+            view! {
+                <tr data-testid="source-row">
+                    <td>{s.source.clone()}</td>
+                    <td class="mono">{s.total}</td>
+                    <td class="mono">{s.interviews}</td>
+                    <td class="mono">{format!("{}%", s.conversion)}</td>
+                </tr>
+            }
+        })
+        .collect_view();
+    let vacancies = a
+        .vacancies
+        .iter()
+        .map(|v| {
+            let long = v.open_days > LONG_OPEN_DAYS;
+            view! {
+                <div class="qrow" data-testid="load-row">
+                    <span class="qrow__main">
+                        <span class="nm">{v.title.clone()}</span>
+                        <span class="sub">{v.recruiter.clone().unwrap_or_else(|| "рекрутер не назначен".into())}</span>
+                    </span>
+                    <span class="mono">{format!("{} в работе", v.active_applications)}</span>
+                    <span class="mono" class:urgent=long>{format!("{} дн", v.open_days)}</span>
+                </div>
+            }
+        })
+        .collect_view();
+
+    view! {
+        {empty
+            .then(|| {
+                view! {
+                    <p class="muted" data-testid="analytics-empty">
+                        "Данных пока нет: метрики появятся, когда в организации будут отклики."
+                    </p>
+                }
+            })}
+        <div class="grid3">
+            <div class="card stat" data-testid="stat-hire">
+                <div class="lbl">"Срок найма, медиана"</div>
+                <div class="v">{metric(a.median_days_to_hire, "дн")}</div>
+                <div class="d">"От отклика до выхода"</div>
+            </div>
+            <div class="card stat" data-testid="stat-touch">
+                <div class="lbl">"Отклик → первое касание"</div>
+                <div class="v">{metric(a.median_hours_to_first_touch, "ч")}</div>
+                <div class="d">"Норма по SLA — 24 ч"</div>
+            </div>
+            <div class="card stat" data-testid="stat-repeat">
+                <div class="lbl">"Повторные кандидаты"</div>
+                <div class="v">{a.repeat_people}</div>
+                <div class="d">"Откликались больше одного раза"</div>
+            </div>
+        </div>
+        <div class="grid2">
+            <section>
+                <div class="sec-h">
+                    <h2>"Воронка найма"</h2>
+                    <span class="muted">"выделен этап с наибольшей потерей"</span>
+                </div>
+                <div class="card" data-testid="funnel">{funnel}</div>
+                <div class="sec-h">
+                    <h2>"Отклики по неделям"</h2>
+                </div>
+                <div class="card">
+                    <div class="bars" data-testid="weekly">{weeks}</div>
+                    <div class="legend">
+                        <span>{a.weekly.first().map(|w| week_label(&w.week_start))}</span>
+                        <span class="spacer"></span>
+                        <span>{a.weekly.last().map(|w| week_label(&w.week_start))}</span>
+                    </div>
+                </div>
+            </section>
+            <section>
+                <div class="sec-h">
+                    <h2>"Источники"</h2>
+                    <span class="muted">"по конверсии в интервью"</span>
+                </div>
+                <div class="card list-card">
+                    <table data-testid="sources">
+                        <thead>
+                            <tr>
+                                <th>"Источник"</th>
+                                <th>"Всего"</th>
+                                <th>"В интервью"</th>
+                                <th>"Конверсия"</th>
+                            </tr>
+                        </thead>
+                        <tbody>{sources}</tbody>
+                    </table>
+                </div>
+                <div class="sec-h">
+                    <h2>"Нагрузка на вакансии"</h2>
+                </div>
+                <div class="card list-card" data-testid="load">{vacancies}</div>
+            </section>
+        </div>
+    }
+}
+
+fn funnel_row(step: &FunnelStepDto, max: i64, worst: bool) -> impl IntoView + use<> {
+    let label = format!("{} · {}", step.stage.number(), step.stage.label());
+    let width = bar_percent(step.reached, max);
+    let stage: Stage = step.stage;
+    view! {
+        <div class="funrow" class:funrow--worst=worst data-testid="funnel-row" data-stage=stage.key()>
+            <span class="funrow__label">{label}</span>
+            <span class="funbar"><i style=format!("width:{width:.0}%")></i></span>
+            <span class="mono" data-testid="funnel-count">{step.reached}</span>
+            <span class="mono muted">{format!("{}%", step.conversion)}</span>
+            {worst.then(|| view! { <span class="chip" data-testid="worst">"наибольшая потеря"</span> })}
+        </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bars_are_proportional_and_clamped() {
+        assert_eq!(bar_percent(5, 10), 50.0);
+        assert_eq!(bar_percent(0, 10), 0.0);
+        assert_eq!(bar_percent(7, 0), 0.0);
+        assert_eq!(bar_percent(20, 10), 100.0);
+        assert_eq!(bar_percent(-1, 10), 0.0);
+    }
+
+    #[test]
+    fn numbers_use_a_comma_and_drop_a_zero_fraction() {
+        assert_eq!(number(20.0), "20");
+        assert_eq!(number(2.5), "2,5");
+        assert_eq!(number(4.04), "4");
+        assert_eq!(number(4.26), "4,3");
+        assert_eq!(number(0.0), "0");
+    }
+
+    #[test]
+    fn a_missing_metric_is_a_dash() {
+        assert_eq!(metric(None, "дн"), "—");
+        assert_eq!(metric(Some(31.0), "дн"), "31 дн");
+        assert_eq!(metric(Some(4.5), "ч"), "4,5 ч");
+    }
+
+    #[test]
+    fn week_labels_are_day_and_month() {
+        assert_eq!(week_label("2026-03-02"), "02.03");
+        assert_eq!(week_label("мусор"), "мусор");
+    }
+
+    #[test]
+    fn period_labels_name_the_days() {
+        assert_eq!(period_label(30), "30 дней");
+        assert_eq!(PERIODS, [30, 90, 180, 365]);
+    }
+}

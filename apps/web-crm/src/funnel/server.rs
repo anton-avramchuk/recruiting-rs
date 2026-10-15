@@ -1,7 +1,7 @@
 //! Server functions воронки: браузер -> web-crm -> bff-crm -> recruitment.
 use leptos::prelude::*;
 use recruitment_contracts::{
-    ApplicationDetailDto, ApplicationDto, ApplicationPage, BatchApplicationsRequest,
+    AnalyticsDto, ApplicationDetailDto, ApplicationDto, ApplicationPage, BatchApplicationsRequest,
     BatchApplicationsResponse, BulkResult, CreateVacancyRequest, InterviewItemDto, OverviewDto,
     VacancyDto,
 };
@@ -128,6 +128,13 @@ pub async fn list_applications(query: AppQuery) -> Result<Reply<ApplicationPage>
         path.push_str(if query.desc { "&dir=desc" } else { "&dir=asc" });
     }
     let reply = ui_kit::api::call(Method::Get, &path, None).await?;
+    Ok(classify(reply.status, &reply.body, typed))
+}
+
+/// Метрики найма за период в сутках (7…365).
+pub async fn get_analytics(days: i64) -> Result<Reply<AnalyticsDto>, ServerFnError> {
+    let reply =
+        ui_kit::api::call(Method::Get, &format!("/api/analytics?days={days}"), None).await?;
     Ok(classify(reply.status, &reply.body, typed))
 }
 

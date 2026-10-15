@@ -234,3 +234,15 @@ label.check { display: flex; flex-direction: row; align-items: center; gap: 6px;
 .maptbl select { min-width: 180px; }
 .found { color: var(--ok); font-size: 0.8rem; }
 .miss { color: var(--ink-muted); font-size: 0.8rem; }
+
+/* ---------- аналитика ---------- */
+.funrow { display: grid; grid-template-columns: minmax(130px, 1.2fr) 3fr auto auto auto; gap: 10px; align-items: center; padding: 6px 0; }
+.funrow--worst .funrow__label { font-weight: 700; }
+.funbar { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; }
+.funbar i { display: block; height: 100%; background: var(--ink-muted); border-radius: 5px; }
+.funrow--worst .funbar i { background: var(--ink); }
+.bars { display: flex; align-items: flex-end; gap: 6px; height: 120px; }
+.bars .b { flex: 1; background: var(--ink-muted); border-radius: 3px 3px 0 0; min-height: 2px; }
+.bars .b--now { background: var(--ink); }
+.legend { display: flex; margin-top: 6px; font-size: 0.8rem; color: var(--ink-muted); font-family: var(--mono); }
+@media (max-width: 640px) { .funrow { grid-template-columns: 1fr auto auto; } .funbar { grid-column: 1 / -1; order: 5; } }

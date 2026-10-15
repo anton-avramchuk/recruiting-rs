@@ -164,7 +164,10 @@ async fn overview_lookalike_paths_stay_closed() {
 #[tokio::test]
 async fn analytics_reaches_the_recruitment_service_and_lookalikes_stay_closed() {
     let w = world(None).await;
-    let res = w.client.send("GET", "/api/analytics?days=90", &[], None).await;
+    let res = w
+        .client
+        .send("GET", "/api/analytics?days=90", &[], None)
+        .await;
     assert_eq!(res.status, 200);
     assert_eq!(w.recruitment.api_calls.load(Ordering::SeqCst), 1);
     for path in ["/api/analytics-export", "/api/analyticsx"] {
