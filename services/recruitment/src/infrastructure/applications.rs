@@ -55,6 +55,32 @@ pub async fn insert(conn: &mut PgConnection, a: &Application) -> Result<(), sqlx
     Ok(())
 }
 
+/// Какие из людей есть в проекции организации.
+pub async fn present_people(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<Uuid>, sqlx::Error> {
+    sqlx::query_scalar("SELECT person_id FROM people WHERE person_id = ANY($1)")
+        .bind(ids)
+        .fetch_all(conn)
+        .await
+}
+
+/// У каких людей уже есть отклик на вакансию.
+pub async fn applied_people(
+    conn: &mut PgConnection,
+    vacancy_id: Uuid,
+    ids: &[Uuid],
+) -> Result<Vec<Uuid>, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT person_id FROM applications WHERE vacancy_id = $1 AND person_id = ANY($2)",
+    )
+    .bind(vacancy_id)
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+}
+
 /// Сохраняет положение в воронке.
 pub async fn save_stage(conn: &mut PgConnection, a: &Application) -> Result<(), sqlx::Error> {
     sqlx::query("UPDATE applications SET stage = $2, stage_changed_at = $3 WHERE id = $1")

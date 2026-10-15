@@ -70,6 +70,17 @@ impl Application {
         vacancy_id: Uuid,
         now: DateTime<Utc>,
     ) -> Self {
+        Self::create_from(tenant_id, person_id, vacancy_id, now, None)
+    }
+
+    /// Отклик с указанием источника (например, имени файла импорта) в истории.
+    pub fn create_from(
+        tenant_id: TenantId,
+        person_id: Uuid,
+        vacancy_id: Uuid,
+        now: DateTime<Utc>,
+        origin: Option<&str>,
+    ) -> Self {
         let mut app = Self {
             id: Uuid::new_v4(),
             tenant_id,
@@ -80,7 +91,12 @@ impl Application {
             created_at: now,
             events: Vec::new(),
         };
-        app.record(EventKind::Created, "Получен отклик".into(), now);
+        let origin = origin.map(str::trim).filter(|o| !o.is_empty());
+        let text = match origin {
+            Some(o) => format!("Импортирован из файла {o}"),
+            None => "Получен отклик".to_string(),
+        };
+        app.record(EventKind::Created, text, now);
         app
     }
 

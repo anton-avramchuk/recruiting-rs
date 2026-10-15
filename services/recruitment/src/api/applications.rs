@@ -7,9 +7,9 @@ use axum::{
 use platform_auth::{AuthUser, Permission};
 use platform_core::error::{ApiError, ProblemDetails};
 use recruitment_contracts::{
-    ApplicationDetailDto, ApplicationDto, ApplicationPage, BulkRequest, BulkResult,
-    CreateApplicationRequest, HandoffRequest, InterviewItemDto, InterviewRequest, MoveRequest,
-    OverviewDto, RejectRequest, Stage, StageCount,
+    ApplicationDetailDto, ApplicationDto, ApplicationPage, BatchApplicationsRequest,
+    BatchApplicationsResponse, BulkRequest, BulkResult, CreateApplicationRequest, HandoffRequest,
+    InterviewItemDto, InterviewRequest, MoveRequest, OverviewDto, RejectRequest, Stage, StageCount,
 };
 use serde::Deserialize;
 use uuid::Uuid;
@@ -28,6 +28,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/applications", get(list).post(create))
         .route("/applications/bulk", post(bulk))
+        .route("/applications/batch", post(batch))
         .route("/applications/{id}", get(get_one))
         .route("/applications/{id}/stage", post(move_to))
         .route("/applications/{id}/next", post(advance))
@@ -361,4 +362,33 @@ pub(super) async fn interviews(
             })
             .collect(),
     ))
+}
+
+#[utoipa::path(post, path = "/applications/batch", security(("bearer" = [])), request_body = BatchApplicationsRequest, responses(
+    (status = 200, body = BatchApplicationsResponse),
+    (status = 400, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 404, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn batch(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(req): Json<BatchApplicationsRequest>,
+) -> Result<Json<BatchApplicationsResponse>, ApiError> {
+    user.require(Permission::WriteData)?;
+    let outcome = state
+        .applications
+        .create_batch(
+            tenant_of(&user)?,
+            req.vacancy_id,
+            &req.person_ids,
+            req.stage.as_deref(),
+            req.origin.as_deref(),
+        )
+        .await?;
+    Ok(Json(BatchApplicationsResponse {
+        created: outcome.created,
+        skipped: outcome.skipped,
+        missing: outcome.missing,
+    }))
 }

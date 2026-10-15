@@ -10,6 +10,7 @@ const EXPECTED: &[(&str, &str)] = &[
     ("/applications", "get"),
     ("/applications", "post"),
     ("/applications/bulk", "post"),
+    ("/applications/batch", "post"),
     ("/applications/{id}", "get"),
     ("/applications/{id}/stage", "post"),
     ("/applications/{id}/next", "post"),

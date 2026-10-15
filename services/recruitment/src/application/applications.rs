@@ -19,6 +19,7 @@ use crate::{
 pub const DEFAULT_PAGE_SIZE: i64 = 50;
 pub const MAX_PAGE_SIZE: i64 = 200;
 const MAX_BULK: usize = 200;
+const MAX_BATCH: usize = 500;
 const MAX_INTERVIEW_DAYS: i64 = 31;
 
 pub struct ListQuery {
@@ -82,6 +83,14 @@ impl BulkAction {
             _ => Err(DomainError::invalid("action", "next, reject или letter")),
         }
     }
+}
+
+/// Итог пакетного создания откликов.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BatchOutcome {
+    pub created: i64,
+    pub skipped: i64,
+    pub missing: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -341,6 +350,63 @@ impl ApplicationService {
             .ok_or(FunnelError::NotFound)?;
         tx.commit().await?;
         Ok(row)
+    }
+
+    /// Создаёт отклики на вакансию для набора людей (импорт). Существующие отклики пропускаются,
+    /// людей, которых нет в организации, считает отдельно.
+    pub async fn create_batch(
+        &self,
+        tenant: TenantId,
+        vacancy_id: Uuid,
+        person_ids: &[Uuid],
+        stage: Option<&str>,
+        origin: Option<&str>,
+    ) -> Result<BatchOutcome, FunnelError> {
+        if person_ids.len() > MAX_BATCH {
+            return Err(
+                DomainError::invalid("person_ids", "не больше 500 кандидатов за раз").into(),
+            );
+        }
+        let stage = stage.map(parse_stage).transpose()?;
+        // импортированные люди появляются в проекции по ленте candidate
+        self.sync.sync(tenant).await;
+        let now = self.clock.now();
+
+        let mut unique: Vec<Uuid> = Vec::with_capacity(person_ids.len());
+        for id in person_ids {
+            if !unique.contains(id) {
+                unique.push(*id);
+            }
+        }
+
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        if !vacancies::exists(&mut tx, vacancy_id).await? {
+            return Err(FunnelError::NotFound);
+        }
+        let present = store::present_people(&mut tx, &unique).await?;
+        let applied = store::applied_people(&mut tx, vacancy_id, &unique).await?;
+        let mut outcome = BatchOutcome {
+            created: 0,
+            skipped: 0,
+            missing: 0,
+        };
+        for person_id in unique {
+            if !present.contains(&person_id) {
+                outcome.missing += 1;
+            } else if applied.contains(&person_id) {
+                outcome.skipped += 1;
+            } else {
+                let mut app = Application::create_from(tenant, person_id, vacancy_id, now, origin);
+                if let Some(stage) = stage {
+                    app.move_to(stage, now);
+                }
+                store::insert(&mut tx, &app).await?;
+                store::insert_events(&mut tx, tenant, app.id, &app.take_events()).await?;
+                outcome.created += 1;
+            }
+        }
+        tx.commit().await?;
+        Ok(outcome)
     }
 
     /// Групповое действие. Чужие и несуществующие идентификаторы игнорируются,

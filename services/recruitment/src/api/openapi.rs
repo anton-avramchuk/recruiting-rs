@@ -1,9 +1,9 @@
 use axum::{Json, Router, routing::get};
 use recruitment_contracts::{
-    ApplicationDetailDto, ApplicationDto, ApplicationPage, BulkRequest, BulkResult,
-    CreateApplicationRequest, CreateVacancyRequest, EventDto, HandoffRequest, InterviewItemDto,
-    InterviewRequest, MoveRequest, OverviewDto, RejectRequest, Stage, StageCount,
-    UpdateVacancyRequest, VacancyDto,
+    ApplicationDetailDto, ApplicationDto, ApplicationPage, BatchApplicationsRequest,
+    BatchApplicationsResponse, BulkRequest, BulkResult, CreateApplicationRequest,
+    CreateVacancyRequest, EventDto, HandoffRequest, InterviewItemDto, InterviewRequest,
+    MoveRequest, OverviewDto, RejectRequest, Stage, StageCount, UpdateVacancyRequest, VacancyDto,
 };
 use utoipa::{
     Modify, OpenApi,
@@ -29,6 +29,7 @@ use super::{AppState, applications, vacancies};
         applications::interview,
         applications::handoff,
         applications::bulk,
+        applications::batch,
         applications::overview,
         applications::interviews,
         platform_core::health::health,
@@ -47,6 +48,8 @@ use super::{AppState, applications, vacancies};
         InterviewRequest,
         HandoffRequest,
         BulkRequest,
+        BatchApplicationsRequest,
+        BatchApplicationsResponse,
         BulkResult,
         OverviewDto,
         StageCount,

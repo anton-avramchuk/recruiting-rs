@@ -231,3 +231,26 @@ pub struct InterviewItemDto {
     pub hiring_manager: Option<String>,
     pub stage: Stage,
 }
+
+// ---------- пакетное создание откликов ----------
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct BatchApplicationsRequest {
+    pub vacancy_id: Uuid,
+    pub person_ids: Vec<Uuid>,
+    /// Начальный этап (по умолчанию `new`).
+    #[serde(default)]
+    pub stage: Option<String>,
+    /// Откуда пришли отклики, например имя файла импорта: попадёт в историю.
+    #[serde(default)]
+    pub origin: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct BatchApplicationsResponse {
+    pub created: i64,
+    /// Отклик на эту вакансию уже был.
+    pub skipped: i64,
+    /// Кандидата нет в организации.
+    pub missing: i64,
+}

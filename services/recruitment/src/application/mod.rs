@@ -7,8 +7,8 @@ mod vacancies;
 use chrono::{DateTime, NaiveDate, Utc};
 
 pub use applications::{
-    ApplicationDetail, ApplicationPage, ApplicationService, BulkAction, BulkOutcome, ListQuery,
-    MAX_PAGE_SIZE, Overview,
+    ApplicationDetail, ApplicationPage, ApplicationService, BatchOutcome, BulkAction, BulkOutcome,
+    ListQuery, MAX_PAGE_SIZE, Overview,
 };
 pub use feed::{FeedError, HttpPersonFeed, PersonFeed};
 pub use sync::PeopleSync;
