@@ -472,6 +472,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "client"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "client-contracts",
+ "http-body-util",
+ "platform-auth",
+ "platform-core",
+ "platform-db",
+ "platform-values",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.21",
+ "tokio",
+ "tower",
+ "tracing",
+ "utoipa",
+ "uuid",
+]
+
+[[package]]
+name = "client-contracts"
+version = "0.1.0"
+dependencies = [
+ "platform-values",
+ "serde",
+ "serde_json",
+ "utoipa",
+ "uuid",
+]
+
+[[package]]
 name = "codee"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
