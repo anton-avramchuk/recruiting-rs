@@ -81,3 +81,21 @@ pub fn parse(text: &str) -> Result<Grid, ImportError> {
     }
     Ok(rows)
 }
+
+/// Текст файла: UTF-8, а если это не UTF-8 — Windows-1251 (так русский Excel сохраняет CSV).
+pub fn decode(bytes: &[u8]) -> String {
+    match std::str::from_utf8(bytes) {
+        Ok(text) => text.to_string(),
+        Err(_) => bytes.iter().map(|b| cp1251(*b)).collect(),
+    }
+}
+
+fn cp1251(byte: u8) -> char {
+    match byte {
+        0x00..=0x7f => byte as char,
+        0xA8 => 'Ё',
+        0xB8 => 'ё',
+        0xC0..=0xFF => char::from_u32(0x410 + (byte - 0xC0) as u32).unwrap_or('?'),
+        _ => '?',
+    }
+}

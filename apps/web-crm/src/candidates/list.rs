@@ -101,6 +101,9 @@ pub fn CandidatesPage() -> impl IntoView {
     view! {
         <PageHeader title="Кандидаты">
             <Show when=move || can_write(ctx)>
+                <A href="/candidates/import" attr:class="btn" attr:data-testid="import-button">
+                    "Импорт"
+                </A>
                 <A href="/candidates/new" attr:class="btn btn--primary">
                     "Добавить кандидата"
                 </A>

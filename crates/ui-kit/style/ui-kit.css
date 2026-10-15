@@ -223,3 +223,14 @@ label.check { display: flex; flex-direction: row; align-items: center; gap: 6px;
 .triage__done { text-align: center; padding: 40px 16px; display: grid; gap: 10px; justify-items: center; }
 .triage__done .big { font-size: 3.4rem; font-family: var(--mono); font-weight: 650; }
 .chip { display: inline-flex; align-items: baseline; gap: 5px; }
+
+/* ---------- импорт ---------- */
+.drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 40px 16px; text-align: center; display: grid; gap: 10px; justify-items: center; background: var(--surface); }
+.drop--over { border-color: var(--ink); background: var(--bg); }
+.drop h2 { margin: 0; }
+.steps { font-size: 0.9rem; margin: 0 0 12px; }
+.steps b { color: var(--ink); }
+.steps b.muted { color: var(--ink-muted); font-weight: 400; }
+.maptbl select { min-width: 180px; }
+.found { color: var(--ok); font-size: 0.8rem; }
+.miss { color: var(--ink-muted); font-size: 0.8rem; }

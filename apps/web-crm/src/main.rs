@@ -1,3 +1,5 @@
+// глубокие вложенные представления страниц превышают лимит по умолчанию при release-сборке
+#![recursion_limit = "1024"]
 use axum::Router;
 use leptos::prelude::*;
 use leptos_axum::{LeptosRoutes, generate_route_list};

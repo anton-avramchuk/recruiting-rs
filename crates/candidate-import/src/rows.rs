@@ -170,3 +170,44 @@ pub fn from_resume(r: &ParsedResume, default_source: &str) -> ImportRow {
         educations: r.education.iter().filter_map(education).collect(),
     }
 }
+
+/// Места работы построчно: «2022 — наст. время — Ozon — Аналитик» (так их правят в форме резюме).
+pub fn jobs_text(jobs: &[Job]) -> String {
+    jobs.iter()
+        .map(|j| {
+            let end = j
+                .end_year
+                .map_or("наст. время".to_string(), |y| y.to_string());
+            let mut parts = vec![format!("{} — {end}", j.start_year)];
+            parts.extend(
+                [&j.company, &j.role, &j.note]
+                    .into_iter()
+                    .filter(|p| !p.is_empty())
+                    .cloned(),
+            );
+            parts.join(" — ")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Образование построчно: «2017 — Университет — Специальность».
+pub fn education_text(items: &[Education]) -> String {
+    items
+        .iter()
+        .map(|e| {
+            let mut parts = Vec::new();
+            if let Some(y) = e.year {
+                parts.push(y.to_string());
+            }
+            parts.extend(
+                [&e.institution, &e.specialty]
+                    .into_iter()
+                    .filter(|p| !p.is_empty())
+                    .cloned(),
+            );
+            parts.join(" — ")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}

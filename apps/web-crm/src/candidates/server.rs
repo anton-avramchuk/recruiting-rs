@@ -6,7 +6,9 @@ use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 use ui_kit::api::Method;
 
-use candidate_contracts::{EducationDto, EmploymentDto};
+use candidate_contracts::{EducationDto, EmploymentDto, ImportRequest, ImportResponse};
+
+use crate::funnel::server::{Reply, classify, typed};
 
 use super::outcome::{CreateOutcome, DeleteOutcome, ListOutcome, LoadOutcome, SaveOutcome};
 
@@ -38,6 +40,15 @@ pub async fn search_persons(query: PersonQuery) -> Result<ListOutcome, ServerFnE
     }
     let reply = ui_kit::api::call(Method::Get, &path, None).await?;
     Ok(super::outcome::classify_list(reply.status, &reply.body))
+}
+
+/// Пакет разобранных строк импорта (файл остаётся в браузере).
+pub async fn import_persons(
+    request: ImportRequest,
+) -> Result<Reply<ImportResponse>, ServerFnError> {
+    let body = serde_json::to_value(&request).map_err(|e| ServerFnError::new(e.to_string()))?;
+    let reply = ui_kit::api::call(Method::Post, "/api/persons/import", Some(body)).await?;
+    Ok(classify(reply.status, &reply.body, typed))
 }
 
 pub async fn get_person(id: String) -> Result<LoadOutcome, ServerFnError> {

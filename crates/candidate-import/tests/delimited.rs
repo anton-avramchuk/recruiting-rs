@@ -77,3 +77,25 @@ fn short_rows_are_padded_to_the_header_width() {
     let grid = delimited::parse("a;b;c\n1;2").unwrap();
     assert_eq!(grid[1], ["1", "2", ""]);
 }
+
+#[test]
+fn utf8_text_is_decoded_as_is_and_windows_1251_is_recognized() {
+    assert_eq!(delimited::decode("Имя;Город".as_bytes()), "Имя;Город");
+    // «CSV (разделитель - запятая)» в русском Excel сохраняется в кодировке Windows-1251
+    let cp1251 = [
+        0xC8, 0xEC, 0xFF, 0x3B, 0xC3, 0xEE, 0xF0, 0xEE, 0xE4, 0x0A, 0xB8, 0xA8,
+    ];
+    assert_eq!(delimited::decode(&cp1251), "Имя;Город\nёЁ");
+    assert_eq!(delimited::decode(b"plain ascii"), "plain ascii");
+}
+
+#[test]
+fn a_windows_1251_file_parses_into_a_table() {
+    let cp1251 = [
+        0xC8, 0xEC, 0xFF, 0x3B, 0xC3, 0xEE, 0xF0, 0xEE, 0xE4, 0x0A, 0xCF, 0xE5, 0xF2, 0xFF, 0x3B,
+        0xCC, 0xEE, 0xF1, 0xEA, 0xE2, 0xE0,
+    ];
+    let grid = delimited::parse(&delimited::decode(&cp1251)).unwrap();
+    assert_eq!(grid[0], ["Имя", "Город"]);
+    assert_eq!(grid[1], ["Петя", "Москва"]);
+}

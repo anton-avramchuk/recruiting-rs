@@ -1,8 +1,9 @@
 //! Server functions воронки: браузер -> web-crm -> bff-crm -> recruitment.
 use leptos::prelude::*;
 use recruitment_contracts::{
-    ApplicationDetailDto, ApplicationDto, ApplicationPage, BulkResult, CreateVacancyRequest,
-    InterviewItemDto, OverviewDto, VacancyDto,
+    ApplicationDetailDto, ApplicationDto, ApplicationPage, BatchApplicationsRequest,
+    BatchApplicationsResponse, BulkResult, CreateVacancyRequest, InterviewItemDto, OverviewDto,
+    VacancyDto,
 };
 use serde::{Deserialize, Serialize};
 use ui_kit::api::Method;
@@ -65,7 +66,7 @@ pub fn classify<T>(
     }
 }
 
-fn typed<T: serde::de::DeserializeOwned>(body: &serde_json::Value) -> Option<T> {
+pub(crate) fn typed<T: serde::de::DeserializeOwned>(body: &serde_json::Value) -> Option<T> {
     serde_json::from_value(body.clone()).ok()
 }
 
@@ -216,6 +217,15 @@ pub async fn application_action(
         Some(body),
     )
     .await?;
+    Ok(classify(reply.status, &reply.body, typed))
+}
+
+/// Отклики на вакансию для набора людей (импорт).
+pub async fn create_applications_batch(
+    request: BatchApplicationsRequest,
+) -> Result<Reply<BatchApplicationsResponse>, ServerFnError> {
+    let body = serde_json::to_value(&request).map_err(|e| ServerFnError::new(e.to_string()))?;
+    let reply = ui_kit::api::call(Method::Post, "/api/applications/batch", Some(body)).await?;
     Ok(classify(reply.status, &reply.body, typed))
 }
 

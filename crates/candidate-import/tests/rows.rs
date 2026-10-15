@@ -269,3 +269,34 @@ fn the_resume_becomes_an_import_row() {
     assert!(r.summary.as_deref().unwrap().starts_with("Строила витрины"));
     assert_eq!(r.source.as_deref(), Some(SOURCE));
 }
+
+// ---------- текстовый вид для формы резюме ----------
+
+#[test]
+fn jobs_and_education_round_trip_through_their_text_form() {
+    let text =
+        pdf::extract_text(&std::fs::read("tests/fixtures/demo-rezyume.pdf").unwrap()).unwrap();
+    let parsed = resume::parse(&text, YEAR);
+    let jobs = rows::jobs_text(&parsed.jobs);
+    assert_eq!(
+        jobs,
+        "2022 — наст. время — Ozon — Ведущий аналитик данных\n2019 — 2022 — X5 Tech — Аналитик\n2017 — 2019 — Магнит — Junior-аналитик"
+    );
+    let edu = rows::education_text(&parsed.education);
+    assert_eq!(
+        edu,
+        "2017 — Казанский федеральный университет — Прикладная математика и информатика"
+    );
+    // текст из формы даёт те же записи, что и разобранное резюме
+    let map = [Field::Name, Field::Jobs, Field::Education];
+    let from_form = rows::build(&map, &strings(&["Ирина", &jobs, &edu]), SOURCE);
+    let direct = rows::from_resume(&parsed, SOURCE);
+    assert_eq!(from_form.employments, direct.employments);
+    assert_eq!(from_form.educations, direct.educations);
+}
+
+#[test]
+fn empty_lists_have_an_empty_text_form() {
+    assert_eq!(rows::jobs_text(&[]), "");
+    assert_eq!(rows::education_text(&[]), "");
+}

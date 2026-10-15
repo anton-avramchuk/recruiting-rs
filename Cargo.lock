@@ -4398,6 +4398,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "candidate-contracts",
+ "candidate-import",
  "console_error_panic_hook",
  "js-sys",
  "leptos",
@@ -4410,6 +4411,7 @@ dependencies = [
  "tokio",
  "ui-kit",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 

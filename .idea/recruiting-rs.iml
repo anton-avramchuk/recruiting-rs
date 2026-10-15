@@ -9,6 +9,8 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/bff-core/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/candidate-contracts/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/candidate-contracts/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/candidate-import/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/candidate-import/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/identity-contracts/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/platform-auth/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/platform-auth/tests" isTestSource="true" />
