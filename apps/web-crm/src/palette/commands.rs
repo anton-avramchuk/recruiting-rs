@@ -115,6 +115,7 @@ fn registry() -> Vec<Command> {
             go("/vacancies"),
             false,
         ),
+        command("Заказчики", "", Group::Navigation, go("/clients"), false),
         command(
             "Отклики",
             "G O",

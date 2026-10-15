@@ -43,6 +43,8 @@ pub fn application_to_dto(row: &ApplicationRow) -> ApplicationDto {
         person_id: row.person_id,
         vacancy_id: row.vacancy_id,
         vacancy_title: row.vacancy_title.clone(),
+        client_name: row.client_name.clone(),
+        contact_name: row.contact_name.clone(),
         full_name: row.full_name.clone(),
         source: row.source.clone(),
         city: row.city.clone(),

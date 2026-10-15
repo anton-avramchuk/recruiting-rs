@@ -3,6 +3,7 @@
 #![recursion_limit = "1024"]
 pub mod analytics;
 pub mod candidates;
+pub mod clients;
 pub mod funnel;
 pub mod palette;
 
@@ -68,6 +69,9 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/candidates/new") view=candidates::create::CreateCandidatePage ssr=SsrMode::Async />
                     <Route path=path!("/candidates/:id") view=candidates::card::CandidateCardPage ssr=SsrMode::Async />
                     <Route path=path!("/vacancies") view=funnel::vacancies::VacanciesPage ssr=SsrMode::Async />
+                    <Route path=path!("/clients") view=clients::list::ClientsPage ssr=SsrMode::Async />
+                    <Route path=path!("/clients/positions") view=clients::positions::PositionsPage ssr=SsrMode::Async />
+                    <Route path=path!("/clients/:id") view=clients::card::ClientCardPage ssr=SsrMode::Async />
                     <Route path=path!("/analytics") view=analytics::AnalyticsPage ssr=SsrMode::Async />
                     <Route path=path!("/applications") view=funnel::applications::ApplicationsPage ssr=SsrMode::Async />
                 </ParentRoute>
@@ -85,6 +89,10 @@ fn nav() -> Vec<NavItem> {
         NavItem {
             href: "/vacancies",
             label: "Вакансии",
+        },
+        NavItem {
+            href: "/clients",
+            label: "Заказчики",
         },
         NavItem {
             href: "/applications",

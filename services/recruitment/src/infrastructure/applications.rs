@@ -174,6 +174,8 @@ pub struct ApplicationRow {
     pub person_id: Uuid,
     pub vacancy_id: Uuid,
     pub vacancy_title: String,
+    pub client_name: Option<String>,
+    pub contact_name: Option<String>,
     pub full_name: String,
     pub source: Option<String>,
     pub city: Option<String>,
@@ -259,6 +261,8 @@ fn rows_sql() -> String {
         r"
     SELECT * FROM (
         SELECT a.id, a.person_id, a.vacancy_id, v.title AS vacancy_title,
+               (SELECT c.name FROM clients c WHERE c.client_id = v.client_id) AS client_name,
+               (SELECT k.full_name FROM client_contacts k WHERE k.contact_id = v.contact_id) AS contact_name,
                p.full_name, p.source, p.city, p.expected_salary,
                a.stage, a.stage_changed_at, a.created_at,
                array_position(ARRAY['new','screening','hr','tech','final','offer','hired','rejected'], a.stage) AS stage_order,

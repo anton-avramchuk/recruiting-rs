@@ -3,16 +3,20 @@ use leptos::prelude::*;
 use recruitment_contracts::{ApplicationDto, CreateVacancyRequest, Stage, VacancyDto};
 use serde_json::json;
 use ui_kit::{EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
+use uuid::Uuid;
 
 use super::{
     FunnelCtx,
-    format::{LONG_OPEN_DAYS, time_label},
+    format::{LONG_OPEN_DAYS, client_line, time_label},
     panel::PersonPanel,
     server::{
         AppQuery, Reply, application_action, create_vacancy, list_applications, list_vacancies,
     },
 };
-use crate::candidates::list::can_write;
+use crate::{
+    candidates::list::can_write,
+    clients::server::{get_client, list_clients},
+};
 
 /// Одна страница на всю доску вакансии (предел API).
 const BOARD_LIMIT: i64 = 200;
@@ -112,15 +116,30 @@ fn VacancyForm(
     creating: RwSignal<bool>,
 ) -> impl IntoView {
     let title = RwSignal::new(String::new());
-    let department = RwSignal::new(String::new());
+    let client = RwSignal::new(String::new());
+    let contact = RwSignal::new(String::new());
     let city = RwSignal::new(String::new());
     let openings = RwSignal::new(String::new());
     let priority = RwSignal::new("normal".to_string());
-    let manager = RwSignal::new(String::new());
     let recruiter = RwSignal::new(String::new());
     let skills = RwSignal::new(String::new());
     let open_days = RwSignal::new(String::new());
     let error = RwSignal::new(None::<String>);
+
+    // заказчики (активные) и контакты выбранного заказчика
+    let clients = Resource::new(|| (), |_| list_clients(String::new(), false));
+    let contacts = Resource::new(
+        move || client.get(),
+        |id| async move {
+            if id.is_empty() {
+                return Ok::<_, ServerFnError>(Vec::new());
+            }
+            Ok(match get_client(id).await? {
+                Reply::Ok(detail) => detail.contacts,
+                _ => Vec::new(),
+            })
+        },
+    );
 
     let create = Action::new(move |request: &CreateVacancyRequest| {
         let request = request.clone();
@@ -149,13 +168,17 @@ fn VacancyForm(
             return;
         };
         let opt = |s: String| Some(s.trim().to_string()).filter(|s| !s.is_empty());
+        let Ok(client_id) = Uuid::parse_str(client.get().trim()) else {
+            error.set(Some("Выберите заказчика.".into()));
+            return;
+        };
         create.dispatch(CreateVacancyRequest {
             title: title.get(),
-            department: opt(department.get()),
+            client_id: Some(client_id),
+            contact_id: Uuid::parse_str(contact.get().trim()).ok(),
             city: opt(city.get()),
             openings,
             priority: Some(priority.get()),
-            hiring_manager: opt(manager.get()),
             recruiter: opt(recruiter.get()),
             required_skills: crate::candidates::format::split_skills(&skills.get()),
             open_days,
@@ -170,8 +193,31 @@ fn VacancyForm(
                     <input type="text" required data-testid="vf-title" on:input=move |ev| title.set(event_target_value(&ev)) />
                 </label>
                 <label>
-                    "Подразделение"
-                    <input type="text" on:input=move |ev| department.set(event_target_value(&ev)) />
+                    "Заказчик"
+                    <select
+                        required
+                        data-testid="vf-client"
+                        prop:value=move || client.get()
+                        on:change=move |ev| {
+                            client.set(event_target_value(&ev));
+                            contact.set(String::new());
+                        }
+                    >
+                        <option value="">"Выберите заказчика"</option>
+                        <Transition fallback=|| ()>
+                            {move || {
+                                clients
+                                    .get()
+                                    .and_then(Result::ok)
+                                    .and_then(Reply::ok)
+                                    .map(|list| {
+                                        list.into_iter()
+                                            .map(|c| view! { <option value=c.id.to_string()>{c.name}</option> })
+                                            .collect_view()
+                                    })
+                            }}
+                        </Transition>
+                    </select>
                 </label>
                 <label>
                     "Город" <input type="text" on:input=move |ev| city.set(event_target_value(&ev)) />
@@ -189,8 +235,32 @@ fn VacancyForm(
                     </select>
                 </label>
                 <label>
-                    "Нанимающий менеджер"
-                    <input type="text" on:input=move |ev| manager.set(event_target_value(&ev)) />
+                    "Контактное лицо заказчика"
+                    <select
+                        data-testid="vf-contact"
+                        prop:value=move || contact.get()
+                        on:change=move |ev| contact.set(event_target_value(&ev))
+                    >
+                        <option value="">"Не выбрано"</option>
+                        <Transition fallback=|| ()>
+                            {move || {
+                                contacts
+                                    .get()
+                                    .and_then(Result::ok)
+                                    .map(|list| {
+                                        list.into_iter()
+                                            .map(|c| {
+                                                let label = match c.position {
+                                                    Some(p) => format!("{} — {}", c.full_name, p.name),
+                                                    None => c.full_name,
+                                                };
+                                                view! { <option value=c.id.to_string()>{label}</option> }
+                                            })
+                                            .collect_view()
+                                    })
+                            }}
+                        </Transition>
+                    </select>
                 </label>
                 <label>
                     "Рекрутер"
@@ -326,7 +396,12 @@ fn Board(
                                     "Открыта: "
                                     <b class:urgent=long data-testid="open-days">{format!("{} д", v.open_days)}</b>
                                 </span>
-                                {v.hiring_manager.clone().map(|m| view! { <span>"Менеджер: " {m}</span> })}
+                                {client_line(
+                                        v.client.as_ref().map(|c| c.name.as_str()),
+                                        v.contact.as_ref().map(|c| c.full_name.as_str()),
+                                        v.contact.as_ref().and_then(|c| c.position.as_deref()),
+                                    )
+                                    .map(|line| view! { <span data-testid="vacancy-client">"Заказчик: " {line}</span> })}
                                 {v.recruiter.clone().map(|m| view! { <span>"Рекрутер: " {m}</span> })}
                                 <span data-testid="active-count">
                                     {move || {

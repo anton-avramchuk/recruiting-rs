@@ -265,7 +265,7 @@ fn PaletteDialog(palette: PaletteCtx, writable: Signal<bool>) -> impl IntoView {
                     .into_iter()
                     .map(|v| Hit {
                         id: v.id.to_string(),
-                        meta: [v.department, v.city]
+                        meta: [v.client.map(|c| c.name), v.city]
                             .into_iter()
                             .flatten()
                             .filter(|s| !s.is_empty())

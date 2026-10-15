@@ -251,7 +251,8 @@ fn InterviewRow(i: InterviewItemDto, ctx: FunnelCtx) -> impl IntoView {
     let sub = [
         Some(i.stage.label().to_string()),
         Some(i.vacancy_title.clone()),
-        i.hiring_manager.clone(),
+        i.client_name.clone(),
+        i.contact_name.clone(),
     ]
     .into_iter()
     .flatten()
@@ -275,7 +276,7 @@ fn VacancyRow(v: VacancyDto) -> impl IntoView {
             <span class="qrow__main">
                 <span class="nm">{v.title.clone()}</span>
                 <span class="sub">
-                    {[v.department.clone(), v.city.clone()].into_iter().flatten().collect::<Vec<_>>().join(" · ")}
+                    {[v.client.as_ref().map(|c| c.name.clone()), v.city.clone()].into_iter().flatten().collect::<Vec<_>>().join(" · ")}
                 </span>
             </span>
             <span class="mono">{format!("{} чел", v.active_applications)}</span>

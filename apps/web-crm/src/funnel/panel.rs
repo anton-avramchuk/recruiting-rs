@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 
 use super::{
     FunnelCtx,
-    format::{browser_timezone_offset, local_to_rfc3339, short_moment, time_label},
+    format::{browser_timezone_offset, client_line, local_to_rfc3339, short_moment, time_label},
     keys::{PanelKey, panel_key},
     server::{
         Reply, application_action, create_application, get_application, list_vacancies, save_note,
@@ -366,6 +366,8 @@ fn PanelBody(
             <div>
                 <h2 data-testid="panel-name">{app.full_name.clone()}</h2>
                 <p class="muted">{app.vacancy_title.clone()}</p>
+                {client_line(app.client_name.as_deref(), app.contact_name.as_deref(), None)
+                    .map(|t| view! { <p class="muted" data-testid="panel-client">{t}</p> })}
             </div>
             <button class="btn btn--ghost" aria-label="Закрыть" data-testid="panel-close" on:click=move |_| ctx.open.set(None)>
                 "✕"

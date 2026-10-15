@@ -125,6 +125,10 @@ pub struct ApplicationDto {
     pub person_id: Uuid,
     pub vacancy_id: Uuid,
     pub vacancy_title: String,
+    /// Заказчик вакансии (по проекции).
+    pub client_name: Option<String>,
+    /// ФИО контактного лица заказчика по вакансии.
+    pub contact_name: Option<String>,
     pub full_name: String,
     pub source: Option<String>,
     pub city: Option<String>,

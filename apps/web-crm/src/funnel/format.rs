@@ -54,6 +54,24 @@ pub fn browser_timezone_offset() -> i32 {
     0
 }
 
+/// Заказчик и контакт вакансии одной строкой: «Acme · Мария Петрова, HR-директор».
+pub fn client_line(
+    client: Option<&str>,
+    contact: Option<&str>,
+    position: Option<&str>,
+) -> Option<String> {
+    let person = match (contact, position) {
+        (Some(c), Some(p)) => Some(format!("{c}, {p}")),
+        (Some(c), None) => Some(c.to_string()),
+        _ => None,
+    };
+    let parts: Vec<String> = [client.map(str::to_string), person]
+        .into_iter()
+        .flatten()
+        .collect();
+    (!parts.is_empty()).then(|| parts.join(" · "))
+}
+
 /// Текущий момент в миллисекундах (только в браузере; на сервере 0).
 #[cfg(feature = "hydrate")]
 pub fn now_ms() -> f64 {
@@ -186,5 +204,31 @@ mod tests {
         assert_eq!(initials("Борис"), "Б");
         assert_eq!(initials("  "), "");
         assert_eq!(initials("Иван Петрович Сидоров"), "ИП");
+    }
+}
+
+#[cfg(test)]
+mod client_line_tests {
+    use super::client_line;
+
+    #[test]
+    fn client_and_contact_are_joined_with_the_position() {
+        assert_eq!(
+            client_line(Some("Acme"), Some("Мария Петрова"), Some("HR-директор")).as_deref(),
+            Some("Acme · Мария Петрова, HR-директор")
+        );
+        assert_eq!(
+            client_line(Some("Acme"), Some("Мария"), None).as_deref(),
+            Some("Acme · Мария")
+        );
+        assert_eq!(
+            client_line(Some("Acme"), None, None).as_deref(),
+            Some("Acme")
+        );
+        assert_eq!(client_line(None, None, Some("HR")), None);
+        assert_eq!(
+            client_line(None, Some("Мария"), None).as_deref(),
+            Some("Мария")
+        );
     }
 }
