@@ -17,6 +17,8 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/platform-db/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/platform-values/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/platform-values/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/recruitment-contracts/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/recruitment-contracts/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/ui-kit/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/services/admin/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/services/admin/tests" isTestSource="true" />
@@ -28,6 +30,8 @@
       <sourceFolder url="file://$MODULE_DIR$/services/candidate/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/services/identity/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/services/identity/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/services/recruitment/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/services/recruitment/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/tests/e2e/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/tests/e2e/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/tests/e2e/tests" isTestSource="true" />
