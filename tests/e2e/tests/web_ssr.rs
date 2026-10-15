@@ -72,6 +72,8 @@ async fn login_pages_are_server_rendered_html() {
                 .await
                 .unwrap();
             assert_eq!(res.status(), StatusCode::OK, "{name}.{ext}");
+            // файлы без хеша в имени: браузер должен сверять версию после обновления
+            assert_eq!(res.headers()["cache-control"], "no-cache", "{name}.{ext}");
         }
     }
     stack.stop().await;

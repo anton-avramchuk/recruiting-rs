@@ -118,7 +118,7 @@ pub fn AppShell(
                                 on:click=move |_| cb.run(())
                             >
                                 "Поиск "
-                                <kbd>"Ctrl K"</kbd>
+                                <kbd>"Ctrl + K"</kbd>
                             </button>
                         }
                     })}

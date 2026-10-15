@@ -99,3 +99,19 @@ async fn fetch_csrf(base: &str, cookie: Option<&HeaderValue>) -> Result<String, 
         .map(str::to_string)
         .ok_or_else(|| ServerFnError::new("not authenticated"))
 }
+
+/// Файлы `/pkg/*` лежат без хеша в имени: браузер обязан сверять их версию с сервером,
+/// иначе после обновления старый wasm не совпадёт с новым HTML и гидратация упадёт.
+pub async fn revalidate_assets(
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let is_asset = request.uri().path().starts_with("/pkg/");
+    let mut response = next.run(request).await;
+    if is_asset {
+        response
+            .headers_mut()
+            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    }
+    response
+}

@@ -35,6 +35,7 @@ async fn main() {
             },
         )
         .fallback(leptos_axum::file_and_error_handler(shell))
+        .layer(axum::middleware::from_fn(ui_kit::server::revalidate_assets))
         .with_state(options);
 
     let listener = tokio::net::TcpListener::bind(&addr)
