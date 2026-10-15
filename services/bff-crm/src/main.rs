@@ -23,6 +23,7 @@ fn load() -> Result<(CommonConfig, CrmConfig, String), ConfigError> {
         identity_url: require(get, "IDENTITY_URL")?,
         candidate_url: require(get, "CANDIDATE_URL")?,
         recruitment_url: require(get, "RECRUITMENT_URL")?,
+        client_url: require(get, "CLIENT_URL")?,
         cors_origins: cors_origins(get("CORS_ORIGINS"))?,
         cookie_secure: get("COOKIE_SECURE").is_none_or(|v| v != "false"),
         base_domain: get("BASE_DOMAIN").filter(|v| !v.is_empty()),

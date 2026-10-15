@@ -149,6 +149,12 @@ impl Upstream {
             .route("/overview", get(users))
             .route("/interviews", get(users))
             .route("/analytics", get(users))
+            .route("/clients", get(users).post(users))
+            .route("/clients/1", get(users).patch(users))
+            .route("/clients/1/contacts", post(users))
+            .route("/contacts/1", get(users).patch(users).delete(users))
+            .route("/positions", get(users).post(users))
+            .route("/positions/1", get(users).patch(users).delete(users))
             .route("/admin/secret", get(secret))
             .with_state(self.clone());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

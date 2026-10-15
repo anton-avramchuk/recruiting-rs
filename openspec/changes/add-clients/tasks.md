@@ -22,7 +22,7 @@
 
 ## 4. BFF
 
-- [ ] 4.1 `bff-crm`: апстрим `CLIENT_URL`, allowlist `/clients`, `/contacts`, `/positions`; мок в `bff-core::testing`; тесты маршрутизации, ролей и CORS-независимости
+- [x] 4.1 `bff-crm`: апстрим `CLIENT_URL`, allowlist `/clients`, `/contacts`, `/positions`; мок в `bff-core::testing`; тесты маршрутизации, ролей и CORS-независимости
 
 ## 5. Интерфейс
 
