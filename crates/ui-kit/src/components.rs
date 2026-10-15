@@ -106,22 +106,26 @@ pub fn AppShell(
             <header class="shell__bar">
                 <span class="brand">{brand}</span>
                 <span class="shell__context" data-testid="context-label">{move || context_label.get()}</span>
-                <span class="spacer"></span>
                 {on_search
                     .map(|cb| {
                         view! {
                             <button
                                 type="button"
-                                class="btn btn--ghost shell__search"
+                                class="shell__search"
                                 aria-label="Поиск и команды"
                                 data-testid="search-button"
                                 on:click=move |_| cb.run(())
                             >
-                                "Поиск "
+                                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                                    <circle cx="7" cy="7" r="4.5" />
+                                    <path d="M10.5 10.5 14 14" />
+                                </svg>
+                                <span class="shell__search-text">"Найти человека, вакансию или команду…"</span>
                                 <kbd>"Ctrl + K"</kbd>
                             </button>
                         }
                     })}
+                <span class="spacer"></span>
                 <span class="shell__user" data-testid="user-label">{move || user_label.get()}</span>
                 <form
                     method="post"

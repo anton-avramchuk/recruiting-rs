@@ -263,8 +263,10 @@ label.check { display: flex; flex-direction: row; align-items: center; gap: 6px;
 .cheatgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; overflow-y: auto; }
 .crow { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
 .crow .k { display: flex; gap: 4px; }
-.shell__search kbd { margin-left: 4px; }
-@media (max-width: 640px) { .cheatgrid { grid-template-columns: 1fr; } .shell__search kbd { display: none; } }
+.shell__search { flex: 1; max-width: 400px; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--ink-muted); font: inherit; font-size: 0.9rem; cursor: pointer; }
+.shell__search:hover { border-color: var(--ink-muted); }
+.shell__search-text { flex: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 640px) { .cheatgrid { grid-template-columns: 1fr; } .shell__search kbd { display: none; } .shell__search { max-width: none; } }
 
 /* курсор списка с клавиатуры и подсказки клавиш на кнопках */
 tr.row-cursor { background: var(--bg); box-shadow: inset 3px 0 0 var(--accent); }
