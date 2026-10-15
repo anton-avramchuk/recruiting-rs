@@ -294,6 +294,9 @@ fn PaletteDialog(palette: PaletteCtx, writable: Signal<bool>) -> impl IntoView {
         match entry.target {
             Target::Go(path) => nav.with_value(|n| n(&path, NavigateOptions::default())),
             Target::Cheatsheet => palette.cheat.set(true),
+            Target::ToggleTheme => {
+                ui_kit::theme::toggle_theme();
+            }
         }
     };
 

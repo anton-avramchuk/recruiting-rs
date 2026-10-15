@@ -32,6 +32,7 @@ impl Group {
 pub enum Target {
     Go(String),
     Cheatsheet,
+    ToggleTheme,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -136,6 +137,13 @@ fn registry() -> Vec<Command> {
             false,
         ),
         command(
+            "Переключить тему",
+            "",
+            Group::Settings,
+            Target::ToggleTheme,
+            false,
+        ),
+        command(
             "Горячие клавиши",
             "?",
             Group::Settings,
@@ -218,6 +226,16 @@ mod tests {
             rows.iter()
                 .all(|r| r.group != Group::People && r.group != Group::Vacancies)
         );
+    }
+
+    #[test]
+    fn the_theme_command_is_in_settings_for_every_role() {
+        for can_write in [true, false] {
+            let rows = results("тему", can_write, &[], &[]);
+            assert_eq!(titles(&rows), ["Переключить тему"]);
+            assert_eq!(rows[0].group, Group::Settings);
+            assert_eq!(rows[0].target, Target::ToggleTheme);
+        }
     }
 
     #[test]

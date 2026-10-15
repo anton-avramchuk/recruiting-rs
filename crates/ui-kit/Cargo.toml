@@ -35,7 +35,7 @@ js-sys = { version = "0.3", optional = true }
 # будущие запросы fetch в wasm не Send, а Resource требует Send: браузер однопоточный
 send_wrapper = { version = "0.6", optional = true, features = ["futures"] }
 wasm-bindgen = { workspace = true, optional = true }
-web-sys = { version = "0.3", optional = true, features = ["Document", "Element", "FormData", "HtmlFormElement", "HtmlInputElement", "HtmlSelectElement", "HtmlTextAreaElement"] }
+web-sys = { version = "0.3", optional = true, features = ["Document", "Element", "FormData", "HtmlFormElement", "HtmlInputElement", "HtmlSelectElement", "HtmlTextAreaElement", "MediaQueryList", "Storage", "Window"] }
 
 [lints]
 workspace = true

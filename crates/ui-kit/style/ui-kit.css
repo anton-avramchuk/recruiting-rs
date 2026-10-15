@@ -17,8 +17,9 @@
   color-scheme: light dark;
 }
 
+/* тёмная тема: по системе, если пользователь не выбрал светлую, и по явному выбору */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #15140f;
     --surface: #1e1d17;
     --ink: #efece3;
@@ -31,6 +32,20 @@
     --danger: #f2877f;
   }
 }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #15140f;
+  --surface: #1e1d17;
+  --ink: #efece3;
+  --ink-muted: #a39e90;
+  --line: #38362c;
+  --accent: #ff6a40;
+  --accent-ink: #1a0b05;
+  --ok: #5cc486;
+  --warn: #e0a24a;
+  --danger: #f2877f;
+}
+:root[data-theme="light"] { color-scheme: light; }
 
 * { box-sizing: border-box; }
 

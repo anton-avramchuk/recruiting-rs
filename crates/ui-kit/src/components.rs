@@ -8,7 +8,32 @@ const CSS: &str = include_str!("../style/ui-kit.css");
 
 #[component]
 pub fn UiStyles() -> impl IntoView {
-    view! { <style>{CSS}</style> }
+    // скрипт идёт первым в теле: тема применяется до отрисовки остальной разметки
+    view! {
+        <script inner_html=crate::theme::EARLY_SCRIPT></script>
+        <style>{CSS}</style>
+    }
+}
+
+/// Кнопка переключения темы; состояние читается из корня документа при нажатии.
+#[component]
+pub fn ThemeButton() -> impl IntoView {
+    let dark = RwSignal::new(false);
+    view! {
+        <button
+            type="button"
+            class="btn btn--ghost"
+            aria-label="Переключить тему"
+            title="Переключить тему"
+            aria-pressed=move || dark.get().to_string()
+            data-testid="theme-button"
+            on:click=move |_| {
+                dark.set(crate::theme::toggle_theme() == Some("dark"));
+            }
+        >
+            "◐"
+        </button>
+    }
 }
 
 /// Мета-тег с публичным адресом BFF: по нему браузер находит BFF, а пакет остаётся
@@ -131,6 +156,7 @@ pub fn AppShell(
                 <span class="spacer"></span>
                 {actions.map(|a| a.run())}
                 <span class="shell__user" data-testid="user-label">{move || user_label.get()}</span>
+                <ThemeButton />
                 <form
                     method="post"
                     onsubmit="return false"

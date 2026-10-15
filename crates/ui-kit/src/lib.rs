@@ -8,6 +8,7 @@ mod forms;
 #[cfg(feature = "ssr")]
 pub mod server;
 mod session;
+pub mod theme;
 
 pub use components::{
     AppShell, BffMeta, EmptyState, NavItem, Notice, NoticeKind, PageHeader, StatusBadge, UiStyles,
