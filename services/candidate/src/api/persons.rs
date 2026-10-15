@@ -71,6 +71,8 @@ pub(super) async fn create(
                 summary: req.summary,
                 skills: req.skills,
                 declared_experience_years: req.declared_experience_years,
+                city: req.city,
+                note: req.note,
             },
             req.confirm_duplicate,
         )
@@ -176,6 +178,8 @@ pub(super) async fn update(
                     expected_salary: req.expected_salary,
                     summary: req.summary,
                     skills: req.skills,
+                    city: req.city,
+                    note: req.note,
                 },
                 contacts: ContactsPatch {
                     phone: req.phone,

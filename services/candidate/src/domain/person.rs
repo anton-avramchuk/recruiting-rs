@@ -42,6 +42,11 @@ fn optional(raw: Option<String>) -> Option<String> {
     raw.map(|s| collapse(&s)).filter(|s| !s.is_empty())
 }
 
+/// Свободный текст: пробелы по краям убираются, пустое значение - «не указано».
+fn text(raw: Option<String>) -> Option<String> {
+    raw.map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+}
+
 /// Контакты как ввёл пользователь. Пусто или `None` - контакта нет.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContactsInput {
@@ -91,6 +96,8 @@ pub struct NewPerson {
     pub summary: Option<String>,
     pub skills: Vec<String>,
     pub declared_experience_years: Option<i32>,
+    pub city: Option<String>,
+    pub note: Option<String>,
 }
 
 /// Частичное обновление профиля. Для очищаемых полей: `None` - не трогать,
@@ -102,6 +109,8 @@ pub struct ProfilePatch {
     pub expected_salary: Option<Option<i64>>,
     pub summary: Option<Option<String>>,
     pub skills: Option<Vec<String>>,
+    pub city: Option<Option<String>>,
+    pub note: Option<Option<String>>,
 }
 
 /// Сохранённое состояние карточки (без истории) для восстановления агрегата.
@@ -119,6 +128,8 @@ pub struct PersonRecord {
     pub summary: Option<String>,
     pub skills: Vec<String>,
     pub declared_experience_years: i32,
+    pub city: Option<String>,
+    pub note: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -137,6 +148,8 @@ pub struct Person {
     pub summary: Option<String>,
     pub skills: Vec<String>,
     pub declared_experience_years: i32,
+    pub city: Option<String>,
+    pub note: Option<String>,
     employments: Vec<Employment>,
     educations: Vec<Education>,
     pub created_at: DateTime<Utc>,
@@ -182,12 +195,11 @@ impl Person {
             telegram: contacts.telegram,
             whatsapp: contacts.whatsapp,
             expected_salary: salary(new.expected_salary)?,
-            summary: new
-                .summary
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty()),
+            summary: text(new.summary),
             skills: normalize_skills(&new.skills)?,
             declared_experience_years: declared,
+            city: optional(new.city),
+            note: text(new.note),
             employments: Vec::new(),
             educations: Vec::new(),
             created_at: Utc::now(),
@@ -220,6 +232,8 @@ impl Person {
             summary: record.summary,
             skills: record.skills,
             declared_experience_years: record.declared_experience_years,
+            city: record.city,
+            note: record.note,
             employments,
             educations,
             created_at: record.created_at,
@@ -266,12 +280,16 @@ impl Person {
             self.expected_salary = value;
         }
         if let Some(summary) = patch.summary {
-            self.summary = summary
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty());
+            self.summary = text(summary);
         }
         if let Some(skills) = skills {
             self.skills = skills;
+        }
+        if let Some(city) = patch.city {
+            self.city = optional(city);
+        }
+        if let Some(note) = patch.note {
+            self.note = text(note);
         }
         Ok(())
     }

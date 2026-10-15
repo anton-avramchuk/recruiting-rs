@@ -41,6 +41,8 @@ pub struct PersonDto {
     pub whatsapp: Option<String>,
     pub expected_salary: Option<i64>,
     pub summary: Option<String>,
+    pub city: Option<String>,
+    pub note: Option<String>,
     pub skills: Vec<String>,
     /// Полных лет: по местам работы, а при их отсутствии - заявленный стаж.
     pub experience_years: i32,
@@ -58,6 +60,7 @@ pub struct PersonSummaryDto {
     pub source: Option<String>,
     pub phone: Option<String>,
     pub email: Option<String>,
+    pub city: Option<String>,
     pub expected_salary: Option<i64>,
     pub skills: Vec<String>,
     pub experience_years: i32,
@@ -103,6 +106,10 @@ pub struct CreatePersonRequest {
     /// Стаж, заявленный при заведении; действует, пока нет мест работы.
     #[serde(default)]
     pub declared_experience_years: Option<i32>,
+    #[serde(default)]
+    pub city: Option<String>,
+    #[serde(default)]
+    pub note: Option<String>,
     /// Подтверждение создания, когда сервис уже сообщил о возможном дубле.
     #[serde(default)]
     pub confirm_duplicate: bool,
@@ -174,4 +181,18 @@ pub struct UpdatePersonRequest {
     pub summary: Option<Option<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skills: Option<Vec<String>>,
+    #[serde(
+        default,
+        deserialize_with = "double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[schema(value_type = Option<String>)]
+    pub city: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[schema(value_type = Option<String>)]
+    pub note: Option<Option<String>>,
 }

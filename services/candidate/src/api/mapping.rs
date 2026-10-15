@@ -20,6 +20,8 @@ pub fn person_to_dto(person: &Person, today: NaiveDate) -> PersonDto {
         whatsapp: person.whatsapp.as_ref().map(|w| w.as_str().to_string()),
         expected_salary: person.expected_salary,
         summary: person.summary.clone(),
+        city: person.city.clone(),
+        note: person.note.clone(),
         skills: person.skills.clone(),
         experience_years: person.experience_years(today),
         employments: person
@@ -54,6 +56,7 @@ pub fn summary_to_dto(s: PersonSummary) -> PersonSummaryDto {
         source: s.source,
         phone: s.phone,
         email: s.email,
+        city: s.city,
         expected_salary: s.expected_salary,
         skills: s.skills,
         experience_years: s.experience_years,

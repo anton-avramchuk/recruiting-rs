@@ -30,6 +30,8 @@ struct PersonRow {
     summary: Option<String>,
     skills: Vec<String>,
     declared_experience_years: i32,
+    city: Option<String>,
+    note: Option<String>,
     created_at: DateTime<Utc>,
 }
 
@@ -60,7 +62,7 @@ struct EducationRow {
 }
 
 const PERSON_COLUMNS: &str = "id, tenant_id, full_name, source, phone, email, telegram, whatsapp, \
-     expected_salary, summary, skills, declared_experience_years, created_at";
+     expected_salary, summary, skills, declared_experience_years, city, note, created_at";
 
 pub async fn insert(
     conn: &mut PgConnection,
@@ -71,8 +73,8 @@ pub async fn insert(
     sqlx::query(
         "INSERT INTO persons (id, tenant_id, full_name, source, phone, email, telegram, whatsapp,
              expected_salary, summary, skills, declared_experience_years, experience_years,
-             normalized_name, normalized_email, normalized_phone, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)",
+             normalized_name, normalized_email, normalized_phone, created_at, city, note)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)",
     )
     .bind(person.id)
     .bind(person.tenant_id.0)
@@ -91,6 +93,8 @@ pub async fn insert(
     .bind(&keys.normalized_email)
     .bind(&keys.normalized_phone)
     .bind(person.created_at)
+    .bind(&person.city)
+    .bind(&person.note)
     .execute(conn)
     .await?;
     Ok(())
@@ -182,6 +186,8 @@ pub async fn get(conn: &mut PgConnection, id: Uuid) -> Result<Option<Person>, St
         summary: row.summary,
         skills: row.skills,
         declared_experience_years: row.declared_experience_years,
+        city: row.city,
+        note: row.note,
         created_at: row.created_at,
     };
     Ok(Some(Person::restore(record, employments, educations)?))
@@ -207,6 +213,7 @@ pub struct PersonSummary {
     pub source: Option<String>,
     pub phone: Option<String>,
     pub email: Option<String>,
+    pub city: Option<String>,
     pub expected_salary: Option<i64>,
     pub skills: Vec<String>,
     pub experience_years: i32,
@@ -217,6 +224,7 @@ const LIST_FILTER: &str = r"
     ($1::text IS NULL
         OR full_name ILIKE $1 ESCAPE '\'
         OR email ILIKE $1 ESCAPE '\'
+        OR city ILIKE $1 ESCAPE '\'
         OR array_to_string(skills, ' ') ILIKE $1 ESCAPE '\'
         OR ($2::text IS NOT NULL AND phone LIKE $2))
     AND ($3::text IS NULL OR lower(source) = lower($3))
@@ -253,7 +261,7 @@ pub async fn list(
             .fetch_one(&mut *conn)
             .await?;
     let items: Vec<PersonSummary> = sqlx::query_as(&format!(
-        "SELECT id, full_name, source, phone, email, expected_salary, skills, experience_years, created_at
+        "SELECT id, full_name, source, phone, email, city, expected_salary, skills, experience_years, created_at
          FROM persons WHERE {LIST_FILTER}
          ORDER BY created_at DESC, id LIMIT $9 OFFSET $10"
     ))
@@ -284,7 +292,7 @@ pub async fn update(
         "UPDATE persons SET full_name = $2, source = $3, phone = $4, email = $5, telegram = $6,
              whatsapp = $7, expected_salary = $8, summary = $9, skills = $10,
              experience_years = $11, normalized_name = $12, normalized_email = $13,
-             normalized_phone = $14, updated_at = now()
+             normalized_phone = $14, city = $15, note = $16, updated_at = now()
          WHERE id = $1",
     )
     .bind(person.id)
@@ -301,6 +309,8 @@ pub async fn update(
     .bind(&keys.normalized_name)
     .bind(&keys.normalized_email)
     .bind(&keys.normalized_phone)
+    .bind(&person.city)
+    .bind(&person.note)
     .execute(conn)
     .await?;
     Ok(())
