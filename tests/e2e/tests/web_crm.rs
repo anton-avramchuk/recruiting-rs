@@ -91,14 +91,14 @@ async fn recruiter_signs_in_navigates_and_signs_out() {
             "vacancies",
             "document.querySelector('main').innerText.includes('Вакансий пока нет')",
         );
-        tab.find_element("nav a[href='/interviews']")
+        tab.find_element("nav a[href='/applications']")
             .unwrap()
             .click()
             .unwrap();
         wait_until(
             &tab,
-            "interviews",
-            "document.querySelector('main').innerText.includes('Интервью не запланированы')",
+            "applications",
+            "document.querySelector('main').innerText.includes('Откликов пока нет')",
         );
         assert!(marker_alive(&tab), "navigation is client-side");
 

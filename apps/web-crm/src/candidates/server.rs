@@ -63,6 +63,7 @@ pub async fn create_person(
     expected_salary: String,
     skills: String,
     summary: String,
+    city: String,
     declared_experience_years: String,
     confirm_duplicate: String,
 ) -> Result<CreateOutcome, ServerFnError> {
@@ -80,6 +81,7 @@ pub async fn create_person(
         ("whatsapp", &whatsapp),
         ("source", &source),
         ("summary", &summary),
+        ("city", &city),
     ] {
         if !value.trim().is_empty() {
             body.insert(key.into(), json!(value.trim()));
@@ -127,6 +129,7 @@ pub async fn update_person(
     expected_salary: String,
     skills: String,
     summary: String,
+    city: String,
 ) -> Result<SaveOutcome, ServerFnError> {
     use axum::http::Method;
     use serde_json::{Map, Value, json};
@@ -166,6 +169,7 @@ pub async fn update_person(
     body.insert("whatsapp".into(), nullable(&whatsapp));
     body.insert("source".into(), nullable(&source));
     body.insert("summary".into(), nullable(&summary));
+    body.insert("city".into(), nullable(&city));
     body.insert("expected_salary".into(), salary);
     body.insert("skills".into(), json!(split_skills(&skills)));
 

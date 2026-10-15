@@ -1,16 +1,16 @@
 //! Клиентское приложение рекрутеров (Leptos, SSR + hydrate). Общается только с bff-crm.
 pub mod candidates;
+pub mod funnel;
 
 use leptos::prelude::*;
 use leptos_meta::{MetaTags, Title, provide_meta_context};
 use leptos_router::{
     SsrMode,
-    components::{ParentRoute, Route, Router, Routes},
+    components::{ParentRoute, Redirect, Route, Router, Routes},
     path,
 };
 use ui_kit::{
-    AppShell, AuthGate, EmptyState, LoginPage, NavItem, PageHeader, SessionCtx, UiStyles,
-    provide_session,
+    AppShell, AuthGate, EmptyState, LoginPage, NavItem, SessionCtx, UiStyles, provide_session,
 };
 
 /// HTML-оболочка документа для SSR.
@@ -38,7 +38,7 @@ pub fn App() -> impl IntoView {
     provide_session();
 
     view! {
-        <Title text="Рекрутинг CRM" />
+        <Title text="Ритм" />
         <UiStyles />
         <Router>
             <Routes fallback=|| view! { <EmptyState title="Страница не найдена" hint="Проверьте адрес." /> }>
@@ -48,7 +48,7 @@ pub fn App() -> impl IntoView {
                         view! {
                             <LoginPage
                                 with_tenant=true
-                                title="Рекрутинг CRM"
+                                title="Ритм"
                                 subtitle="Войдите в рабочее пространство вашей организации."
                             />
                         }
@@ -56,12 +56,12 @@ pub fn App() -> impl IntoView {
                     ssr=SsrMode::Async
                 />
                 <ParentRoute path=path!("") view=Protected ssr=SsrMode::Async>
-                    <Route path=path!("/") view=Overview ssr=SsrMode::Async />
+                    <Route path=path!("/") view=|| view! { <Redirect path="/vacancies" /> } ssr=SsrMode::Async />
                     <Route path=path!("/candidates") view=candidates::list::CandidatesPage ssr=SsrMode::Async />
                     <Route path=path!("/candidates/new") view=candidates::create::CreateCandidatePage ssr=SsrMode::Async />
                     <Route path=path!("/candidates/:id") view=candidates::card::CandidateCardPage ssr=SsrMode::Async />
-                    <Route path=path!("/vacancies") view=Vacancies ssr=SsrMode::Async />
-                    <Route path=path!("/interviews") view=Interviews ssr=SsrMode::Async />
+                    <Route path=path!("/vacancies") view=funnel::vacancies::VacanciesPage ssr=SsrMode::Async />
+                    <Route path=path!("/applications") view=funnel::applications::ApplicationsPage ssr=SsrMode::Async />
                 </ParentRoute>
             </Routes>
         </Router>
@@ -71,20 +71,16 @@ pub fn App() -> impl IntoView {
 fn nav() -> Vec<NavItem> {
     vec![
         NavItem {
-            href: "/",
-            label: "Обзор",
-        },
-        NavItem {
-            href: "/candidates",
-            label: "Кандидаты",
-        },
-        NavItem {
             href: "/vacancies",
             label: "Вакансии",
         },
         NavItem {
-            href: "/interviews",
-            label: "Интервью",
+            href: "/applications",
+            label: "Отклики",
+        },
+        NavItem {
+            href: "/candidates",
+            label: "Кандидаты",
         },
     ]
 }
@@ -102,39 +98,12 @@ fn Protected() -> impl IntoView {
     view! {
         <AuthGate>
             <AppShell
-                brand="Рекрутинг"
+                brand="Ритм"
                 nav=nav()
                 context_label=Signal::derive(move || user().tenant)
                 user_label=Signal::derive(move || user().email)
             />
         </AuthGate>
-    }
-}
-
-#[component]
-fn Overview() -> impl IntoView {
-    view! {
-        <PageHeader title="Обзор" />
-        <EmptyState
-            title="Здесь появятся задачи на сегодня"
-            hint="Раздел заработает после подключения вакансий и кандидатов."
-        />
-    }
-}
-
-#[component]
-fn Vacancies() -> impl IntoView {
-    view! {
-        <PageHeader title="Вакансии" />
-        <EmptyState title="Вакансий пока нет" hint="Создание вакансий появится в следующих версиях." />
-    }
-}
-
-#[component]
-fn Interviews() -> impl IntoView {
-    view! {
-        <PageHeader title="Интервью" />
-        <EmptyState title="Интервью не запланированы" hint="Календарь интервью появится в следующих версиях." />
     }
 }
 

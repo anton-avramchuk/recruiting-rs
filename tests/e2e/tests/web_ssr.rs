@@ -39,7 +39,7 @@ async fn login_pages_are_server_rendered_html() {
         html.contains("name=\"tenant\""),
         "crm asks for the organization"
     );
-    assert!(html.contains("Рекрутинг CRM"));
+    assert!(html.contains("Ритм"));
     assert!(html.contains("--accent"), "styles are inlined");
     assert!(
         html.contains("/pkg/web-crm.js"),

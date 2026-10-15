@@ -4377,15 +4377,18 @@ dependencies = [
  "axum",
  "candidate-contracts",
  "console_error_panic_hook",
+ "js-sys",
  "leptos",
  "leptos_axum",
  "leptos_meta",
  "leptos_router",
+ "recruitment-contracts",
  "serde",
  "serde_json",
  "tokio",
  "ui-kit",
  "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

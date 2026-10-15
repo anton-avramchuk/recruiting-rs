@@ -146,7 +146,7 @@ fn DeleteControl(id: String) -> impl IntoView {
                 let id = id.clone();
                 view! {
                     <span class="notice notice--warn" data-testid="delete-panel">
-                        "Удалить кандидата безвозвратно? "
+                        "Удалить кандидата безвозвратно? Вместе с ним удалятся и его отклики. "
                         <button
                             class="btn btn--primary"
                             data-testid="delete-confirm"
@@ -214,12 +214,16 @@ fn ProfileSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> impl In
                 <dd>{dash(p.whatsapp.clone())}</dd>
                 <dt>"Источник"</dt>
                 <dd>{dash(p.source.clone())}</dd>
+                <dt>"Город"</dt>
+                <dd data-testid="profile-city">{dash(p.city.clone())}</dd>
                 <dt>"Ожидаемая зарплата"</dt>
                 <dd>{dash(p.expected_salary.map(format_salary))}</dd>
                 <dt>"Навыки"</dt>
                 <dd>{dash(Some(p.skills.join(", ")))}</dd>
                 <dt>"О кандидате"</dt>
                 <dd>{dash(p.summary.clone())}</dd>
+                <dt>"Заметка"</dt>
+                <dd data-testid="profile-note">{dash(p.note.clone())}</dd>
             </dl>
         }
     };
@@ -257,6 +261,7 @@ fn ProfileSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> impl In
                         value=p.source.clone().unwrap_or_default()
                         error=error("source")
                     />
+                    <Field label="Город" name="city" value=p.city.clone().unwrap_or_default() error=error("city") />
                     <Field
                         label="Ожидаемая зарплата, ₽"
                         name="expected_salary"

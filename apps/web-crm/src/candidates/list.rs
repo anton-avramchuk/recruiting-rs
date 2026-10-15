@@ -30,7 +30,7 @@ pub fn can_delete(ctx: SessionCtx) -> bool {
 
 /// Поле, значение которого применяется после паузы в наборе.
 #[component]
-fn DebouncedInput(
+pub fn DebouncedInput(
     applied: WriteSignal<String>,
     reset_page: WriteSignal<i64>,
     #[prop(into)] placeholder: String,

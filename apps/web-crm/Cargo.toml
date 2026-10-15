@@ -27,11 +27,13 @@ hydrate = [
     "leptos/hydrate",
     "dep:wasm-bindgen",
     "dep:console_error_panic_hook",
+    "dep:js-sys",
 ]
 
 [dependencies]
 ui-kit = { path = "../../crates/ui-kit" }
 candidate-contracts = { path = "../../crates/candidate-contracts" }
+recruitment-contracts = { path = "../../crates/recruitment-contracts" }
 serde.workspace = true
 serde_json.workspace = true
 leptos.workspace = true
@@ -42,6 +44,9 @@ leptos_axum = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 console_error_panic_hook = { workspace = true, optional = true }
+js-sys = { version = "0.3", optional = true }
+# DataTransfer нужен для перетаскивания карточек (Firefox требует данные в dragstart)
+web-sys = { version = "0.3", features = ["DataTransfer"] }
 
 [lints]
 workspace = true
