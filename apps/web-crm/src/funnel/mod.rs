@@ -3,6 +3,8 @@ pub mod applications;
 pub mod format;
 pub mod panel;
 pub mod server;
+pub mod today;
+pub mod triage;
 pub mod vacancies;
 
 use leptos::prelude::*;

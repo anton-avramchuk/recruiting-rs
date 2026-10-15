@@ -123,6 +123,7 @@ async fn board_panel_and_actions_in_the_browser() {
         let browser = launch();
         let tab = browser.new_tab().unwrap();
         login_crm(&tab, &base, "acme", OWNER.0, OWNER.1);
+        tab.navigate_to(&format!("{base}/vacancies")).unwrap();
 
         // 1. вход ведёт на доску первой вакансии (приоритетная выше); срок открытия подсвечен
         wait_until(&tab, "board", &exists_js("[data-testid=board]"));
@@ -367,6 +368,7 @@ async fn new_vacancy_and_candidate_with_a_vacancy_from_the_forms() {
         let browser = launch();
         let tab = browser.new_tab().unwrap();
         login_crm(&tab, &base, "acme", OWNER.0, OWNER.1);
+        tab.navigate_to(&format!("{base}/vacancies")).unwrap();
         wait_until(
             &tab,
             "empty board",

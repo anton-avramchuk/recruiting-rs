@@ -3,7 +3,7 @@ use leptos::prelude::*;
 use leptos::server_fn::codec::Json;
 use recruitment_contracts::{
     ApplicationDetailDto, ApplicationDto, ApplicationPage, BulkResult, CreateVacancyRequest,
-    VacancyDto,
+    InterviewItemDto, OverviewDto, VacancyDto,
 };
 use serde::{Deserialize, Serialize};
 
@@ -81,6 +81,8 @@ pub struct AppQuery {
     pub desc: bool,
     pub page: i64,
     pub page_size: i64,
+    /// Только просроченные по SLA.
+    pub overdue: bool,
 }
 
 #[server(input = Json)]
@@ -125,9 +127,32 @@ pub async fn list_applications(query: AppQuery) -> Result<Reply<ApplicationPage>
             path.push_str(&format!("&{name}={}", enc(value)));
         }
     }
+    if query.overdue {
+        path.push_str("&overdue=true");
+    }
     if !query.sort.trim().is_empty() {
         path.push_str(if query.desc { "&dir=desc" } else { "&dir=asc" });
     }
+    let reply = ui_kit::server::call(Method::GET, &path, None).await?;
+    Ok(classify(reply.status, &reply.body, typed))
+}
+
+#[server(input = Json)]
+pub async fn get_overview() -> Result<Reply<OverviewDto>, ServerFnError> {
+    use axum::http::Method;
+    let reply = ui_kit::server::call(Method::GET, "/api/overview", None).await?;
+    Ok(classify(reply.status, &reply.body, typed))
+}
+
+/// Интервью за период `[from, to)`; границы — RFC 3339 в часовом поясе пользователя.
+#[server(input = Json)]
+pub async fn list_interviews(
+    from: String,
+    to: String,
+) -> Result<Reply<Vec<InterviewItemDto>>, ServerFnError> {
+    use axum::http::Method;
+    use ui_kit::encode_query_value as enc;
+    let path = format!("/api/interviews?from={}&to={}", enc(&from), enc(&to));
     let reply = ui_kit::server::call(Method::GET, &path, None).await?;
     Ok(classify(reply.status, &reply.body, typed))
 }
@@ -143,6 +168,34 @@ pub async fn get_application(id: String) -> Result<Reply<ApplicationDetailDto>, 
     }
     let reply = ui_kit::server::call(Method::GET, &format!("/api/applications/{id}"), None).await?;
     Ok(classify(reply.status, &reply.body, typed))
+}
+
+/// Всё, что нужно карточке режима разбора, одним обращением браузера.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TriageData {
+    pub detail: Reply<ApplicationDetailDto>,
+    pub person: crate::candidates::outcome::LoadOutcome,
+}
+
+#[server(input = Json)]
+pub async fn triage_card(id: String, person_id: String) -> Result<TriageData, ServerFnError> {
+    use crate::candidates::{outcome::LoadOutcome, server::uuid_like::Id};
+    use axum::http::Method;
+
+    if id.parse::<Id>().is_err() || person_id.parse::<Id>().is_err() {
+        return Ok(TriageData {
+            detail: Reply::NotFound,
+            person: LoadOutcome::NotFound,
+        });
+    }
+    let detail =
+        ui_kit::server::call(Method::GET, &format!("/api/applications/{id}"), None).await?;
+    let person =
+        ui_kit::server::call(Method::GET, &format!("/api/persons/{person_id}"), None).await?;
+    Ok(TriageData {
+        detail: classify(detail.status, &detail.body, typed),
+        person: crate::candidates::outcome::classify_load(person.status, &person.body),
+    })
 }
 
 #[server(input = Json)]

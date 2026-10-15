@@ -8,7 +8,7 @@ use leptos::prelude::*;
 use leptos_meta::{MetaTags, Title, provide_meta_context};
 use leptos_router::{
     SsrMode,
-    components::{ParentRoute, Redirect, Route, Router, Routes},
+    components::{ParentRoute, Route, Router, Routes},
     path,
 };
 use ui_kit::{
@@ -58,7 +58,8 @@ pub fn App() -> impl IntoView {
                     ssr=SsrMode::Async
                 />
                 <ParentRoute path=path!("") view=Protected ssr=SsrMode::Async>
-                    <Route path=path!("/") view=|| view! { <Redirect path="/vacancies" /> } ssr=SsrMode::Async />
+                    <Route path=path!("/") view=funnel::today::TodayPage ssr=SsrMode::Async />
+                    <Route path=path!("/triage") view=funnel::triage::TriagePage ssr=SsrMode::Async />
                     <Route path=path!("/candidates") view=candidates::list::CandidatesPage ssr=SsrMode::Async />
                     <Route path=path!("/candidates/new") view=candidates::create::CreateCandidatePage ssr=SsrMode::Async />
                     <Route path=path!("/candidates/:id") view=candidates::card::CandidateCardPage ssr=SsrMode::Async />
@@ -72,6 +73,10 @@ pub fn App() -> impl IntoView {
 
 fn nav() -> Vec<NavItem> {
     vec![
+        NavItem {
+            href: "/",
+            label: "Сегодня",
+        },
         NavItem {
             href: "/vacancies",
             label: "Вакансии",
@@ -91,6 +96,21 @@ fn nav() -> Vec<NavItem> {
 #[component]
 fn Protected() -> impl IntoView {
     let ctx = expect_context::<SessionCtx>();
+    // T открывает режим разбора (не в полях ввода и не поверх панели человека)
+    let navigate = leptos_router::hooks::use_navigate();
+    Effect::new(move |_| {
+        let navigate = navigate.clone();
+        window_event_listener(leptos::ev::keydown, move |ev| {
+            if ev.ctrl_key() || ev.meta_key() || ev.alt_key() || ev.key().to_lowercase() != "t" {
+                return;
+            }
+            if !candidates::list::can_write(ctx) || typing_in_a_field(&ev) || panel_is_open() {
+                return;
+            }
+            ev.prevent_default();
+            navigate("/triage", Default::default());
+        });
+    });
     let user = move || {
         ctx.current()
             .and_then(Result::ok)
@@ -107,6 +127,25 @@ fn Protected() -> impl IntoView {
             />
         </AuthGate>
     }
+}
+
+/// Фокус в поле ввода: горячие клавиши не должны перехватывать набор текста.
+fn typing_in_a_field(ev: &leptos::ev::KeyboardEvent) -> bool {
+    use leptos::wasm_bindgen::JsCast;
+    ev.target()
+        .and_then(|t| t.dyn_into::<web_sys::HtmlElement>().ok())
+        .is_some_and(|el| {
+            matches!(el.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT")
+                || el.is_content_editable()
+        })
+}
+
+fn panel_is_open() -> bool {
+    document()
+        .query_selector("[data-testid=panel]")
+        .ok()
+        .flatten()
+        .is_some()
 }
 
 #[cfg(feature = "hydrate")]

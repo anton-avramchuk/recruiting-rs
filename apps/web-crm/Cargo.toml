@@ -46,7 +46,7 @@ wasm-bindgen = { workspace = true, optional = true }
 console_error_panic_hook = { workspace = true, optional = true }
 js-sys = { version = "0.3", optional = true }
 # DataTransfer нужен для перетаскивания карточек (Firefox требует данные в dragstart)
-web-sys = { version = "0.3", features = ["DataTransfer"] }
+web-sys = { version = "0.3", features = ["DataTransfer", "HtmlElement", "Element", "Document"] }
 
 [lints]
 workspace = true

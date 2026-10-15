@@ -26,6 +26,13 @@ pub fn ApplicationsPage() -> impl IntoView {
     let (source, set_source) = signal(String::new());
     let vacancy = RwSignal::new(String::new());
     let stage = RwSignal::new(String::new());
+    // «Только просроченные» можно включить ссылкой со страницы «Сегодня»: `?overdue=1`
+    let overdue = RwSignal::new(
+        leptos_router::hooks::use_query_map()
+            .get_untracked()
+            .get("overdue")
+            .is_some_and(|v| v == "1" || v == "true"),
+    );
     let sort = RwSignal::new(String::new());
     let desc = RwSignal::new(false);
     let (page, set_page) = signal(1i64);
@@ -45,11 +52,13 @@ pub fn ApplicationsPage() -> impl IntoView {
                 sort.get(),
                 desc.get(),
                 page.get(),
+                overdue.get(),
                 ctx.version.get(),
             )
         },
-        |(q, source, vacancy_id, stage, sort, desc, page, _)| {
+        |(q, source, vacancy_id, stage, sort, desc, page, overdue, _)| {
             list_applications(AppQuery {
+                overdue,
                 vacancy_id,
                 stage,
                 source,
@@ -66,6 +75,7 @@ pub fn ApplicationsPage() -> impl IntoView {
             || !source.get().trim().is_empty()
             || !vacancy.get().is_empty()
             || !stage.get().is_empty()
+            || overdue.get()
     };
 
     let bulk = Action::new(
@@ -173,6 +183,18 @@ pub fn ApplicationsPage() -> impl IntoView {
                     .map(|s| view! { <option value=s.key()>{s.label()}</option> })
                     .collect_view()}
             </select>
+            <label class="check">
+                <input
+                    type="checkbox"
+                    data-testid="filter-overdue"
+                    prop:checked=move || overdue.get()
+                    on:change=move |ev| {
+                        overdue.set(event_target_checked(&ev));
+                        set_page.set(1);
+                    }
+                />
+                "Только просроченные"
+            </label>
             <Show when=filtered>
                 <button
                     class="btn btn--ghost"
@@ -182,6 +204,7 @@ pub fn ApplicationsPage() -> impl IntoView {
                         set_source.set(String::new());
                         vacancy.set(String::new());
                         stage.set(String::new());
+                        overdue.set(false);
                         set_page.set(1);
                         epoch.update(|e| *e += 1);
                     }
