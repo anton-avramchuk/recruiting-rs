@@ -5,7 +5,11 @@ use leptos_router::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::components::{Notice, NoticeKind};
+use crate::{
+    api::{self, Method},
+    components::{Notice, NoticeKind},
+    forms::form_fields,
+};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct UserInfo {
@@ -35,10 +39,8 @@ pub enum LoginOutcome {
     Unavailable,
 }
 
-#[server]
 pub async fn get_session() -> Result<SessionInfo, ServerFnError> {
-    use axum::http::Method;
-    let reply = crate::server::call(Method::GET, "/bff/session", None).await?;
+    let reply = api::call(Method::Get, "/bff/session", None).await?;
     if reply.body["authenticated"] != true {
         return Ok(SessionInfo::default());
     }
@@ -49,18 +51,16 @@ pub async fn get_session() -> Result<SessionInfo, ServerFnError> {
     })
 }
 
-#[server]
 pub async fn login(
     tenant: String,
     email: String,
     password: String,
 ) -> Result<LoginOutcome, ServerFnError> {
-    use axum::http::Method;
     let mut body = serde_json::json!({ "email": email, "password": password });
     if !tenant.trim().is_empty() {
         body["tenant"] = serde_json::Value::String(tenant.trim().to_string());
     }
-    let reply = crate::server::call(Method::POST, "/bff/login", Some(body)).await?;
+    let reply = api::call(Method::Post, api::LOGIN_PATH, Some(body)).await?;
     Ok(match reply.status {
         200 => LoginOutcome::Success,
         401 | 400 => LoginOutcome::InvalidCredentials,
@@ -69,10 +69,8 @@ pub async fn login(
     })
 }
 
-#[server]
 pub async fn logout() -> Result<(), ServerFnError> {
-    use axum::http::Method;
-    crate::server::call(Method::POST, "/bff/logout", None).await?;
+    api::call(Method::Post, api::LOGOUT_PATH, None).await?;
     Ok(())
 }
 
@@ -111,6 +109,8 @@ pub fn provide_session() -> SessionCtx {
     );
     let ctx = SessionCtx { session, version };
     provide_context(ctx);
+    // сессия истекла посреди работы: перечитываем её, и AuthGate отправит на вход
+    crate::set_unauthorized_hook(move || ctx.refresh());
     ctx
 }
 
@@ -178,7 +178,16 @@ pub fn LoginPage(
     let ctx = expect_context::<SessionCtx>();
     let navigate = use_navigate();
     let query = use_query_map();
-    let action = ServerAction::<Login>::new();
+    let action = Action::new(|(tenant, email, password): &(String, String, String)| {
+        let (tenant, email, password) = (tenant.clone(), email.clone(), password.clone());
+        async move { login(tenant, email, password).await }
+    });
+    let on_submit = move |ev: leptos::ev::SubmitEvent| {
+        ev.prevent_default();
+        let fields = form_fields(&ev);
+        let field = |name: &str| fields.get(name).cloned().unwrap_or_default();
+        action.dispatch((field("tenant"), field("email"), field("password")));
+    };
 
     Effect::new(move |_| {
         if let Some(Ok(LoginOutcome::Success)) = action.value().get() {
@@ -202,7 +211,8 @@ pub fn LoginPage(
 
     view! {
         <div class="auth">
-            <ActionForm action=action attr:class="card auth__form">
+            // method="post" и return false: до гидратации пароль не должен уйти в адресную строку
+            <form class="card auth__form" method="post" on:submit=on_submit onsubmit="return false">
                 <h1>{title}</h1>
                 <p class="muted">{subtitle}</p>
                 {if with_tenant {
@@ -230,7 +240,7 @@ pub fn LoginPage(
                 <button type="submit" class="btn btn--primary" disabled=move || action.pending().get()>
                     {move || if action.pending().get() { "Входим…" } else { "Войти" }}
                 </button>
-            </ActionForm>
+            </form>
         </div>
     }
 }

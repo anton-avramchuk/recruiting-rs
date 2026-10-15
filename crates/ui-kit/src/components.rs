@@ -11,6 +11,17 @@ pub fn UiStyles() -> impl IntoView {
     view! { <style>{CSS}</style> }
 }
 
+/// Мета-тег с публичным адресом BFF: по нему браузер находит BFF, а пакет остаётся
+/// одинаковым для всех окружений. Размещается в `<head>` оболочки документа.
+#[component]
+pub fn BffMeta() -> impl IntoView {
+    let url = use_context::<crate::BffPublicUrl>()
+        .map(|u| u.0)
+        .or_else(|| use_context::<crate::BffUrl>().map(|u| u.0))
+        .unwrap_or_default();
+    view! { <meta name="bff-url" content=url /> }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum NoticeKind {
     Info,
@@ -78,7 +89,7 @@ pub fn AppShell(
     #[prop(into)] user_label: Signal<String>,
 ) -> impl IntoView {
     let ctx = expect_context::<SessionCtx>();
-    let logout_action = ServerAction::<crate::session::Logout>::new();
+    let logout_action = Action::new(|_: &()| async { logout().await });
     let navigate = leptos_router::hooks::use_navigate();
     Effect::new(move |_| {
         if let Some(Ok(())) = logout_action.value().get() {
@@ -86,7 +97,6 @@ pub fn AppShell(
             navigate("/login", Default::default());
         }
     });
-    let _ = logout; // server fn подключена через ServerAction<Logout>
 
     view! {
         <div class="shell">
@@ -95,9 +105,16 @@ pub fn AppShell(
                 <span class="shell__context" data-testid="context-label">{move || context_label.get()}</span>
                 <span class="spacer"></span>
                 <span class="shell__user" data-testid="user-label">{move || user_label.get()}</span>
-                <ActionForm action=logout_action>
+                <form
+                    method="post"
+                    onsubmit="return false"
+                    on:submit=move |ev| {
+                        ev.prevent_default();
+                        logout_action.dispatch(());
+                    }
+                >
                     <button type="submit" class="btn btn--ghost">"Выйти"</button>
-                </ActionForm>
+                </form>
             </header>
             <nav class="shell__nav" aria-label="Разделы">
                 {nav

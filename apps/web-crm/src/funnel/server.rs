@@ -1,11 +1,11 @@
 //! Server functions воронки: браузер -> web-crm -> bff-crm -> recruitment.
 use leptos::prelude::*;
-use leptos::server_fn::codec::Json;
 use recruitment_contracts::{
     ApplicationDetailDto, ApplicationDto, ApplicationPage, BulkResult, CreateVacancyRequest,
     InterviewItemDto, OverviewDto, VacancyDto,
 };
 use serde::{Deserialize, Serialize};
+use ui_kit::api::Method;
 
 /// Исход обращения к воронке в виде значения: интерфейс различает его без разбора HTTP.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -65,7 +65,6 @@ pub fn classify<T>(
     }
 }
 
-#[cfg(feature = "ssr")]
 fn typed<T: serde::de::DeserializeOwned>(body: &serde_json::Value) -> Option<T> {
     serde_json::from_value(body.clone()).ok()
 }
@@ -85,26 +84,20 @@ pub struct AppQuery {
     pub overdue: bool,
 }
 
-#[server(input = Json)]
 pub async fn list_vacancies() -> Result<Reply<Vec<VacancyDto>>, ServerFnError> {
-    use axum::http::Method;
-    let reply = ui_kit::server::call(Method::GET, "/api/vacancies", None).await?;
+    let reply = ui_kit::api::call(Method::Get, "/api/vacancies", None).await?;
     Ok(classify(reply.status, &reply.body, typed))
 }
 
-#[server(input = Json)]
 pub async fn create_vacancy(
     request: CreateVacancyRequest,
 ) -> Result<Reply<VacancyDto>, ServerFnError> {
-    use axum::http::Method;
     let body = serde_json::to_value(&request).map_err(|e| ServerFnError::new(e.to_string()))?;
-    let reply = ui_kit::server::call(Method::POST, "/api/vacancies", Some(body)).await?;
+    let reply = ui_kit::api::call(Method::Post, "/api/vacancies", Some(body)).await?;
     Ok(classify(reply.status, &reply.body, typed))
 }
 
-#[server(input = Json)]
 pub async fn list_applications(query: AppQuery) -> Result<Reply<ApplicationPage>, ServerFnError> {
-    use axum::http::Method;
     use ui_kit::encode_query_value as enc;
 
     let page_size = if query.page_size > 0 {
@@ -133,40 +126,34 @@ pub async fn list_applications(query: AppQuery) -> Result<Reply<ApplicationPage>
     if !query.sort.trim().is_empty() {
         path.push_str(if query.desc { "&dir=desc" } else { "&dir=asc" });
     }
-    let reply = ui_kit::server::call(Method::GET, &path, None).await?;
+    let reply = ui_kit::api::call(Method::Get, &path, None).await?;
     Ok(classify(reply.status, &reply.body, typed))
 }
 
-#[server(input = Json)]
 pub async fn get_overview() -> Result<Reply<OverviewDto>, ServerFnError> {
-    use axum::http::Method;
-    let reply = ui_kit::server::call(Method::GET, "/api/overview", None).await?;
+    let reply = ui_kit::api::call(Method::Get, "/api/overview", None).await?;
     Ok(classify(reply.status, &reply.body, typed))
 }
 
 /// Интервью за период `[from, to)`; границы — RFC 3339 в часовом поясе пользователя.
-#[server(input = Json)]
 pub async fn list_interviews(
     from: String,
     to: String,
 ) -> Result<Reply<Vec<InterviewItemDto>>, ServerFnError> {
-    use axum::http::Method;
     use ui_kit::encode_query_value as enc;
     let path = format!("/api/interviews?from={}&to={}", enc(&from), enc(&to));
-    let reply = ui_kit::server::call(Method::GET, &path, None).await?;
+    let reply = ui_kit::api::call(Method::Get, &path, None).await?;
     Ok(classify(reply.status, &reply.body, typed))
 }
 
-#[server(input = Json)]
 pub async fn get_application(id: String) -> Result<Reply<ApplicationDetailDto>, ServerFnError> {
-    use axum::http::Method;
     if id
         .parse::<crate::candidates::server::uuid_like::Id>()
         .is_err()
     {
         return Ok(Reply::NotFound);
     }
-    let reply = ui_kit::server::call(Method::GET, &format!("/api/applications/{id}"), None).await?;
+    let reply = ui_kit::api::call(Method::Get, &format!("/api/applications/{id}"), None).await?;
     Ok(classify(reply.status, &reply.body, typed))
 }
 
@@ -177,10 +164,8 @@ pub struct TriageData {
     pub person: crate::candidates::outcome::LoadOutcome,
 }
 
-#[server(input = Json)]
 pub async fn triage_card(id: String, person_id: String) -> Result<TriageData, ServerFnError> {
     use crate::candidates::{outcome::LoadOutcome, server::uuid_like::Id};
-    use axum::http::Method;
 
     if id.parse::<Id>().is_err() || person_id.parse::<Id>().is_err() {
         return Ok(TriageData {
@@ -188,40 +173,34 @@ pub async fn triage_card(id: String, person_id: String) -> Result<TriageData, Se
             person: LoadOutcome::NotFound,
         });
     }
-    let detail =
-        ui_kit::server::call(Method::GET, &format!("/api/applications/{id}"), None).await?;
-    let person =
-        ui_kit::server::call(Method::GET, &format!("/api/persons/{person_id}"), None).await?;
+    let detail = ui_kit::api::call(Method::Get, &format!("/api/applications/{id}"), None).await?;
+    let person = ui_kit::api::call(Method::Get, &format!("/api/persons/{person_id}"), None).await?;
     Ok(TriageData {
         detail: classify(detail.status, &detail.body, typed),
         person: crate::candidates::outcome::classify_load(person.status, &person.body),
     })
 }
 
-#[server(input = Json)]
 pub async fn create_application(
     person_id: String,
     vacancy_id: String,
     stage: String,
 ) -> Result<Reply<ApplicationDto>, ServerFnError> {
-    use axum::http::Method;
     use serde_json::json;
     let mut body = json!({"person_id": person_id, "vacancy_id": vacancy_id});
     if !stage.trim().is_empty() {
         body["stage"] = json!(stage.trim());
     }
-    let reply = ui_kit::server::call(Method::POST, "/api/applications", Some(body)).await?;
+    let reply = ui_kit::api::call(Method::Post, "/api/applications", Some(body)).await?;
     Ok(classify(reply.status, &reply.body, typed))
 }
 
 /// Действие над откликом: `stage`, `next`, `reject`, `interviews`, `handoff`.
-#[server(input = Json)]
 pub async fn application_action(
     id: String,
     action: String,
     body: serde_json::Value,
 ) -> Result<Reply<ApplicationDto>, ServerFnError> {
-    use axum::http::Method;
     if id
         .parse::<crate::candidates::server::uuid_like::Id>()
         .is_err()
@@ -231,8 +210,8 @@ pub async fn application_action(
     if !["stage", "next", "reject", "interviews", "handoff"].contains(&action.as_str()) {
         return Ok(Reply::NotFound);
     }
-    let reply = ui_kit::server::call(
-        Method::POST,
+    let reply = ui_kit::api::call(
+        Method::Post,
         &format!("/api/applications/{id}/{action}"),
         Some(body),
     )
@@ -241,26 +220,22 @@ pub async fn application_action(
 }
 
 /// Групповое действие: `next`, `reject` или `letter`.
-#[server(input = Json)]
 pub async fn bulk_applications(
     action: String,
     ids: Vec<String>,
     reason: String,
 ) -> Result<Reply<BulkResult>, ServerFnError> {
-    use axum::http::Method;
     use serde_json::json;
     let mut body = json!({"action": action, "ids": ids});
     if !reason.trim().is_empty() {
         body["reason"] = json!(reason.trim());
     }
-    let reply = ui_kit::server::call(Method::POST, "/api/applications/bulk", Some(body)).await?;
+    let reply = ui_kit::api::call(Method::Post, "/api/applications/bulk", Some(body)).await?;
     Ok(classify(reply.status, &reply.body, typed))
 }
 
 /// Заметка рекрутера о человеке (хранится в карточке кандидата).
-#[server(input = Json)]
 pub async fn save_note(person_id: String, note: String) -> Result<Reply<()>, ServerFnError> {
-    use axum::http::Method;
     use serde_json::json;
     if person_id
         .parse::<crate::candidates::server::uuid_like::Id>()
@@ -268,8 +243,8 @@ pub async fn save_note(person_id: String, note: String) -> Result<Reply<()>, Ser
     {
         return Ok(Reply::NotFound);
     }
-    let reply = ui_kit::server::call(
-        Method::PATCH,
+    let reply = ui_kit::api::call(
+        Method::Patch,
         &format!("/api/persons/{person_id}"),
         Some(json!({"note": note})),
     )

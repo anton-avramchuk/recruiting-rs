@@ -13,7 +13,14 @@ ssr = [
     "dep:axum",
     "dep:reqwest",
 ]
-hydrate = ["leptos/hydrate"]
+hydrate = [
+    "leptos/hydrate",
+    "dep:reqwest",
+    "dep:web-sys",
+    "dep:js-sys",
+    "dep:wasm-bindgen",
+    "dep:send_wrapper",
+]
 
 [dependencies]
 leptos.workspace = true
@@ -24,6 +31,11 @@ serde_json.workspace = true
 axum = { workspace = true, optional = true }
 leptos_axum = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
+js-sys = { version = "0.3", optional = true }
+# будущие запросы fetch в wasm не Send, а Resource требует Send: браузер однопоточный
+send_wrapper = { version = "0.6", optional = true, features = ["futures"] }
+wasm-bindgen = { workspace = true, optional = true }
+web-sys = { version = "0.3", optional = true, features = ["Document", "Element", "FormData", "HtmlFormElement", "HtmlInputElement", "HtmlSelectElement", "HtmlTextAreaElement"] }
 
 [lints]
 workspace = true

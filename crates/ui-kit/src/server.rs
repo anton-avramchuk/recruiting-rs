@@ -1,17 +1,17 @@
 //! Серверная часть: вызовы BFF из server functions с пробросом cookie сессии.
 use std::sync::OnceLock;
 
-use axum::http::{HeaderMap, HeaderValue, Method, header};
+use axum::http::{HeaderMap, HeaderValue, header};
 use leptos::prelude::*;
 use leptos_axum::ResponseOptions;
 use serde_json::Value;
 
-use crate::BffUrl;
+use crate::{
+    BffUrl,
+    api::{LOGIN_CSRF, LOGIN_PATH, Method},
+};
 
-pub struct BffReply {
-    pub status: u16,
-    pub body: Value,
-}
+pub use crate::api::BffReply;
 
 fn http() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
@@ -42,16 +42,18 @@ pub async fn call(
     let incoming: HeaderMap = leptos_axum::extract().await?;
     let cookie = incoming.get(header::COOKIE).cloned();
 
-    let csrf = if matches!(method, Method::GET | Method::HEAD) {
+    let csrf = if !method.needs_csrf() {
         None
-    } else if path == "/bff/login" {
+    } else if path == LOGIN_PATH {
         // сессии ещё нет: BFF требует лишь наличие заголовка
-        Some("login".to_string())
+        Some(LOGIN_CSRF.to_string())
     } else {
         Some(fetch_csrf(&base, cookie.as_ref()).await?)
     };
 
-    let mut req = http().request(method, format!("{base}{path}"));
+    let method = axum::http::Method::from_bytes(method.as_str().as_bytes())
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    let mut req = http().request(method, crate::api::join_url(&base, path));
     if let Some(c) = &cookie {
         req = req.header(header::COOKIE, c);
     }

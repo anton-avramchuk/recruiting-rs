@@ -316,6 +316,8 @@ impl Stack {
                 ("RECRUITMENT_URL", recruitment_url.clone()),
                 ("REDIS_URL", redis.clone()),
                 ("COOKIE_SECURE", "false".into()),
+                // браузер ходит в BFF напрямую, источник — адрес веб-приложения
+                ("CORS_ORIGINS", stack.web_crm_url.clone()),
             ],
         ));
         stack.services.push(spawn(
@@ -325,6 +327,7 @@ impl Stack {
                 ("ADMIN_URL", admin_url),
                 ("REDIS_URL", redis),
                 ("COOKIE_SECURE", "false".into()),
+                ("CORS_ORIGINS", stack.web_admin_url.clone()),
             ],
         ));
         if with_web {
@@ -335,7 +338,8 @@ impl Stack {
                 stack.services.push(spawn(
                     name,
                     &[
-                        ("BFF_URL", bff),
+                        ("BFF_URL", bff.clone()),
+                        ("BFF_PUBLIC_URL", bff),
                         ("LEPTOS_OUTPUT_NAME", name.into()),
                         (
                             "LEPTOS_SITE_ROOT",

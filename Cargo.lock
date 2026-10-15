@@ -4054,13 +4054,17 @@ name = "ui-kit"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "js-sys",
  "leptos",
  "leptos_axum",
  "leptos_meta",
  "leptos_router",
  "reqwest",
+ "send_wrapper",
  "serde",
  "serde_json",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

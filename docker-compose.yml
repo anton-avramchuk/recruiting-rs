@@ -108,6 +108,9 @@ services:
       RECRUITMENT_URL: http://recruitment:8080
       REDIS_URL: redis://redis:6379
       COOKIE_SECURE: "false" # локально по http
+      # браузер ходит в BFF напрямую: разрешённый источник - адрес веб-приложения
+      CORS_ORIGINS: http://localhost:3000
+    ports: ["8081:8080"]
     depends_on:
       redis: { condition: service_healthy }
       identity: { condition: service_healthy }
@@ -123,6 +126,8 @@ services:
       ADMIN_URL: http://admin:8080
       REDIS_URL: redis://redis:6379
       COOKIE_SECURE: "false"
+      CORS_ORIGINS: http://localhost:3010
+    ports: ["8082:8080"]
     depends_on:
       redis: { condition: service_healthy }
       admin: { condition: service_healthy }
@@ -133,6 +138,7 @@ services:
     build: { context: ., dockerfile: docker/Dockerfile, target: web-crm }
     environment:
       BFF_URL: http://bff-crm:8080
+      BFF_PUBLIC_URL: http://localhost:8081
     ports: ["3000:8080"]
     depends_on:
       bff-crm: { condition: service_healthy }
@@ -142,6 +148,7 @@ services:
     build: { context: ., dockerfile: docker/Dockerfile, target: web-admin }
     environment:
       BFF_URL: http://bff-admin:8080
+      BFF_PUBLIC_URL: http://localhost:8082
     ports: ["3010:8080"]
     depends_on:
       bff-admin: { condition: service_healthy }

@@ -15,7 +15,9 @@ use super::{
     format::{format_salary, years_label},
     list::{can_delete, can_write},
     outcome::{DeleteOutcome, LoadOutcome, SaveOutcome},
-    server::{DeletePerson, SaveEducations, SaveEmployments, UpdatePerson, get_person},
+    server::{
+        DeletePerson, SaveEducations, SaveEmployments, UpdatePerson, get_person, person_action,
+    },
 };
 
 fn field_error(
@@ -124,7 +126,7 @@ fn PersonCard(person: PersonDto) -> impl IntoView {
 #[component]
 fn DeleteControl(id: String) -> impl IntoView {
     let confirming = RwSignal::new(false);
-    let action = ServerAction::<DeletePerson>::new();
+    let action = person_action(DeletePerson::run);
     let navigate = use_navigate();
 
     Effect::new(move |_| {
@@ -188,7 +190,7 @@ fn DeleteControl(id: String) -> impl IntoView {
 #[component]
 fn ProfileSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> impl IntoView {
     let editing = RwSignal::new(false);
-    let action = ServerAction::<UpdatePerson>::new();
+    let action = person_action(UpdatePerson::run);
 
     Effect::new(move |_| {
         if let Some(Ok(SaveOutcome::Saved(saved))) = action.value().get() {
@@ -231,7 +233,15 @@ fn ProfileSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> impl In
     let edit_mode = move || {
         let p = state.get_untracked();
         view! {
-            <ActionForm action=action attr:data-testid="profile-form">
+            <form
+                data-testid="profile-form"
+                method="post"
+                onsubmit="return false"
+                on:submit=move |ev| {
+                    ev.prevent_default();
+                    action.dispatch(UpdatePerson::from_fields(&ui_kit::form_fields(&ev)));
+                }
+            >
                 <input type="hidden" name="id" value=p.id.to_string() />
                 <div class="form-grid">
                     <Field
@@ -300,7 +310,7 @@ fn ProfileSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> impl In
                         "Отмена"
                     </button>
                 </p>
-            </ActionForm>
+            </form>
         }
     };
 
@@ -363,7 +373,7 @@ impl EmploymentRow {
 #[component]
 fn EmploymentsSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> impl IntoView {
     let editing = RwSignal::new(false);
-    let action = ServerAction::<SaveEmployments>::new();
+    let action = person_action(SaveEmployments::run);
     let next_key = RwSignal::new(0u32);
     let rows = RwSignal::new(Vec::<EmploymentRow>::new());
     let id = state.get_untracked().id.to_string();
@@ -599,7 +609,7 @@ impl EducationRow {
 #[component]
 fn EducationsSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> impl IntoView {
     let editing = RwSignal::new(false);
-    let action = ServerAction::<SaveEducations>::new();
+    let action = person_action(SaveEducations::run);
     let next_key = RwSignal::new(0u32);
     let rows = RwSignal::new(Vec::<EducationRow>::new());
     let id = state.get_untracked().id.to_string();

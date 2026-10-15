@@ -26,6 +26,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <AutoReload options=options.clone() />
                 <HydrationScripts options />
                 <MetaTags />
+                <ui_kit::BffMeta />
             </head>
             <body>
                 <App />

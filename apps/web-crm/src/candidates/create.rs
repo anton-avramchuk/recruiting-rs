@@ -9,7 +9,7 @@ use crate::funnel::server::{Reply, create_application, list_vacancies};
 use super::{
     fields::Field,
     outcome::CreateOutcome,
-    server::{CreatePerson, create_person},
+    server::{CreatePerson, person_action},
 };
 
 /// Сообщение об ошибке у конкретного поля.
@@ -35,7 +35,7 @@ fn matched_by_label(matched_by: &str) -> &'static str {
 
 #[component]
 pub fn CreateCandidatePage() -> impl IntoView {
-    let action = ServerAction::<CreatePerson>::new();
+    let action = person_action(CreatePerson::run);
     // скрытое поле читается формой синхронно в момент отправки, поэтому значение пишем в DOM напрямую
     let confirm_input = NodeRef::<leptos::html::Input>::new();
     let form = NodeRef::<leptos::html::Form>::new();
@@ -100,7 +100,16 @@ pub fn CreateCandidatePage() -> impl IntoView {
             </A>
         </PageHeader>
 
-        <ActionForm action=action node_ref=form attr:class="card">
+        <form
+            node_ref=form
+            class="card"
+            method="post"
+            onsubmit="return false"
+            on:submit=move |ev| {
+                ev.prevent_default();
+                action.dispatch(CreatePerson::from_fields(&ui_kit::form_fields(&ev)));
+            }
+        >
             <div class="form-grid">
                 <Field label="ФИО" name="full_name" required=true error=error("full_name") />
                 <Field label="Телефон" name="phone" placeholder="+7 916 123-45-67" error=error("phone") />
@@ -228,11 +237,6 @@ pub fn CreateCandidatePage() -> impl IntoView {
                     {move || if action.pending().get() { "Создаём…" } else { "Создать кандидата" }}
                 </button>
             </p>
-        </ActionForm>
+        </form>
     }
-}
-
-#[allow(dead_code)]
-fn _server_fn_is_linked() {
-    let _ = create_person;
 }

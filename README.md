@@ -106,13 +106,20 @@ Chrome и cargo-leptos; первый запуск e2e собирает все п
 | candidate | `DATABASE_URL`, `IDENTITY_JWKS_URL`, `SERVICE_TOKEN` | `MIGRATION_DATABASE_URL`, `LISTEN_ADDR` |
 | recruitment | `DATABASE_URL`, `IDENTITY_JWKS_URL`, `SERVICE_TOKEN`, `CANDIDATE_URL` | `MIGRATION_DATABASE_URL`, `LISTEN_ADDR` |
 | admin | `DATABASE_URL`, `IDENTITY_URL`, `SERVICE_TOKEN` | `MIGRATION_DATABASE_URL`, `JWT_PRIVATE_KEY`, `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `LISTEN_ADDR` |
-| bff-crm | `IDENTITY_URL`, `CANDIDATE_URL`, `RECRUITMENT_URL` | `REDIS_URL`, `COOKIE_SECURE`, `BASE_DOMAIN`, `SESSION_TTL_HOURS`, `LISTEN_ADDR` |
-| bff-admin | `ADMIN_URL` | `REDIS_URL`, `COOKIE_SECURE`, `SESSION_TTL_HOURS`, `LISTEN_ADDR` |
-| web-crm / web-admin | `BFF_URL`, переменные `LEPTOS_*` | — |
+| bff-crm | `IDENTITY_URL`, `CANDIDATE_URL`, `RECRUITMENT_URL` | `REDIS_URL`, `COOKIE_SECURE`, `BASE_DOMAIN`, `SESSION_TTL_HOURS`, `CORS_ORIGINS`, `LISTEN_ADDR` |
+| bff-admin | `ADMIN_URL` | `REDIS_URL`, `COOKIE_SECURE`, `SESSION_TTL_HOURS`, `CORS_ORIGINS`, `LISTEN_ADDR` |
+| web-crm / web-admin | `BFF_URL`, переменные `LEPTOS_*` | `BFF_PUBLIC_URL` |
 
 - Миграции применяются при старте от `MIGRATION_DATABASE_URL` (владелец схемы), а запросы обслуживаются
   от `DATABASE_URL` — роли без `BYPASSRLS` (в compose это `recruiting_app`).
 - Без `JWT_PRIVATE_KEY` сервис генерирует временный ключ: токены перестают действовать после перезапуска.
+- Браузер ходит в BFF **напрямую** (после первой отрисовки), а сервер фронтенда при SSR — по внутреннему адресу:
+  `BFF_URL` (внутренний, для SSR) и `BFF_PUBLIC_URL` (адрес для браузера, по умолчанию равен `BFF_URL`; сервер кладёт его
+  в страницу мета-тегом `bff-url`). BFF разрешает такие запросы только источникам из `CORS_ORIGINS` (адреса фронтенда через
+  запятую, `*` запрещён; пусто — CORS выключен). Cookie сессии `SameSite=Lax` уходит с запросом, только если фронтенд и BFF —
+  один «сайт» (оба на `localhost` либо поддомены одного домена; порт не учитывается); иначе нужен общий родительский домен
+  или reverse proxy, при котором `BFF_PUBLIC_URL` указывает на тот же origin. Локально: web-crm `:3000` ↔ bff-crm `:8081`,
+  web-admin `:3010` ↔ bff-admin `:8082`.
 - `candidate` проверяет токены по ключу identity (`IDENTITY_JWKS_URL`, например `http://127.0.0.1:8080/.well-known/jwks.json`): ключ загружается лениво и перечитывается при смене, поэтому сервис стартует и без identity (запросы получают 401).
 - `COOKIE_SECURE=false` нужен только при работе по http (локально).
 - Веб-приложения собираются `cargo leptos build --project web-crm` (и `web-admin`).

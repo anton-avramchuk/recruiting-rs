@@ -2,7 +2,9 @@
 use admin_contracts::TenantPage;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
-use ui_kit::{EmptyState, Notice, NoticeKind, PageHeader, StatusBadge};
+use ui_kit::{
+    EmptyState, FormFields, Notice, NoticeKind, PageHeader, StatusBadge, api::Method, form_fields,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CreateOutcome {
@@ -20,13 +22,11 @@ pub enum StatusOutcome {
     Unavailable,
 }
 
-#[server]
 pub async fn list_tenants(
     status: String,
     q: String,
     page: i64,
 ) -> Result<Option<TenantPage>, ServerFnError> {
-    use axum::http::Method;
     let mut path = format!("/api/tenants?page={}", page.max(1));
     if !status.is_empty() {
         path.push_str(&format!("&status={status}"));
@@ -34,14 +34,13 @@ pub async fn list_tenants(
     if !q.trim().is_empty() {
         path.push_str(&format!("&q={}", ui_kit::encode_query_value(q.trim())));
     }
-    let reply = ui_kit::server::call(Method::GET, &path, None).await?;
+    let reply = ui_kit::api::call(Method::Get, &path, None).await?;
     if reply.status != 200 {
         return Ok(None);
     }
     Ok(serde_json::from_value(reply.body).ok())
 }
 
-#[server]
 pub async fn create_tenant(
     slug: String,
     name: String,
@@ -49,7 +48,6 @@ pub async fn create_tenant(
     owner_password: String,
     owner_name: String,
 ) -> Result<CreateOutcome, ServerFnError> {
-    use axum::http::Method;
     let body = serde_json::json!({
         "slug": slug.trim(),
         "name": name.trim(),
@@ -59,7 +57,7 @@ pub async fn create_tenant(
             "display_name": owner_name.trim(),
         },
     });
-    let reply = ui_kit::server::call(Method::POST, "/api/tenants", Some(body)).await?;
+    let reply = ui_kit::api::call(Method::Post, "/api/tenants", Some(body)).await?;
     Ok(match reply.status {
         201 => CreateOutcome::Created,
         409 => CreateOutcome::SlugTaken,
@@ -73,9 +71,7 @@ pub async fn create_tenant(
     })
 }
 
-#[server]
 pub async fn set_tenant_status(id: String, action: String) -> Result<StatusOutcome, ServerFnError> {
-    use axum::http::Method;
     if action != "suspend" && action != "activate" {
         return Err(ServerFnError::new("unknown action"));
     }
@@ -83,7 +79,7 @@ pub async fn set_tenant_status(id: String, action: String) -> Result<StatusOutco
         return Err(ServerFnError::new("invalid id"));
     }
     let reply =
-        ui_kit::server::call(Method::POST, &format!("/api/tenants/{id}/{action}"), None).await?;
+        ui_kit::api::call(Method::Post, &format!("/api/tenants/{id}/{action}"), None).await?;
     Ok(match reply.status {
         200 => StatusOutcome::Done,
         409 | 404 => StatusOutcome::Conflict,
@@ -91,8 +87,56 @@ pub async fn set_tenant_status(id: String, action: String) -> Result<StatusOutco
     })
 }
 
+/// Значение поля формы или пустая строка.
+fn field(fields: &FormFields, name: &str) -> String {
+    fields.get(name).cloned().unwrap_or_default()
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CreateTenant {
+    pub slug: String,
+    pub name: String,
+    pub owner_email: String,
+    pub owner_password: String,
+    pub owner_name: String,
+}
+
+impl CreateTenant {
+    fn from_fields(f: &FormFields) -> Self {
+        Self {
+            slug: field(f, "slug"),
+            name: field(f, "name"),
+            owner_email: field(f, "owner_email"),
+            owner_password: field(f, "owner_password"),
+            owner_name: field(f, "owner_name"),
+        }
+    }
+
+    async fn run(self) -> Result<CreateOutcome, ServerFnError> {
+        create_tenant(
+            self.slug,
+            self.name,
+            self.owner_email,
+            self.owner_password,
+            self.owner_name,
+        )
+        .await
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SetTenantStatus {
+    pub id: String,
+    pub action: String,
+}
+
+impl SetTenantStatus {
+    async fn run(self) -> Result<StatusOutcome, ServerFnError> {
+        set_tenant_status(self.id, self.action).await
+    }
+}
+
 /// Минимальная проверка формата UUID без лишней зависимости.
-#[cfg(feature = "ssr")]
 mod uuid_like {
     use std::str::FromStr;
 
@@ -118,8 +162,8 @@ pub fn TenantsPage() -> impl IntoView {
     let (query, set_query) = signal(String::new());
     let (page, set_page) = signal(1i64);
 
-    let create = ServerAction::<CreateTenant>::new();
-    let toggle = ServerAction::<SetTenantStatus>::new();
+    let create = Action::new(|input: &CreateTenant| input.clone().run());
+    let toggle = Action::new(|input: &SetTenantStatus| input.clone().run());
 
     let tenants = Resource::new(
         move || {
@@ -250,11 +294,22 @@ pub fn TenantsPage() -> impl IntoView {
                                                             </td>
                                                             <td>
                                                                 <Show when=move || can_toggle>
-                                                                    <ActionForm action=toggle>
-                                                                        <input type="hidden" name="id" value=t.id.to_string() />
-                                                                        <input type="hidden" name="action" value=action />
+                                                                    <form
+                                                                        method="post"
+                                                                        onsubmit="return false"
+                                                                        on:submit={
+                                                                            let id = t.id.to_string();
+                                                                            move |ev: leptos::ev::SubmitEvent| {
+                                                                                ev.prevent_default();
+                                                                                toggle.dispatch(SetTenantStatus {
+                                                                                    id: id.clone(),
+                                                                                    action: action.to_string(),
+                                                                                });
+                                                                            }
+                                                                        }
+                                                                    >
                                                                         <button type="submit" class="btn">{label}</button>
-                                                                    </ActionForm>
+                                                                    </form>
                                                                 </Show>
                                                             </td>
                                                         </tr>
@@ -295,7 +350,16 @@ pub fn TenantsPage() -> impl IntoView {
         </Transition>
 
         <h2 style="margin-top: 24px">"Новая организация"</h2>
-        <ActionForm action=create node_ref=create_form attr:class="card">
+        <form
+            node_ref=create_form
+            class="card"
+            method="post"
+            onsubmit="return false"
+            on:submit=move |ev| {
+                ev.prevent_default();
+                create.dispatch(CreateTenant::from_fields(&form_fields(&ev)));
+            }
+        >
             <div class="form-grid">
                 <label>
                     "Адрес (slug)"
@@ -320,6 +384,6 @@ pub fn TenantsPage() -> impl IntoView {
                     "Создать организацию"
                 </button>
             </p>
-        </ActionForm>
+        </form>
     }
 }
