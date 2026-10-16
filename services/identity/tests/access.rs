@@ -64,7 +64,8 @@ impl World {
             .ctx
             .send("GET", "/users", Some(&self.owner), Value::Null)
             .await;
-        list.as_array()
+        list["items"]
+            .as_array()
             .unwrap()
             .iter()
             .find(|u| u["email"] == "owner@a.io")
@@ -95,7 +96,7 @@ async fn the_only_owner_cannot_demote_themselves() {
         .ctx
         .send("GET", "/users", Some(&w.owner), Value::Null)
         .await;
-    assert_eq!(list[0]["roles"], json!(["owner"]));
+    assert_eq!(list["items"][0]["roles"], json!(["owner"]));
     w.ctx.close().await;
 }
 

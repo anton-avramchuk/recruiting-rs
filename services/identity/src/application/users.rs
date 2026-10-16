@@ -1,3 +1,4 @@
+use grid_contracts::{GridPage, GridQuery, SortKey};
 use platform_auth::{Role, password};
 use platform_core::tenant::TenantId;
 use platform_db::TenantTx;
@@ -27,6 +28,17 @@ pub enum UserError {
     Db(#[from] sqlx::Error),
     #[error("internal: {0}")]
     Internal(String),
+    #[error(transparent)]
+    Grid(#[from] platform_grid::GridError),
+}
+
+impl From<platform_grid::FetchError> for UserError {
+    fn from(e: platform_grid::FetchError) -> Self {
+        match e {
+            platform_grid::FetchError::Grid(e) => UserError::Grid(e),
+            platform_grid::FetchError::Db(e) => UserError::Db(e),
+        }
+    }
 }
 
 pub struct NewUser {
@@ -55,11 +67,26 @@ impl UserService {
         Self { pool }
     }
 
-    pub async fn list(&self, tenant: TenantId) -> Result<Vec<User>, UserError> {
+    /// Страница пользователей организации; сортировка по умолчанию - по email.
+    pub async fn list(
+        &self,
+        tenant: TenantId,
+        mut query: GridQuery,
+    ) -> Result<GridPage<User>, UserError> {
+        if query.sort.is_empty() {
+            query.sort.push(SortKey::asc("email"));
+        }
         let mut tx = TenantTx::begin(&self.pool, tenant).await?;
-        let list = users::list(&mut tx).await?;
+        let page = users::page(&mut tx, &query).await;
         tx.rollback().await?;
-        Ok(list)
+        Ok(page?)
+    }
+
+    pub async fn get(&self, tenant: TenantId, id: Uuid) -> Result<User, UserError> {
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        let user = users::find_by_id(&mut tx, id).await?;
+        tx.rollback().await?;
+        user.ok_or(UserError::NotFound)
     }
 
     pub async fn create(&self, tenant: TenantId, new: NewUser) -> Result<User, UserError> {

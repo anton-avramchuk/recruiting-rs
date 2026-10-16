@@ -167,7 +167,7 @@ async fn owner_cannot_block_themselves() {
         .ctx
         .send("GET", "/users", Some(&w.owner_a), Value::Null)
         .await;
-    let me = list
+    let me = list["items"]
         .as_array()
         .unwrap()
         .iter()
@@ -195,7 +195,7 @@ async fn management_is_confined_to_the_owners_tenant() {
         .send("GET", "/users", Some(&w.owner_a), Value::Null)
         .await;
     assert_eq!(s, 200);
-    let emails: Vec<_> = list
+    let emails: Vec<_> = list["items"]
         .as_array()
         .unwrap()
         .iter()
@@ -208,7 +208,7 @@ async fn management_is_confined_to_the_owners_tenant() {
         .ctx
         .send("GET", "/users", Some(&w.owner_a), Value::Null)
         .await;
-    let victim = list_a[1]["id"].as_str().unwrap();
+    let victim = list_a["items"][1]["id"].as_str().unwrap();
     let (s, _) = w
         .ctx
         .send(
@@ -223,7 +223,7 @@ async fn management_is_confined_to_the_owners_tenant() {
         .ctx
         .send("GET", "/users", Some(&w.owner_b), Value::Null)
         .await;
-    assert_eq!(list_b.as_array().unwrap().len(), 1);
+    assert_eq!(list_b["items"].as_array().unwrap().len(), 1);
     // и пользователь A по-прежнему активен
     let n: i64 =
         sqlx::query_scalar("SELECT count(*) FROM users WHERE tenant_id = $1 AND status = 'active'")

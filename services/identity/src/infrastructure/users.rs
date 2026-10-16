@@ -1,5 +1,7 @@
+use grid_contracts::{GridPage, GridQuery};
 use platform_auth::Role;
 use platform_core::tenant::TenantId;
+use platform_grid::{ColumnType, FetchError, GridColumn, GridSchema, fetch_page};
 use sqlx::{FromRow, PgConnection};
 use uuid::Uuid;
 
@@ -54,11 +56,39 @@ pub async fn find_by_id(conn: &mut PgConnection, id: Uuid) -> Result<Option<User
     Ok(row.and_then(UserRow::into_domain))
 }
 
-pub async fn list(conn: &mut PgConnection) -> Result<Vec<User>, sqlx::Error> {
-    let rows: Vec<UserRow> = sqlx::query_as(&format!("SELECT {COLUMNS} FROM users ORDER BY email"))
-        .fetch_all(conn)
-        .await?;
-    Ok(rows.into_iter().filter_map(UserRow::into_domain).collect())
+/// Поля списка пользователей, доступные клиенту (белый список грида). Хеш пароля в схему не входит.
+const GRID_COLUMNS: &[GridColumn] = &[
+    GridColumn::new("id", "id", ColumnType::Uuid),
+    GridColumn::new("email", "email", ColumnType::Text),
+    GridColumn::new("display_name", "display_name", ColumnType::Text),
+    GridColumn::new("status", "status", ColumnType::Text),
+    GridColumn::new("role", "array_to_string(roles, ',')", ColumnType::Text).no_sort(),
+    GridColumn::new("created_at", "created_at", ColumnType::Timestamp),
+];
+
+const GRID: GridSchema = GridSchema {
+    source: "users",
+    key: "id",
+    columns: GRID_COLUMNS,
+    max_page_size: 100,
+};
+
+/// Страница пользователей тенанта (изоляция - за RLS соединения).
+pub async fn page(
+    conn: &mut PgConnection,
+    query: &GridQuery,
+) -> Result<GridPage<User>, FetchError> {
+    let page: GridPage<UserRow> = fetch_page(conn, &GRID, COLUMNS, query).await?;
+    Ok(GridPage {
+        items: page
+            .items
+            .into_iter()
+            .filter_map(UserRow::into_domain)
+            .collect(),
+        total: page.total,
+        page: page.page,
+        page_size: page.page_size,
+    })
 }
 
 pub async fn insert(conn: &mut PgConnection, user: &User) -> Result<(), sqlx::Error> {

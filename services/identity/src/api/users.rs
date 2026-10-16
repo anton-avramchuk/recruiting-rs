@@ -1,9 +1,10 @@
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
-    routing::{get, patch},
+    routing::get,
 };
+use grid_contracts::{GridPage, GridQuery};
 use platform_auth::{AuthUser, Permission, Role};
 use platform_core::{
     error::{ApiError, ProblemDetails},
@@ -21,7 +22,7 @@ use crate::{
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/users", get(list).post(create))
-        .route("/users/{id}", patch(update))
+        .route("/users/{id}", get(get_one).patch(update))
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -50,18 +51,49 @@ fn tenant_of(user: &AuthUser) -> Result<TenantId, ApiError> {
     user.claims.tid.ok_or_else(ApiError::forbidden)
 }
 
-#[utoipa::path(get, path = "/users", security(("bearer" = [])), responses(
-    (status = 200, body = Vec<UserDto>),
+/// Параметры списка: `page`, `page_size`, `sort` (`поле:asc,поле:desc`), `filter` (JSON).
+#[utoipa::path(get, path = "/users", security(("bearer" = [])), params(
+    ("page" = Option<u32>, Query, description = "Страница, с 1"),
+    ("page_size" = Option<u32>, Query, description = "Размер страницы, до 100"),
+    ("sort" = Option<String>, Query, description = "Сортировка: поле:asc,поле:desc"),
+    ("filter" = Option<String>, Query, description = "Фильтр грида (JSON)"),
+), responses(
+    (status = 200, body = GridPage<UserDto>),
+    (status = 400, body = ProblemDetails, content_type = "application/problem+json"),
     (status = 401, body = ProblemDetails, content_type = "application/problem+json"),
     (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
 ))]
 pub(super) async fn list(
     State(state): State<AppState>,
     user: AuthUser,
-) -> Result<Json<Vec<UserDto>>, ApiError> {
+    Query(params): Query<Vec<(String, String)>>,
+) -> Result<Json<GridPage<UserDto>>, ApiError> {
     user.require(Permission::ManageUsers)?;
-    let users = state.users.list(tenant_of(&user)?).await?;
-    Ok(Json(users.into_iter().map(Into::into).collect()))
+    let query = GridQuery::from_pairs(params.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+        .map_err(platform_grid::GridError::from)?;
+    let page = state.users.list(tenant_of(&user)?, query).await?;
+    Ok(Json(GridPage {
+        items: page.items.into_iter().map(Into::into).collect(),
+        total: page.total,
+        page: page.page,
+        page_size: page.page_size,
+    }))
+}
+
+#[utoipa::path(get, path = "/users/{id}", security(("bearer" = [])),
+    params(("id" = Uuid, Path, description = "User id")), responses(
+    (status = 200, body = UserDto),
+    (status = 401, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 404, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn get_one(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<UserDto>, ApiError> {
+    user.require(Permission::ManageUsers)?;
+    Ok(Json(state.users.get(tenant_of(&user)?, id).await?.into()))
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -151,6 +183,7 @@ impl From<UserError> for ApiError {
             UserError::NotFound => ApiError::not_found(),
             UserError::Db(e) => ApiError::internal(&e),
             UserError::Internal(m) => ApiError::internal(&std::io::Error::other(m)),
+            UserError::Grid(e) => e.into(),
         }
     }
 }

@@ -1,0 +1,22 @@
+[package]
+name = "platform-grid"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+grid-contracts = { path = "../grid-contracts" }
+platform-core = { path = "../platform-core" }
+platform-db = { path = "../platform-db" }
+chrono.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+platform-db = { path = "../platform-db", features = ["test-support"] }
+tokio.workspace = true
+
+[lints]
+workspace = true

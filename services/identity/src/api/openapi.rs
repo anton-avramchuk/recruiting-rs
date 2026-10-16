@@ -15,6 +15,7 @@ use crate::application::auth::TokenPair;
         auth::refresh,
         auth::logout,
         users::list,
+        users::get_one,
         users::create,
         users::update,
         internal::ensure_owner,

@@ -224,3 +224,28 @@ async fn user_changes_go_to_identity_only_with_the_csrf_token() {
     assert_eq!(ok.status, 200);
     assert_eq!(w.upstream.api_calls.load(Ordering::SeqCst), before + 1);
 }
+
+#[tokio::test]
+async fn grid_parameters_reach_identity_unchanged() {
+    let w = world(None).await;
+    let login = w
+        .client
+        .send(
+            "POST",
+            "/bff/login",
+            &[("x-csrf-token", "x")],
+            Some(creds(Some("acme"))),
+        )
+        .await;
+    assert_eq!(login.status, 200);
+    let query = "page=2&page_size=50&sort=email%3Adesc&filter=%7B%22field%22%3A%22status%22%2C%22operator%22%3A%22eq%22%2C%22value%22%3A%22blocked%22%7D";
+    let res = w
+        .client
+        .send("GET", &format!("/api/users?{query}"), &[], None)
+        .await;
+    assert_eq!(res.status, 200);
+    assert_eq!(
+        w.upstream.last_query.lock().unwrap().as_deref(),
+        Some(query)
+    );
+}

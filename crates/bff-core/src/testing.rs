@@ -30,6 +30,8 @@ pub struct Upstream {
     pub api_calls: Arc<AtomicUsize>,
     pub last_auth_header: Arc<Mutex<Option<String>>>,
     pub last_login_body: Arc<Mutex<Option<Value>>>,
+    /// Строка запроса последнего вызова API (после `?`).
+    pub last_query: Arc<Mutex<Option<String>>>,
     pub access_ttl_secs: Arc<Mutex<i64>>,
     /// Если задан - refresh отвечает этим статусом.
     pub refresh_status: Arc<Mutex<Option<u16>>>,
@@ -105,9 +107,11 @@ impl Upstream {
         }
         async fn users(
             State(u): State<Upstream>,
+            uri: axum::http::Uri,
             headers: HeaderMap,
         ) -> (StatusCode, HeaderMap, Json<Value>) {
             u.api_calls.fetch_add(1, Ordering::SeqCst);
+            *u.last_query.lock().unwrap() = uri.query().map(str::to_string);
             let auth = headers
                 .get("authorization")
                 .and_then(|v| v.to_str().ok())

@@ -3,11 +3,15 @@
 /// Шаблон «содержит» с экранированием: `%`, `_` и `\` в запросе пользователя ищутся буквально.
 /// В SQL используйте `ILIKE $n ESCAPE '\'`.
 pub fn contains_pattern(query: &str) -> String {
-    let escaped = query
+    format!("%{}%", escape_like(query))
+}
+
+/// Экранирует `%`, `_` и `\` для `LIKE ... ESCAPE '\'`, чтобы они искались буквально.
+pub fn escape_like(query: &str) -> String {
+    query
         .replace('\\', "\\\\")
         .replace('%', "\\%")
-        .replace('_', "\\_");
-    format!("%{escaped}%")
+        .replace('_', "\\_")
 }
 
 #[cfg(test)]

@@ -3,7 +3,7 @@ mod like;
 mod pool;
 mod tx;
 
-pub use like::contains_pattern;
+pub use like::{contains_pattern, escape_like};
 pub use pool::{connect, migrate};
 pub use tx::TenantTx;
 
