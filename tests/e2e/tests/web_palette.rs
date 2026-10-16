@@ -376,3 +376,33 @@ async fn a_viewer_has_no_write_commands_and_no_write_shortcuts() {
     .unwrap();
     stack.stop().await;
 }
+
+#[tokio::test]
+async fn a_client_is_found_in_the_palette_and_opens_its_card() {
+    let (stack, _) = seed().await;
+    let base = stack.web_crm_url.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let browser = launch();
+        let tab = browser.new_tab().unwrap();
+        login_crm(&tab, &base, "acme", OWNER.0, OWNER.1);
+        std::thread::sleep(Duration::from_millis(1500));
+
+        open_palette(&tab);
+        tab.type_str("платф").unwrap();
+        wait_until(
+            &tab,
+            "client found",
+            "Array.from(document.querySelectorAll('[data-testid=palette-item]')).some(e => e.innerText.includes('Платформа'))",
+        );
+        assert!(items(&tab).to_lowercase().contains("заказчики"), "{}", items(&tab));
+        // клиент идёт первой найденной строкой: команды по такому запросу не находятся
+        tab.press_key("Enter").unwrap();
+        wait_until(&tab, "client card", "location.pathname.startsWith('/clients/')");
+        wait_until(&tab, "title", "document.querySelector('[data-testid=client-title]') !== null");
+        assert_eq!(text(&tab, "[data-testid=client-title]").trim(), "Платформа");
+    })
+    .await
+    .unwrap();
+    stack.stop().await;
+}

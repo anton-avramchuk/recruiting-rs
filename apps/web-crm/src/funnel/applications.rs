@@ -15,11 +15,15 @@ use super::{
         AppQuery, Reply, application_action, bulk_applications, list_applications, list_vacancies,
     },
 };
-use crate::candidates::{
-    format::format_salary,
-    list::{DebouncedInput, can_write},
-};
 use crate::palette::view::{overlay_check, typing_in_a_field, with_press};
+use crate::{
+    candidates::{
+        format::format_salary,
+        list::{DebouncedInput, can_write},
+        server::uuid_like,
+    },
+    clients::server::list_clients,
+};
 
 const PAGE_SIZE: i64 = 50;
 
@@ -33,6 +37,14 @@ pub fn ApplicationsPage() -> impl IntoView {
     let (source, set_source) = signal(String::new());
     let vacancy = RwSignal::new(String::new());
     let stage = RwSignal::new(String::new());
+    // заказчик из адреса `?client_id=…` (мусор вместо идентификатора игнорируется)
+    let client = RwSignal::new(
+        leptos_router::hooks::use_query_map()
+            .get_untracked()
+            .get("client_id")
+            .filter(|id| id.parse::<uuid_like::Id>().is_ok())
+            .unwrap_or_default(),
+    );
     // «Только просроченные» можно включить ссылкой со страницы «Сегодня»: `?overdue=1`
     let overdue = RwSignal::new(
         leptos_router::hooks::use_query_map()
@@ -49,6 +61,7 @@ pub fn ApplicationsPage() -> impl IntoView {
     let notice = RwSignal::new(None::<(bool, String)>);
 
     let vacancies = Resource::new(|| (), |_| list_vacancies());
+    let clients = Resource::new(|| (), |_| list_clients(String::new(), true));
     let results = Resource::new(
         move || {
             (
@@ -60,13 +73,15 @@ pub fn ApplicationsPage() -> impl IntoView {
                 desc.get(),
                 page.get(),
                 overdue.get(),
+                client.get(),
                 ctx.version.get(),
             )
         },
-        |(q, source, vacancy_id, stage, sort, desc, page, overdue, _)| {
+        |(q, source, vacancy_id, stage, sort, desc, page, overdue, client_id, _)| {
             list_applications(AppQuery {
                 overdue,
                 vacancy_id,
+                client_id,
                 stage,
                 source,
                 q,
@@ -82,6 +97,7 @@ pub fn ApplicationsPage() -> impl IntoView {
             || !source.get().trim().is_empty()
             || !vacancy.get().is_empty()
             || !stage.get().is_empty()
+            || !client.get().is_empty()
             || overdue.get()
     };
 
@@ -140,6 +156,7 @@ pub fn ApplicationsPage() -> impl IntoView {
             desc.get(),
             page.get(),
             overdue.get(),
+            client.get(),
         );
         cursor.set(None);
     });
@@ -312,6 +329,34 @@ pub fn ApplicationsPage() -> impl IntoView {
                 </Transition>
             </select>
             <select
+                aria-label="Заказчик"
+                data-testid="filter-client"
+                prop:value=move || client.get()
+                on:change=move |ev| {
+                    client.set(event_target_value(&ev));
+                    set_page.set(1);
+                }
+            >
+                <option value="">"Все заказчики"</option>
+                <Transition fallback=|| ()>
+                    {move || {
+                        clients
+                            .get()
+                            .and_then(Result::ok)
+                            .and_then(Reply::ok)
+                            .map(|list| {
+                                list.into_iter()
+                                    .map(|c| {
+                                        let label = if c.archived { format!("{} (архив)", c.name) } else { c.name.clone() };
+                                        let id = c.id.to_string();
+                                        view! { <option value=id.clone() selected=move || client.get() == id>{label}</option> }
+                                    })
+                                    .collect_view()
+                            })
+                    }}
+                </Transition>
+            </select>
+            <select
                 aria-label="Этап"
                 data-testid="filter-stage"
                 prop:value=move || stage.get()
@@ -347,6 +392,7 @@ pub fn ApplicationsPage() -> impl IntoView {
                         set_source.set(String::new());
                         vacancy.set(String::new());
                         stage.set(String::new());
+                        client.set(String::new());
                         overdue.set(false);
                         set_page.set(1);
                         epoch.update(|e| *e += 1);

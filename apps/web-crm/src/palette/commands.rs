@@ -3,6 +3,7 @@
 /// Предел строк в палитре.
 pub const MAX_ROWS: usize = 14;
 /// Предел вакансий и людей в результатах поиска.
+pub const MAX_CLIENTS: usize = 3;
 pub const MAX_VACANCIES: usize = 4;
 pub const MAX_PEOPLE: usize = 7;
 
@@ -10,6 +11,7 @@ pub const MAX_PEOPLE: usize = 7;
 pub enum Group {
     Actions,
     Navigation,
+    Clients,
     Vacancies,
     People,
     Settings,
@@ -20,6 +22,7 @@ impl Group {
         match self {
             Group::Actions => "Действия",
             Group::Navigation => "Переход",
+            Group::Clients => "Заказчики",
             Group::Vacancies => "Вакансии",
             Group::People => "Люди",
             Group::Settings => "Настройки",
@@ -155,8 +158,14 @@ fn registry() -> Vec<Command> {
 }
 
 /// Строки палитры для запроса. Команды фильтруются по вхождению без учёта регистра;
-/// при непустом запросе добавляются найденные вакансии и люди.
-pub fn results(query: &str, can_write: bool, vacancies: &[Hit], people: &[Hit]) -> Vec<Entry> {
+/// при непустом запросе добавляются найденные заказчики, вакансии и люди.
+pub fn results(
+    query: &str,
+    can_write: bool,
+    clients: &[Hit],
+    vacancies: &[Hit],
+    people: &[Hit],
+) -> Vec<Entry> {
     let q = query.trim().to_lowercase();
     let mut rows: Vec<Entry> = registry()
         .into_iter()
@@ -171,6 +180,12 @@ pub fn results(query: &str, can_write: bool, vacancies: &[Hit], people: &[Hit]) 
         })
         .collect();
     if !q.is_empty() {
+        rows.extend(clients.iter().take(MAX_CLIENTS).map(|h| Entry {
+            title: h.title.clone(),
+            hint: h.meta.clone(),
+            group: Group::Clients,
+            target: Target::Go(format!("/clients/{}", h.id)),
+        }));
         rows.extend(vacancies.iter().take(MAX_VACANCIES).map(|h| Entry {
             title: h.title.clone(),
             hint: h.meta.clone(),
@@ -219,7 +234,7 @@ mod tests {
 
     #[test]
     fn an_empty_query_lists_actions_and_navigation_in_groups() {
-        let rows = results("", true, &[], &[]);
+        let rows = results("", true, &[], &[], &[]);
         assert_eq!(rows[0].group, Group::Actions);
         assert!(titles(&rows).contains(&"Аналитика найма"));
         assert!(titles(&rows).contains(&"Горячие клавиши"));
@@ -232,7 +247,7 @@ mod tests {
     #[test]
     fn the_theme_command_is_in_settings_for_every_role() {
         for can_write in [true, false] {
-            let rows = results("тему", can_write, &[], &[]);
+            let rows = results("тему", can_write, &[], &[], &[]);
             assert_eq!(titles(&rows), ["Переключить тему"]);
             assert_eq!(rows[0].group, Group::Settings);
             assert_eq!(rows[0].target, Target::ToggleTheme);
@@ -241,14 +256,14 @@ mod tests {
 
     #[test]
     fn the_filter_matches_a_substring_ignoring_case() {
-        let rows = results("  АНАЛИТ ", true, &[], &[]);
+        let rows = results("  АНАЛИТ ", true, &[], &[], &[]);
         assert_eq!(titles(&rows), ["Аналитика найма"]);
         assert_eq!(rows[0].target, Target::Go("/analytics".into()));
     }
 
     #[test]
     fn a_viewer_gets_no_commands_that_change_data() {
-        let rows = results("", false, &[], &[]);
+        let rows = results("", false, &[], &[], &[]);
         for banned in [
             "Разобрать отклики",
             "Добавить кандидата",
@@ -258,7 +273,7 @@ mod tests {
             assert!(!titles(&rows).contains(&banned), "{banned}");
         }
         assert!(titles(&rows).contains(&"Сегодня"));
-        assert!(results("импорт", false, &[], &[]).is_empty());
+        assert!(results("импорт", false, &[], &[], &[]).is_empty());
     }
 
     #[test]
@@ -266,6 +281,7 @@ mod tests {
         let rows = results(
             "а",
             true,
+            &[],
             &[hit("v1", "Аналитик")],
             &[hit("p1", "Анна Смирнова")],
         );
@@ -277,11 +293,40 @@ mod tests {
     }
 
     #[test]
+    fn found_clients_come_before_vacancies_and_open_their_card() {
+        let rows = results(
+            "а",
+            true,
+            &[hit("c1", "Acme")],
+            &[hit("v1", "Аналитик")],
+            &[hit("p1", "Анна")],
+        );
+        let tail: Vec<_> = rows.iter().rev().take(3).map(|r| r.group).collect();
+        assert_eq!(tail, [Group::People, Group::Vacancies, Group::Clients]);
+        let client = rows.iter().find(|r| r.group == Group::Clients).unwrap();
+        assert_eq!(client.target, Target::Go("/clients/c1".into()));
+        assert_eq!(client.title, "Acme");
+    }
+
+    #[test]
+    fn at_most_three_clients_are_shown() {
+        let many: Vec<_> = (0..9).map(|i| hit(&i.to_string(), "Компания")).collect();
+        let rows = results("zzz", true, &many, &[], &[]);
+        assert_eq!(rows.iter().filter(|r| r.group == Group::Clients).count(), 3);
+    }
+
+    #[test]
     fn hits_are_ignored_without_a_query() {
-        let rows = results("   ", true, &[hit("v", "Go")], &[hit("p", "Анна")]);
+        let rows = results(
+            "   ",
+            true,
+            &[hit("c", "Acme")],
+            &[hit("v", "Go")],
+            &[hit("p", "Анна")],
+        );
         assert!(
             rows.iter()
-                .all(|r| r.group != Group::People && r.group != Group::Vacancies)
+                .all(|r| !matches!(r.group, Group::People | Group::Vacancies | Group::Clients))
         );
     }
 
@@ -289,27 +334,27 @@ mod tests {
     fn limits_are_four_vacancies_seven_people_fourteen_rows() {
         let vacancies: Vec<_> = (0..9).map(|i| hit(&format!("v{i}"), "В")).collect();
         let people: Vec<_> = (0..20).map(|i| hit(&format!("p{i}"), "Л")).collect();
-        let rows = results("zzz", true, &vacancies, &people);
+        let rows = results("zzz", true, &[], &vacancies, &people);
         assert_eq!(
             rows.iter().filter(|r| r.group == Group::Vacancies).count(),
             4
         );
         assert_eq!(rows.iter().filter(|r| r.group == Group::People).count(), 7);
-        assert!(results("", true, &vacancies, &people).len() <= MAX_ROWS);
+        assert!(results("", true, &[], &vacancies, &people).len() <= MAX_ROWS);
         // «а» совпадает с несколькими командами, общий предел всё равно держится
-        assert!(results("а", true, &vacancies, &people).len() <= MAX_ROWS);
+        assert!(results("а", true, &[], &vacancies, &people).len() <= MAX_ROWS);
     }
 
     #[test]
     fn the_total_is_capped_when_everything_matches() {
         let many: Vec<_> = (0..9).map(|i| hit(&i.to_string(), "х")).collect();
-        let rows = results("о", true, &many, &many);
+        let rows = results("о", true, &many, &many, &many);
         assert_eq!(rows.len(), MAX_ROWS);
     }
 
     #[test]
     fn nothing_found_is_an_empty_list() {
-        assert!(results("qqqq", true, &[], &[]).is_empty());
+        assert!(results("qqqq", true, &[], &[], &[]).is_empty());
     }
 
     #[test]

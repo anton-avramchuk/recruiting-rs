@@ -234,6 +234,8 @@ impl Sort {
 pub struct ApplicationFilter {
     pub id: Option<Uuid>,
     pub vacancy_id: Option<Uuid>,
+    /// Заказчик вакансии отклика.
+    pub client_id: Option<Uuid>,
     pub person_id: Option<Uuid>,
     pub stage: Option<Stage>,
     pub source: Option<String>,
@@ -282,9 +284,11 @@ fn rows_sql() -> String {
           AND ($4::uuid IS NULL OR a.person_id = $4)
           AND ($5::text IS NULL OR a.stage = $5)
           AND ($6::text IS NULL OR lower(p.source) = lower($6))
+          AND ($11::uuid IS NULL OR v.client_id = $11)
           AND ($7::text IS NULL
                OR p.full_name ILIKE $7 ESCAPE '\'
                OR v.title ILIKE $7 ESCAPE '\'
+               OR EXISTS (SELECT 1 FROM clients c WHERE c.client_id = v.client_id AND c.name ILIKE $7 ESCAPE '\')
                OR p.city ILIKE $7 ESCAPE '\'
                OR p.email ILIKE $7 ESCAPE '\'
                OR array_to_string(p.skills, ' ') ILIKE $7 ESCAPE '\')
@@ -325,6 +329,7 @@ pub async fn rows(
     .bind(limit)
     .bind(offset)
     .bind(filter.overdue)
+    .bind(filter.client_id)
     .fetch_all(conn)
     .await?;
     let total = rows.first().map_or(0, |r| r.total);

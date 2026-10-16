@@ -74,6 +74,8 @@ pub(crate) fn typed<T: serde::de::DeserializeOwned>(body: &serde_json::Value) ->
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppQuery {
     pub vacancy_id: String,
+    /// Заказчик вакансии; пусто - все.
+    pub client_id: String,
     pub stage: String,
     pub source: String,
     pub q: String,
@@ -112,6 +114,7 @@ pub async fn list_applications(query: AppQuery) -> Result<Reply<ApplicationPage>
     );
     for (name, value) in [
         ("vacancy_id", query.vacancy_id.trim()),
+        ("client_id", query.client_id.trim()),
         ("stage", query.stage.trim()),
         ("source", query.source.trim()),
         ("q", query.q.trim()),

@@ -5,7 +5,7 @@ use leptos::{prelude::*, task::spawn_local};
 use leptos_router::{NavigateOptions, hooks::use_navigate};
 
 use super::{
-    commands::{Entry, Hit, MAX_PEOPLE, Target, match_vacancies, results},
+    commands::{Entry, Hit, MAX_CLIENTS, MAX_PEOPLE, Target, match_vacancies, results},
     keys::{CHEATSHEET, Press, Sequence, Shortcut},
 };
 use crate::{
@@ -209,6 +209,28 @@ fn person_hit(p: candidate_contracts::PersonSummaryDto) -> Hit {
     }
 }
 
+/// Заказчики по запросу; при ошибке сервиса — пусто, команды остаются доступны.
+async fn find_clients(q: String) -> Vec<Hit> {
+    if q.trim().is_empty() {
+        return Vec::new();
+    }
+    match crate::clients::server::list_clients(q, false).await {
+        Ok(crate::funnel::server::Reply::Ok(list)) => list
+            .into_iter()
+            .take(MAX_CLIENTS)
+            .map(|c| Hit {
+                id: c.id.to_string(),
+                title: c.name,
+                meta: match c.contacts_count {
+                    0 => String::new(),
+                    n => format!("{n} конт."),
+                },
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
 /// Люди по запросу; при ошибке сервиса — пусто, команды остаются доступны.
 async fn find_people(q: String) -> Vec<Hit> {
     if q.trim().is_empty() {
@@ -238,6 +260,7 @@ fn PaletteDialog(palette: PaletteCtx, writable: Signal<bool>) -> impl IntoView {
     let selected = RwSignal::new(0usize);
     let all_vacancies = RwSignal::new(Vec::<Hit>::new());
     let people = RwSignal::new(Vec::<Hit>::new());
+    let found_clients = RwSignal::new(Vec::<Hit>::new());
     let generation = RwSignal::new(0u32);
     let input = NodeRef::<leptos::html::Input>::new();
     let nav = StoredValue::new_local(use_navigate());
@@ -284,6 +307,7 @@ fn PaletteDialog(palette: PaletteCtx, writable: Signal<bool>) -> impl IntoView {
         results(
             &query.get(),
             writable.get(),
+            &found_clients.get(),
             &vacancies.get(),
             &people.get(),
         )
@@ -305,6 +329,7 @@ fn PaletteDialog(palette: PaletteCtx, writable: Signal<bool>) -> impl IntoView {
         selected.set(0);
         if value.trim().is_empty() {
             people.set(Vec::new());
+            found_clients.set(Vec::new());
         }
         query.set(value.clone());
         let current = generation.get_untracked() + 1;
@@ -315,10 +340,13 @@ fn PaletteDialog(palette: PaletteCtx, writable: Signal<bool>) -> impl IntoView {
                     return;
                 }
                 spawn_local(async move {
-                    let hits = find_people(value).await;
+                    // заказчики и люди ищутся независимо: сбой одного поиска не прячет другой
+                    let (clients_hits, people_hits) =
+                        (find_clients(value.clone()).await, find_people(value).await);
                     // ответ на устаревший запрос отбрасывается
                     if generation.try_get_untracked() == Some(current) {
-                        people.try_set(hits);
+                        found_clients.try_set(clients_hits);
+                        people.try_set(people_hits);
                     }
                 });
             },

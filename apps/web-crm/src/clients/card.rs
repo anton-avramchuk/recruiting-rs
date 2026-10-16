@@ -206,6 +206,9 @@ fn Card(
             <h1 data-testid="client-title">{client.name.clone()}</h1>
             <div class="page-header__actions">
             <A href="/clients" attr:class="btn">"К списку"</A>
+            <A href=format!("/applications?client_id={}", client.id) attr:class="btn" attr:data-testid="client-applications">
+                "Отклики заказчика"
+            </A>
             {archived.then(|| view! { <span class="chip" data-testid="archived-chip">"архив"</span> })}
             <Show when=move || writable.get()>
                 <button

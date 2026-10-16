@@ -332,3 +332,89 @@ async fn a_viewer_reads_clients_but_cannot_change_them() {
     .unwrap();
     stack.stop().await;
 }
+
+#[tokio::test]
+async fn applications_can_be_filtered_by_client_from_the_card_and_the_screen() {
+    let stack = world().await;
+    let owner = stack.crm_client("acme", OWNER.0, OWNER.1).await;
+    let acme = stack.add_client(&owner, "Acme Corp").await;
+    let globex = stack.add_client(&owner, "Globex").await;
+    for (client, title, people) in [
+        (&acme, "Senior Go", ["Анна Смирнова", "Борис Иванов"]),
+        (&globex, "QA инженер", ["Вера Орлова", "Глеб Петров"]),
+    ] {
+        let vacancy: serde_json::Value = owner
+            .post(
+                "/api/vacancies",
+                json!({"title": title, "client_id": client}),
+            )
+            .await
+            .json()
+            .await
+            .unwrap();
+        for name in people {
+            let person: serde_json::Value = owner
+                .post("/api/persons", json!({"full_name": name}))
+                .await
+                .json()
+                .await
+                .unwrap();
+            let res = owner
+                .post(
+                    "/api/applications",
+                    json!({"person_id": person["id"], "vacancy_id": vacancy["id"]}),
+                )
+                .await;
+            assert_eq!(res.status(), 201);
+        }
+    }
+    let base = stack.web_crm_url.clone();
+    let acme_id = acme.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let browser = launch();
+        let tab = browser.new_tab().unwrap();
+        sign_in(&tab, &base, OWNER);
+
+        // с карточки заказчика - к его откликам
+        tab.navigate_to(&format!("{base}/clients/{acme_id}")).unwrap();
+        wait_until(&tab, "card", &exists_js("[data-testid=client-applications]"));
+        std::thread::sleep(Duration::from_millis(1200));
+        click(&tab, "[data-testid=client-applications]");
+        wait_until(&tab, "applications", "location.pathname === '/applications'");
+        wait_count(&tab, "two rows of the client", "[data-testid=app-row]", 2);
+        assert_eq!(
+            eval_str(&tab, "document.querySelector('[data-testid=filter-client]').value"),
+            acme_id
+        );
+        let rows = text(&tab, "[data-testid=applications]");
+        assert!(rows.contains("Анна Смирнова") && !rows.contains("Вера Орлова"), "{rows}");
+        set_marker(&tab);
+
+        // другой заказчик на экране
+        choose(&tab, "[data-testid=filter-client]", "Globex");
+        wait_until(
+            &tab,
+            "globex rows",
+            "document.querySelector('[data-testid=applications]').innerText.includes('Вера Орлова')              && !document.querySelector('[data-testid=applications]').innerText.includes('Анна Смирнова')",
+        );
+        assert!(marker_alive(&tab), "no reload");
+
+        // поиск по названию заказчика находит отклики на его вакансии
+        choose(&tab, "[data-testid=filter-client]", "Все заказчики");
+        wait_count(&tab, "all rows", "[data-testid=app-row]", 4);
+        type_into(&tab, "[data-testid=search]", "acme");
+        wait_count(&tab, "found by client name", "[data-testid=app-row]", 2);
+
+        // сброс возвращает всё
+        click(&tab, "[data-testid=reset-filters]");
+        wait_count(&tab, "after reset", "[data-testid=app-row]", 4);
+        assert_eq!(
+            eval_str(&tab, "document.querySelector('[data-testid=filter-client]').value"),
+            ""
+        );
+    })
+    .await
+    .unwrap();
+    stack.stop().await;
+}

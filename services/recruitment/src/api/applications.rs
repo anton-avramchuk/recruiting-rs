@@ -69,11 +69,13 @@ pub(super) async fn create(
 #[into_params(parameter_in = Query)]
 pub(super) struct ListParams {
     vacancy_id: Option<Uuid>,
+    /// Только отклики на вакансии этого заказчика.
+    client_id: Option<Uuid>,
     person_id: Option<Uuid>,
     /// Ключ этапа: `new`, `screening`, `hr`, `tech`, `final`, `offer`, `hired`, `rejected`.
     stage: Option<String>,
     source: Option<String>,
-    /// Поиск по имени, вакансии, городу, навыкам и email.
+    /// Поиск по имени, вакансии, названию заказчика, городу, навыкам и email.
     q: Option<String>,
     /// `age` (по умолчанию), `name`, `stage`, `match`, `salary`.
     sort: Option<String>,
@@ -127,6 +129,7 @@ pub(super) async fn list(
     let mut query = ListQuery::new(ApplicationFilter {
         id: None,
         vacancy_id: params.vacancy_id,
+        client_id: params.client_id,
         person_id: params.person_id,
         stage,
         source: params.source.filter(|s| !s.trim().is_empty()),
