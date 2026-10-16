@@ -76,6 +76,8 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/clients/:id") view=clients::card::ClientCardPage ssr=SsrMode::Async />
                     <Route path=path!("/analytics") view=analytics::AnalyticsPage ssr=SsrMode::Async />
                     <Route path=path!("/security") view=security::view::SecurityPage ssr=SsrMode::Async />
+                    <Route path=path!("/security/users/new") view=security::user::NewUserPage ssr=SsrMode::Async />
+                    <Route path=path!("/security/users/:id") view=security::user::UserPage ssr=SsrMode::Async />
                     <Route path=path!("/applications") view=funnel::applications::ApplicationsPage ssr=SsrMode::Async />
                 </ParentRoute>
             </Routes>

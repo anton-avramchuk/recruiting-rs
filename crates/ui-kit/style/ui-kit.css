@@ -206,6 +206,13 @@ kbd { font-family: var(--mono); font-size: 0.75rem; border: 1px solid var(--line
 .list-card { padding: 0; margin-bottom: 16px; overflow: hidden; }
 .pad { padding: 12px 14px; }
 .empty-inline { padding: 18px 14px; color: var(--ink-muted); }
+.tabs { display: flex; gap: 4px; margin: 0 0 16px; border-bottom: 1px solid var(--line); }
+.tabs .tab { padding: 8px 14px; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--ink-muted); text-decoration: none; font-weight: 600; }
+.tabs .tab:hover { color: var(--ink); }
+.tabs .tab[aria-current] { color: var(--ink); border-bottom-color: var(--accent, currentColor); }
+.badge { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-muted); }
+.badge--off { color: var(--danger); border-color: var(--danger); }
+.card.section + .card.section { margin-top: 12px; }
 .qrow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; background: none; border: 0; border-bottom: 1px solid var(--line); font: inherit; color: inherit; text-align: left; text-decoration: none; cursor: pointer; }
 .qrow:last-child { border-bottom: 0; }
 .qrow:hover { background: var(--bg); }

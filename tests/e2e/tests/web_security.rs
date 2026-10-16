@@ -47,6 +47,32 @@ fn sign_in(tab: &Tab, base: &str, user: (&str, &str)) {
     std::thread::sleep(Duration::from_millis(1500)); // гидратация
 }
 
+fn open_user(tab: &Tab, email: &str) {
+    click(tab, &format!("a[data-email='{email}']"));
+    wait_until(
+        tab,
+        "user page",
+        &exists_js("[data-testid=user-role-select]"),
+    );
+}
+
+fn back_to_users(tab: &Tab) {
+    click(tab, "[data-testid=back-to-users]");
+    wait_until(tab, "users list", &exists_js("[data-testid=users]"));
+}
+
+fn error_contains(part: &str) -> String {
+    format!(
+        "(document.querySelector('[data-testid=users-error]')||{{}}).innerText?.includes({part:?})"
+    )
+}
+
+fn ok_contains(part: &str) -> String {
+    format!(
+        "(document.querySelector('[data-testid=users-ok]')||{{}}).innerText?.includes({part:?})"
+    )
+}
+
 #[tokio::test]
 async fn the_owner_manages_users_end_to_end() {
     let stack = world().await;
@@ -59,110 +85,97 @@ async fn the_owner_manages_users_end_to_end() {
         set_marker(&tab);
 
         click(&tab, "nav a[href='/security']");
-        wait_until(&tab, "security page", &exists_js("[data-testid=user-email]"));
+        wait_until(&tab, "security page", &exists_js("[data-testid=user-new]"));
         wait_count(&tab, "two users", "[data-testid=user-row]", 2);
+        assert_eq!(eval(&tab, &count_js("[data-testid=security-tabs]")), 1);
 
-        // создание
+        // создание на отдельной странице
+        click(&tab, "[data-testid=user-new]");
+        wait_until(&tab, "new user page", &exists_js("[data-testid=user-email]"));
+        assert_eq!(path_of(&tab), "/security/users/new");
         type_into(&tab, "[data-testid=user-email]", NEW);
         type_into(&tab, "[data-testid=user-name]", "Новый");
         type_into(&tab, "[data-testid=user-password]", "new-password-1");
         click(&tab, "[data-testid=user-add]");
-        wait_until(&tab, "user added", &exists_js(&row(NEW, "")));
-        assert!(text(&tab, "[data-testid=users-ok]").contains("добавлен"));
-        assert_eq!(eval(&tab, &count_js("[data-testid=user-row]")), 3);
+        wait_until(&tab, "back on list", &exists_js("[data-testid=users]"));
+        wait_count(&tab, "three users", "[data-testid=user-row]", 3);
+        assert!(text(&tab, &row(NEW, "[data-testid=user-title]")).contains("Новый"));
 
-        // занятый email
+        // занятый email и слабый пароль: ошибка у формы, остаёмся на странице
+        click(&tab, "[data-testid=user-new]");
+        wait_until(&tab, "new user page", &exists_js("[data-testid=user-email]"));
         type_into(&tab, "[data-testid=user-email]", NEW);
         type_into(&tab, "[data-testid=user-password]", "new-password-1");
         click(&tab, "[data-testid=user-add]");
-        wait_until(&tab, "duplicate error", &exists_js("[data-testid=users-error]"));
-        assert!(text(&tab, "[data-testid=users-error]").contains("уже есть"));
-
-        // слабый пароль: ошибка у формы, пользователь не создан
+        wait_until(&tab, "duplicate error", &error_contains("уже есть"));
         replace_text(&tab, "[data-testid=user-email]", "weak@acme.io");
         replace_text(&tab, "[data-testid=user-password]", "short");
         click(&tab, "[data-testid=user-add]");
-        wait_until(
-            &tab,
-            "weak password error",
-            "(document.querySelector('[data-testid=users-error]')||{}).innerText?.includes('8')",
-        );
+        wait_until(&tab, "weak password error", &error_contains("8"));
+        assert_eq!(path_of(&tab), "/security/users/new");
+        back_to_users(&tab);
         assert_eq!(eval(&tab, &count_js("[data-testid=user-row]")), 3);
 
-        // смена роли
-        choose(&tab, &row(NEW, "[data-testid=user-role-select]"), "Наблюдатель");
+        // смена роли на странице пользователя
+        open_user(&tab, NEW);
+        choose(&tab, "[data-testid=user-role-select]", "Наблюдатель");
+        click(&tab, "[data-testid=user-role-save]");
+        wait_until(&tab, "role saved", &ok_contains("Роль"));
         wait_until(
             &tab,
-            "role saved",
-            &format!(
-                "document.querySelector({:?}).value === 'viewer' && (document.querySelector('[data-testid=users-ok]')||{{}}).innerText?.includes('Роль')",
-                row(NEW, "[data-testid=user-role-select]")
-            ),
+            "heading shows the role",
+            "document.querySelector('[data-testid=user-heading]').innerText.includes('Наблюдатель')",
+        );
+        back_to_users(&tab);
+        assert_eq!(
+            text(&tab, &row(NEW, "[data-testid=user-role-label]")),
+            "Наблюдатель"
         );
 
-        // единственный владелец не может понизить себя
-        choose(&tab, &row(OWNER.0, "[data-testid=user-role-select]"), "Рекрутёр");
-        wait_until(
-            &tab,
-            "owner guard",
-            "(document.querySelector('[data-testid=users-error]')||{}).innerText?.includes('владелец')",
-        );
+        // единственный владелец не может понизить или заблокировать себя
+        open_user(&tab, OWNER.0);
+        choose(&tab, "[data-testid=user-role-select]", "Рекрутёр");
+        click(&tab, "[data-testid=user-role-save]");
+        wait_until(&tab, "owner guard", &error_contains("владелец"));
         wait_until(
             &tab,
             "owner role restored",
-            &format!(
-                "document.querySelector({:?}).value === 'owner'",
-                row(OWNER.0, "[data-testid=user-role-select]")
-            ),
+            "document.querySelector('[data-testid=user-role-select]').value === 'owner'",
         );
-
-        // и заблокировать себя
-        click(&tab, &row(OWNER.0, "[data-testid=user-toggle]"));
-        wait_until(
-            &tab,
-            "self block refused",
-            "(document.querySelector('[data-testid=users-error]')||{}).innerText?.includes('самого себя')",
-        );
-        assert_eq!(text(&tab, &row(OWNER.0, "[data-testid=user-status]")), "Активен");
+        click(&tab, "[data-testid=user-toggle]");
+        wait_until(&tab, "self block refused", &error_contains("самого себя"));
+        assert_eq!(text(&tab, "[data-testid=user-status]"), "Активен");
+        back_to_users(&tab);
 
         // блокировка и разблокировка
-        click(&tab, &row(NEW, "[data-testid=user-toggle]"));
+        open_user(&tab, NEW);
+        click(&tab, "[data-testid=user-toggle]");
         wait_until(
             &tab,
             "blocked",
-            &format!(
-                "(document.querySelector({:?})||{{}}).innerText === 'Заблокирован'",
-                row(NEW, "[data-testid=user-status]")
-            ),
+            "(document.querySelector('[data-testid=user-status]')||{}).innerText === 'Заблокирован'",
         );
-        click(&tab, &row(NEW, "[data-testid=user-toggle]"));
+        click(&tab, "[data-testid=user-toggle]");
         wait_until(
             &tab,
             "unblocked",
-            &format!(
-                "(document.querySelector({:?})||{{}}).innerText === 'Активен'",
-                row(NEW, "[data-testid=user-status]")
-            ),
+            "(document.querySelector('[data-testid=user-status]')||{}).innerText === 'Активен'",
         );
 
+        // смена имени
+        replace_text(&tab, "[data-testid=user-name-input]", "Другое имя");
+        click(&tab, "[data-testid=user-name-save]");
+        wait_until(&tab, "name saved", &ok_contains("Имя"));
+
         // сброс пароля: слабый, затем нормальный
-        click(&tab, &row(NEW, "[data-testid=user-reset]"));
-        wait_until(&tab, "reset form", &exists_js("[data-testid=password-input]"));
         type_into(&tab, "[data-testid=password-input]", "short");
         click(&tab, "[data-testid=password-save]");
-        wait_until(
-            &tab,
-            "weak reset refused",
-            "(document.querySelector('[data-testid=users-error]')||{}).innerText?.includes('8')",
-        );
-        wait_until(&tab, "reset form still open", &exists_js("[data-testid=password-input]"));
+        wait_until(&tab, "weak reset refused", &error_contains("8"));
         replace_text(&tab, "[data-testid=password-input]", "fresh-password-1");
         click(&tab, "[data-testid=password-save]");
-        wait_until(
-            &tab,
-            "password changed",
-            "(document.querySelector('[data-testid=users-ok]')||{}).innerText?.includes('Пароль изменён')",
-        );
+        wait_until(&tab, "password changed", &ok_contains("Пароль изменён"));
+        back_to_users(&tab);
+        assert!(text(&tab, &row(NEW, "[data-testid=user-title]")).contains("Другое имя"));
 
         // владельцу палитра предлагает раздел
         tab.press_key_with_modifiers("k", Some(&[ModifierKey::Ctrl]))
@@ -172,7 +185,7 @@ async fn the_owner_manages_users_end_to_end() {
         wait_until(&tab, "security offered", &exists_js("[data-testid=palette-item]"));
         assert_eq!(eval(&tab, &count_js("[data-testid=palette-item]")), 1);
 
-        // новый пароль работает в отдельном браузере; роль «Наблюдатель» не видит раздел
+        // новый пароль работает в отдельном браузере; наблюдатель не видит раздел
         let other = launch();
         let tab2 = other.new_tab().unwrap();
         login_crm(&tab2, &base, "acme", NEW, "fresh-password-1");
