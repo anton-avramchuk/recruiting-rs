@@ -5,7 +5,7 @@ use axum::{
     routing::{get, patch},
 };
 use comment_contracts::{CommentDto, CommentPage, CreateCommentRequest, UpdateCommentRequest};
-use platform_auth::{AuthUser, Permission, Role};
+use platform_auth::{AuthUser, Permission};
 use platform_core::error::{ApiError, ProblemDetails};
 use serde::Deserialize;
 use uuid::Uuid;
@@ -19,8 +19,9 @@ pub fn routes() -> Router<AppState> {
         .route("/comments/{id}", patch(update).delete(remove))
 }
 
-fn is_owner(user: &AuthUser) -> bool {
-    user.claims.roles.contains(&Role::Owner)
+/// Чужие комментарии удаляет тот, у кого есть право удаления данных (владелец и собственные роли с ним).
+fn can_remove_any(user: &AuthUser) -> bool {
+    user.claims.has(Permission::DeleteData)
 }
 
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
@@ -127,7 +128,12 @@ pub(super) async fn remove(
     user.require(Permission::WriteData)?;
     state
         .comments
-        .delete(tenant_of(&user)?, user.claims.sub, is_owner(&user), id)
+        .delete(
+            tenant_of(&user)?,
+            user.claims.sub,
+            can_remove_any(&user),
+            id,
+        )
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }

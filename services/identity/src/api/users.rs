@@ -31,6 +31,9 @@ pub(super) struct UserDto {
     email: String,
     display_name: String,
     roles: Vec<Role>,
+    /// Собственная роль организации, если назначена.
+    role_id: Option<Uuid>,
+    role_name: Option<String>,
     status: &'static str,
     /// RFC 3339; пусто у только что созданного пользователя.
     created_at: Option<String>,
@@ -43,6 +46,8 @@ impl From<User> for UserDto {
             email: u.email.as_str().to_string(),
             display_name: u.display_name,
             roles: u.roles,
+            role_id: u.role_id,
+            role_name: u.role_name,
             status: u.status.as_str(),
             created_at: u.created_at.map(|t| t.to_rfc3339()),
         }
@@ -105,7 +110,10 @@ pub(super) struct CreateUserRequest {
     password: String,
     #[serde(default)]
     display_name: String,
+    /// Встроенные роли либо `role_id` (одно из двух).
+    #[serde(default)]
     roles: Vec<Role>,
+    role_id: Option<Uuid>,
 }
 
 #[utoipa::path(post, path = "/users", security(("bearer" = [])), request_body = CreateUserRequest, responses(
@@ -129,6 +137,7 @@ pub(super) async fn create(
                 password: req.password,
                 display_name: req.display_name,
                 roles: req.roles,
+                role_id: req.role_id,
             },
         )
         .await?;
@@ -138,6 +147,7 @@ pub(super) async fn create(
 #[derive(Deserialize, utoipa::ToSchema)]
 pub(super) struct UpdateUserRequest {
     roles: Option<Vec<Role>>,
+    role_id: Option<Uuid>,
     status: Option<String>,
     display_name: Option<String>,
     /// Новый пароль (сброс владельцем).
@@ -169,6 +179,7 @@ pub(super) async fn update(
             id,
             UserChanges {
                 roles: req.roles,
+                role_id: req.role_id,
                 status,
                 display_name: req.display_name,
                 password: req.password,

@@ -9,7 +9,8 @@ pub enum Role {
     PlatformAdmin,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Permission {
     ManageUsers,
     ReadData,
@@ -17,6 +18,36 @@ pub enum Permission {
     /// Необратимое удаление данных организации (только владелец).
     DeleteData,
     ManageTenants,
+}
+
+impl Permission {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Permission::ManageUsers => "manage_users",
+            Permission::ReadData => "read_data",
+            Permission::WriteData => "write_data",
+            Permission::DeleteData => "delete_data",
+            Permission::ManageTenants => "manage_tenants",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "manage_users" => Some(Permission::ManageUsers),
+            "read_data" => Some(Permission::ReadData),
+            "write_data" => Some(Permission::WriteData),
+            "delete_data" => Some(Permission::DeleteData),
+            "manage_tenants" => Some(Permission::ManageTenants),
+            _ => None,
+        }
+    }
+
+    /// Права, которые можно выдать собственной роли организации.
+    pub const GRANTABLE: [Permission; 3] = [
+        Permission::ReadData,
+        Permission::WriteData,
+        Permission::DeleteData,
+    ];
 }
 
 impl Role {

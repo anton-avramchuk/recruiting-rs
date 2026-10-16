@@ -10,7 +10,7 @@ use crate::{
     domain::{DomainError, Email, User},
     infrastructure::{
         refresh_tokens::{self, Rotation},
-        users,
+        roles, users,
     },
 };
 
@@ -161,6 +161,13 @@ impl AuthService {
         tx: &mut TenantTx<'_>,
         user: &User,
     ) -> Result<TokenPair, AuthFailure> {
+        let perms = match user.role_id {
+            Some(role_id) => roles::find(tx, role_id)
+                .await?
+                .map(|r| r.permissions)
+                .unwrap_or_default(),
+            None => Vec::new(),
+        };
         let claims = Claims::new(
             user.id,
             Some(user.tenant_id),
@@ -168,6 +175,7 @@ impl AuthService {
             Audience::Tenant,
             self.lifetimes.access_secs,
         )
+        .with_perms(perms)
         // имя для подписей действий в других сервисах: отображаемое, а без него - email
         .with_name(if user.display_name.trim().is_empty() {
             user.email.as_str()

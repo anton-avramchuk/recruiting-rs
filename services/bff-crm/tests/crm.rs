@@ -249,3 +249,44 @@ async fn grid_parameters_reach_identity_unchanged() {
         Some(query)
     );
 }
+
+#[tokio::test]
+async fn role_management_goes_to_identity_and_writes_need_the_csrf_token() {
+    let w = world(None).await;
+    let login = w
+        .client
+        .send(
+            "POST",
+            "/bff/login",
+            &[("x-csrf-token", "x")],
+            Some(creds(Some("acme"))),
+        )
+        .await;
+    let csrf = login.body["csrf_token"].as_str().unwrap().to_string();
+    assert_eq!(
+        w.client.send("GET", "/api/roles", &[], None).await.status,
+        200
+    );
+    let body = || Some(json!({"name": "Стажёр", "permissions": ["read_data"]}));
+    assert_eq!(
+        w.client
+            .send("POST", "/api/roles", &[], body())
+            .await
+            .status,
+        403
+    );
+    assert_eq!(
+        w.client
+            .send("POST", "/api/roles", &[("x-csrf-token", &csrf)], body())
+            .await
+            .status,
+        200
+    );
+    assert_eq!(
+        w.client
+            .send("DELETE", "/api/roles/1", &[("x-csrf-token", &csrf)], None)
+            .await
+            .status,
+        200
+    );
+}

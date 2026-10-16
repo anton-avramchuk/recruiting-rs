@@ -7,7 +7,7 @@ use comment::{
     api::{self, AppState},
 };
 use http_body_util::BodyExt;
-use platform_auth::{Audience, Claims, KeyPair, Role, TokenSigner, TokenVerifier};
+use platform_auth::{Audience, Claims, KeyPair, Permission, Role, TokenSigner, TokenVerifier};
 use platform_core::tenant::TenantId;
 use platform_db::testing::TestDb;
 use serde_json::Value;
@@ -58,6 +58,14 @@ impl App {
         if let Some(name) = name {
             claims = claims.with_name(name);
         }
+        TokenSigner::new(&self.keys).sign(&claims).unwrap()
+    }
+
+    /// Токен пользователя с собственной ролью: только права, без встроенных ролей.
+    pub fn perms_token(&self, tenant: TenantId, perms: &[Permission]) -> String {
+        let claims = Claims::new(Uuid::new_v4(), Some(tenant), vec![], Audience::Tenant, 600)
+            .with_perms(perms.to_vec())
+            .with_name("Стажёр");
         TokenSigner::new(&self.keys).sign(&claims).unwrap()
     }
 

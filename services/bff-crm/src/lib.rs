@@ -28,6 +28,7 @@ pub struct CrmConfig {
 fn allowlist() -> Vec<AllowRule> {
     vec![
         AllowRule::any("/users"),
+        AllowRule::any("/roles"),
         AllowRule::any("/persons").to("candidate"),
         AllowRule::any("/vacancies").to("recruitment"),
         AllowRule::any("/applications").to("recruitment"),

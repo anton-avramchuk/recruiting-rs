@@ -277,6 +277,8 @@ pub(crate) fn user_preview(session: &Session) -> Value {
         "id": payload["sub"],
         "tenant_id": payload["tid"],
         "roles": payload["roles"],
+        // права собственной роли организации (для встроенных ролей поля нет)
+        "perms": payload["perms"],
     });
     if let (Some(user), Some(meta)) = (user.as_object_mut(), session.meta.as_object()) {
         for (k, v) in meta {
@@ -441,5 +443,38 @@ pub(crate) async fn session(State(bff): State<Bff>, headers: HeaderMap) -> Respo
             res
         }
         Err(Freshness::Failed(e)) => e.into_response(),
+    }
+}
+
+#[cfg(test)]
+mod preview_tests {
+    use super::*;
+
+    fn session_with(payload: &Value) -> Session {
+        let body = URL_SAFE_NO_PAD.encode(payload.to_string());
+        Session {
+            access_token: format!("h.{body}.s"),
+            refresh_token: None,
+            access_expires_at: 0,
+            csrf_token: String::new(),
+            meta: json!({"email": "a@b.io"}),
+        }
+    }
+
+    #[test]
+    fn the_preview_passes_roles_and_custom_permissions_to_the_interface() {
+        let user = user_preview(&session_with(
+            &json!({"sub": "u1", "tid": "t1", "roles": [], "perms": ["read_data", "write_data"]}),
+        ));
+        assert_eq!(user["perms"], json!(["read_data", "write_data"]));
+        assert_eq!(user["roles"], json!([]));
+        assert_eq!(user["email"], "a@b.io");
+    }
+
+    #[test]
+    fn a_token_without_custom_permissions_has_a_null_perms() {
+        let user = user_preview(&session_with(&json!({"sub": "u1", "roles": ["owner"]})));
+        assert_eq!(user["roles"], json!(["owner"]));
+        assert!(user["perms"].is_null());
     }
 }

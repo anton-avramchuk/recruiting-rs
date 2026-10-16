@@ -12,6 +12,14 @@ pub enum DomainError {
     NoRoles,
     #[error("password must be at least {0} characters")]
     WeakPassword(usize),
+    #[error("role name must be 1 to {0} characters")]
+    InvalidRoleName(usize),
+    #[error("invalid role permissions: {0}")]
+    InvalidPermissions(&'static str),
+    #[error("role not found")]
+    UnknownRole,
+    #[error("give either built-in roles or role_id, not both")]
+    AmbiguousRole,
 }
 
 pub use platform_values::Email;
@@ -53,7 +61,12 @@ pub struct User {
     pub email: Email,
     pub password_hash: String,
     pub display_name: String,
+    /// Встроенные роли; пусто, если назначена собственная роль.
     pub roles: Vec<Role>,
+    /// Собственная роль организации (взаимоисключающе с `roles`).
+    pub role_id: Option<Uuid>,
+    /// Название собственной роли; заполняется при чтении.
+    pub role_name: Option<String>,
     pub status: UserStatus,
     /// Когда создан; у ещё не сохранённого пользователя не задано (проставляет БД).
     pub created_at: Option<chrono::DateTime<chrono::Utc>>,
@@ -75,9 +88,34 @@ impl User {
             password_hash,
             display_name,
             roles,
+            role_id: None,
+            role_name: None,
             status: UserStatus::Active,
             created_at: None,
         })
+    }
+
+    /// Пользователь с собственной ролью организации (без встроенных).
+    pub fn register_with_role(
+        tenant_id: TenantId,
+        email: Email,
+        password_hash: String,
+        display_name: String,
+        role_id: Uuid,
+        role_name: String,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            tenant_id,
+            email,
+            password_hash,
+            display_name,
+            roles: Vec::new(),
+            role_id: Some(role_id),
+            role_name: Some(role_name),
+            status: UserStatus::Active,
+            created_at: None,
+        }
     }
 
     pub const MIN_PASSWORD_LEN: usize = 8;
@@ -117,10 +155,20 @@ impl User {
         self.status = UserStatus::Active;
     }
 
+    /// Назначает встроенные роли и снимает собственную.
     pub fn change_roles(&mut self, roles: Vec<Role>) -> Result<(), DomainError> {
         Self::validate_roles(&roles)?;
         self.roles = roles;
+        self.role_id = None;
+        self.role_name = None;
         Ok(())
+    }
+
+    /// Назначает собственную роль и снимает встроенные.
+    pub fn assign_custom_role(&mut self, role_id: Uuid, role_name: String) {
+        self.roles = Vec::new();
+        self.role_id = Some(role_id);
+        self.role_name = Some(role_name);
     }
 }
 

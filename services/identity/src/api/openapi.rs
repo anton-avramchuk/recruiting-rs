@@ -4,7 +4,7 @@ use utoipa::{
     openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
 };
 
-use super::{AppState, auth, internal, users};
+use super::{AppState, auth, internal, roles, users};
 use crate::application::auth::TokenPair;
 
 #[derive(OpenApi)]
@@ -18,6 +18,10 @@ use crate::application::auth::TokenPair;
         users::get_one,
         users::create,
         users::update,
+        roles::list,
+        roles::create,
+        roles::update,
+        roles::remove,
         internal::ensure_owner,
         platform_core::health::health,
     ),

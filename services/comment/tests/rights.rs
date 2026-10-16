@@ -1,7 +1,7 @@
 mod common;
 
 use common::{App, setup};
-use platform_auth::Role;
+use platform_auth::{Permission, Role};
 use platform_core::tenant::TenantId;
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -13,6 +13,7 @@ struct Team {
     owner: String,
     viewer: String,
     target: Uuid,
+    tenant: TenantId,
 }
 
 async fn team() -> Team {
@@ -30,6 +31,7 @@ async fn team() -> Team {
         owner,
         viewer,
         target,
+        tenant,
     }
 }
 
@@ -216,4 +218,28 @@ async fn without_a_token_or_a_tenant_nothing_is_open() {
         .await;
     assert_eq!(s, 403);
     t.app.close().await;
+}
+
+#[tokio::test]
+async fn a_custom_role_removes_foreign_comments_only_with_the_delete_right() {
+    let t = team().await;
+    let tenant = t.tenant;
+    let editor = t
+        .app
+        .perms_token(tenant, &[Permission::ReadData, Permission::WriteData]);
+    let cleaner = t.app.perms_token(
+        tenant,
+        &[
+            Permission::ReadData,
+            Permission::WriteData,
+            Permission::DeleteData,
+        ],
+    );
+
+    let c = t.comment(&t.author, "чужой").await;
+    let uri = format!("/comments/{}", c["id"].as_str().unwrap());
+    let (s, _) = t.app.send("DELETE", &uri, Some(&editor), None).await;
+    assert_eq!(s, 403, "без права удаления чужое не удалить");
+    let (s, _) = t.app.send("DELETE", &uri, Some(&cleaner), None).await;
+    assert_eq!(s, 204, "с правом удаления - можно");
 }

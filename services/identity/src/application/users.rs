@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     domain::{DomainError, Email, User, UserStatus},
-    infrastructure::{refresh_tokens, users},
+    infrastructure::{refresh_tokens, roles, users},
 };
 
 impl From<platform_values::ValueError> for UserError {
@@ -46,11 +46,14 @@ pub struct NewUser {
     pub password: String,
     pub display_name: String,
     pub roles: Vec<Role>,
+    /// Собственная роль организации вместо встроенных.
+    pub role_id: Option<Uuid>,
 }
 
 #[derive(Default)]
 pub struct UserChanges {
     pub roles: Option<Vec<Role>>,
+    pub role_id: Option<Uuid>,
     pub status: Option<UserStatus>,
     pub display_name: Option<String>,
     /// Новый пароль (открытый текст) - сброс владельцем.
@@ -93,9 +96,19 @@ impl UserService {
         let email = Email::parse(&new.email)?;
         User::validate_password(&new.password)?;
         let hash = password::hash(&new.password).map_err(|e| UserError::Internal(e.to_string()))?;
-        let user = User::register(tenant, email, hash, new.display_name, new.roles)?;
-
         let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        let user = match new.role_id {
+            Some(role_id) => {
+                if !new.roles.is_empty() {
+                    return Err(DomainError::AmbiguousRole.into());
+                }
+                let role = roles::find(&mut tx, role_id)
+                    .await?
+                    .ok_or(DomainError::UnknownRole)?;
+                User::register_with_role(tenant, email, hash, new.display_name, role.id, role.name)
+            }
+            None => User::register(tenant, email, hash, new.display_name, new.roles)?,
+        };
         match users::insert(&mut tx, &user).await {
             Ok(()) => {}
             Err(e) if users::is_unique_violation(&e) => {
@@ -158,10 +171,22 @@ impl UserService {
         let mut user = users::find_by_id(&mut tx, id)
             .await?
             .ok_or(UserError::NotFound)?;
-        let (was_owner, old_roles, old_status) =
-            (user.is_active_owner(), user.roles.clone(), user.status);
-        if let Some(roles) = changes.roles {
-            user.change_roles(roles)?;
+        let (was_owner, old_roles, old_role_id, old_status) = (
+            user.is_active_owner(),
+            user.roles.clone(),
+            user.role_id,
+            user.status,
+        );
+        match (changes.roles, changes.role_id) {
+            (Some(_), Some(_)) => return Err(DomainError::AmbiguousRole.into()),
+            (Some(roles), None) => user.change_roles(roles)?,
+            (None, Some(role_id)) => {
+                let role = roles::find(&mut tx, role_id)
+                    .await?
+                    .ok_or(DomainError::UnknownRole)?;
+                user.assign_custom_role(role.id, role.name);
+            }
+            (None, None) => {}
         }
         if let Some(name) = changes.display_name {
             user.display_name = name;
@@ -184,6 +209,7 @@ impl UserService {
             users::set_password_hash(&mut tx, id, hash).await?;
         }
         let access_changed = user.roles != old_roles
+            || user.role_id != old_role_id
             || (user.status == UserStatus::Blocked && old_status != UserStatus::Blocked)
             || new_hash.is_some();
         if access_changed {

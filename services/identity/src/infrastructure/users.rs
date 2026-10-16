@@ -15,6 +15,8 @@ struct UserRow {
     password_hash: String,
     display_name: String,
     roles: Vec<String>,
+    role_id: Option<Uuid>,
+    role_name: Option<String>,
     status: String,
     created_at: chrono::DateTime<chrono::Utc>,
 }
@@ -28,14 +30,16 @@ impl UserRow {
             password_hash: self.password_hash,
             display_name: self.display_name,
             roles: self.roles.iter().filter_map(|r| Role::parse(r)).collect(),
+            role_id: self.role_id,
+            role_name: self.role_name,
             status: UserStatus::parse(&self.status)?,
             created_at: Some(self.created_at),
         })
     }
 }
 
-const COLUMNS: &str =
-    "id, tenant_id, email, password_hash, display_name, roles, status, created_at";
+const COLUMNS: &str = "id, tenant_id, email, password_hash, display_name, roles, role_id, \
+     (SELECT r.name FROM roles r WHERE r.id = users.role_id) AS role_name, status, created_at";
 
 /// Читает в контексте тенанта соединения (RLS), поэтому фильтр по тенанту не нужен.
 pub async fn find_by_email(
@@ -65,7 +69,13 @@ const GRID_COLUMNS: &[GridColumn] = &[
     GridColumn::new("email", "email", ColumnType::Text),
     GridColumn::new("display_name", "display_name", ColumnType::Text),
     GridColumn::new("status", "status", ColumnType::Text),
-    GridColumn::new("role", "array_to_string(roles, ',')", ColumnType::Text).no_sort(),
+    // встроенные роли через запятую либо идентификатор собственной
+    GridColumn::new(
+        "role",
+        "COALESCE(NULLIF(array_to_string(roles, ','), ''), role_id::text)",
+        ColumnType::Text,
+    )
+    .no_sort(),
     GridColumn::new("created_at", "created_at", ColumnType::Timestamp),
 ];
 
@@ -96,8 +106,8 @@ pub async fn page(
 
 pub async fn insert(conn: &mut PgConnection, user: &User) -> Result<(), sqlx::Error> {
     sqlx::query(
-        "INSERT INTO users (id, tenant_id, email, password_hash, display_name, roles, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        "INSERT INTO users (id, tenant_id, email, password_hash, display_name, roles, role_id, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
     )
     .bind(user.id)
     .bind(user.tenant_id.0)
@@ -105,6 +115,7 @@ pub async fn insert(conn: &mut PgConnection, user: &User) -> Result<(), sqlx::Er
     .bind(&user.password_hash)
     .bind(&user.display_name)
     .bind(role_names(user))
+    .bind(user.role_id)
     .bind(user.status.as_str())
     .execute(conn)
     .await?;
@@ -113,13 +124,16 @@ pub async fn insert(conn: &mut PgConnection, user: &User) -> Result<(), sqlx::Er
 
 /// Сохраняет изменяемые поля (роли, статус, имя).
 pub async fn update(conn: &mut PgConnection, user: &User) -> Result<(), sqlx::Error> {
-    sqlx::query("UPDATE users SET display_name = $2, roles = $3, status = $4 WHERE id = $1")
-        .bind(user.id)
-        .bind(&user.display_name)
-        .bind(role_names(user))
-        .bind(user.status.as_str())
-        .execute(conn)
-        .await?;
+    sqlx::query(
+        "UPDATE users SET display_name = $2, roles = $3, role_id = $4, status = $5 WHERE id = $1",
+    )
+    .bind(user.id)
+    .bind(&user.display_name)
+    .bind(role_names(user))
+    .bind(user.role_id)
+    .bind(user.status.as_str())
+    .execute(conn)
+    .await?;
     Ok(())
 }
 

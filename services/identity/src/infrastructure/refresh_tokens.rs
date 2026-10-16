@@ -100,3 +100,18 @@ pub async fn revoke(conn: &mut PgConnection, token: &str) -> Result<(), sqlx::Er
     .await?;
     Ok(())
 }
+
+/// Отзывает refresh-токены всех пользователей с этой собственной ролью.
+pub async fn revoke_all_for_role(
+    conn: &mut PgConnection,
+    role_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE refresh_tokens SET revoked_at = now()
+         WHERE revoked_at IS NULL AND user_id IN (SELECT id FROM users WHERE role_id = $1)",
+    )
+    .bind(role_id)
+    .execute(conn)
+    .await?;
+    Ok(())
+}

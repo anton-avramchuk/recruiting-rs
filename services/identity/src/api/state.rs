@@ -6,6 +6,7 @@ use sqlx::PgPool;
 
 use crate::application::{
     auth::{AuthService, TokenLifetimes},
+    roles::RoleService,
     tenants::TenantDirectory,
     users::UserService,
 };
@@ -15,6 +16,7 @@ pub struct AppState {
     pub pool: PgPool,
     pub auth: AuthService,
     pub users: UserService,
+    pub roles: RoleService,
     pub verifier: Arc<TokenVerifier>,
     pub service_token: Arc<ServiceToken>,
     pub public_key: PublicKey,
@@ -31,6 +33,7 @@ impl AppState {
         let public_key = keys.public_key();
         Self {
             users: UserService::new(pool.clone()),
+            roles: RoleService::new(pool.clone()),
             auth: AuthService::new(pool.clone(), directory, signer, TokenLifetimes::default()),
             verifier: Arc::new(TokenVerifier::new(&public_key, Audience::Tenant)),
             service_token: Arc::new(ServiceToken::new(service_token)),

@@ -52,6 +52,7 @@ pub(super) async fn ensure_owner(
         .ensure_owner(
             TenantId(tenant_id),
             NewUser {
+                role_id: None,
                 email: req.email,
                 password: req.password,
                 display_name: req.display_name,
