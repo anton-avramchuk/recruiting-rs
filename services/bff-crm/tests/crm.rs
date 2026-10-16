@@ -196,3 +196,31 @@ async fn cors_is_enabled_by_configuration() {
         .await;
     assert!(other.headers.get("access-control-allow-origin").is_none());
 }
+
+#[tokio::test]
+async fn user_changes_go_to_identity_only_with_the_csrf_token() {
+    let w = world(None).await;
+    let login = w
+        .client
+        .send(
+            "POST",
+            "/bff/login",
+            &[("x-csrf-token", "x")],
+            Some(creds(Some("acme"))),
+        )
+        .await;
+    let csrf = login.body["csrf_token"].as_str().unwrap().to_string();
+    let body = || Some(json!({"password": "brand-new-pass"}));
+
+    let before = w.upstream.api_calls.load(Ordering::SeqCst);
+    let refused = w.client.send("PATCH", "/api/users/1", &[], body()).await;
+    assert_eq!(refused.status, 403);
+    assert_eq!(w.upstream.api_calls.load(Ordering::SeqCst), before);
+
+    let ok = w
+        .client
+        .send("PATCH", "/api/users/1", &[("x-csrf-token", &csrf)], body())
+        .await;
+    assert_eq!(ok.status, 200);
+    assert_eq!(w.upstream.api_calls.load(Ordering::SeqCst), before + 1);
+}

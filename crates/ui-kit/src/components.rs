@@ -118,6 +118,9 @@ pub fn AppShell(
     /// Кнопки быстрых действий справа в шапке; без них шапка остаётся прежней.
     #[prop(optional)]
     actions: Option<ViewFn>,
+    /// Дополнительные пункты меню (например, показываемые только по роли), после основных.
+    #[prop(optional)]
+    nav_extra: Option<ViewFn>,
 ) -> impl IntoView {
     let ctx = expect_context::<SessionCtx>();
     let logout_action = Action::new(|_: &()| async { logout().await });
@@ -173,6 +176,7 @@ pub fn AppShell(
                     .into_iter()
                     .map(|item| view! { <A href=item.href>{item.label}</A> })
                     .collect_view()}
+                {nav_extra.map(|extra| extra.run())}
             </nav>
             <main class="shell__main">
                 <Outlet />

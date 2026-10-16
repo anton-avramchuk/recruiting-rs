@@ -105,6 +105,11 @@ impl User {
         self.status = UserStatus::Blocked;
     }
 
+    /// Активный владелец: тот, на ком держится управление организацией.
+    pub fn is_active_owner(&self) -> bool {
+        self.status == UserStatus::Active && self.roles.contains(&Role::Owner)
+    }
+
     pub fn unblock(&mut self) {
         self.status = UserStatus::Active;
     }

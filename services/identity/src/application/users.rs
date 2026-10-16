@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     domain::{DomainError, Email, User, UserStatus},
-    infrastructure::users,
+    infrastructure::{refresh_tokens, users},
 };
 
 impl From<platform_values::ValueError> for UserError {
@@ -41,6 +41,8 @@ pub struct UserChanges {
     pub roles: Option<Vec<Role>>,
     pub status: Option<UserStatus>,
     pub display_name: Option<String>,
+    /// Новый пароль (открытый текст) - сброс владельцем.
+    pub password: Option<String>,
 }
 
 #[derive(Clone)]
@@ -115,10 +117,22 @@ impl UserService {
         id: Uuid,
         changes: UserChanges,
     ) -> Result<User, UserError> {
+        let new_hash = changes
+            .password
+            .as_deref()
+            .map(|p| {
+                User::validate_password(p)?;
+                password::hash(p).map_err(|e| UserError::Internal(e.to_string()))
+            })
+            .transpose()?;
         let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        // владельцы блокируются до чтения пользователя: параллельные понижения идут по очереди
+        let owners = users::lock_active_owners(&mut tx).await?;
         let mut user = users::find_by_id(&mut tx, id)
             .await?
             .ok_or(UserError::NotFound)?;
+        let (was_owner, old_roles, old_status) =
+            (user.is_active_owner(), user.roles.clone(), user.status);
         if let Some(roles) = changes.roles {
             user.change_roles(roles)?;
         }
@@ -133,7 +147,21 @@ impl UserService {
             Some(UserStatus::Active) => user.unblock(),
             None => {}
         }
+        if was_owner && !user.is_active_owner() && owners.len() <= 1 {
+            return Err(UserError::Conflict(
+                "organization must keep an active owner".into(),
+            ));
+        }
         users::update(&mut tx, &user).await?;
+        if let Some(hash) = &new_hash {
+            users::set_password_hash(&mut tx, id, hash).await?;
+        }
+        let access_changed = user.roles != old_roles
+            || (user.status == UserStatus::Blocked && old_status != UserStatus::Blocked)
+            || new_hash.is_some();
+        if access_changed {
+            refresh_tokens::revoke_all_for_user(&mut tx, id).await?;
+        }
         tx.commit().await?;
         Ok(user)
     }

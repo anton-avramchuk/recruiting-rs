@@ -105,6 +105,8 @@ pub(super) struct UpdateUserRequest {
     roles: Option<Vec<Role>>,
     status: Option<String>,
     display_name: Option<String>,
+    /// Новый пароль (сброс владельцем).
+    password: Option<String>,
 }
 
 #[utoipa::path(patch, path = "/users/{id}", security(("bearer" = [])), request_body = UpdateUserRequest,
@@ -134,6 +136,7 @@ pub(super) async fn update(
                 roles: req.roles,
                 status,
                 display_name: req.display_name,
+                password: req.password,
             },
         )
         .await?;

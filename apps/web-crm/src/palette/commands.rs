@@ -203,6 +203,31 @@ pub fn results(
     rows
 }
 
+/// Добавляет команды владельца (переход в «Безопасность»), если они подходят под запрос;
+/// строка встаёт после последней команды навигации.
+pub fn with_owner_commands(mut rows: Vec<Entry>, query: &str, owner: bool) -> Vec<Entry> {
+    const TITLE: &str = "Безопасность";
+    let q = query.trim().to_lowercase();
+    if !owner || !(q.is_empty() || TITLE.to_lowercase().contains(&q)) {
+        return rows;
+    }
+    let at = rows
+        .iter()
+        .rposition(|r| r.group == Group::Navigation)
+        .map_or(rows.len(), |i| i + 1);
+    rows.insert(
+        at,
+        Entry {
+            title: TITLE.into(),
+            hint: String::new(),
+            group: Group::Navigation,
+            target: Target::Go("/security".into()),
+        },
+    );
+    rows.truncate(MAX_ROWS);
+    rows
+}
+
 /// Вакансии, подходящие под запрос по названию.
 pub fn match_vacancies(query: &str, all: &[Hit]) -> Vec<Hit> {
     let q = query.trim().to_lowercase();
@@ -242,6 +267,24 @@ mod tests {
             rows.iter()
                 .all(|r| r.group != Group::People && r.group != Group::Vacancies)
         );
+    }
+
+    #[test]
+    fn the_security_command_is_for_owners_only() {
+        let rows = results("безопас", true, &[], &[], &[]);
+        assert!(
+            rows.is_empty(),
+            "обычные команды не содержат раздел владельца"
+        );
+        let owner = with_owner_commands(rows.clone(), "безопас", true);
+        assert_eq!(titles(&owner), ["Безопасность"]);
+        assert_eq!(owner[0].target, Target::Go("/security".into()));
+        assert!(with_owner_commands(rows, "безопас", false).is_empty());
+
+        let all = with_owner_commands(results("", true, &[], &[], &[]), "", true);
+        let pos = all.iter().position(|r| r.title == "Безопасность").unwrap();
+        assert_eq!(all[pos - 1].group, Group::Navigation);
+        assert_eq!(all[pos + 1].group, Group::Settings);
     }
 
     #[test]

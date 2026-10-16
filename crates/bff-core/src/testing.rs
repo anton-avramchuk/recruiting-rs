@@ -139,6 +139,7 @@ impl Upstream {
             .route("/auth/refresh", post(refresh))
             .route("/auth/logout", post(logout))
             .route("/users", get(users).post(users))
+            .route("/users/1", get(users).patch(users))
             .route("/tenants", get(users).post(users))
             .route("/me", get(users))
             .route("/persons", get(users).post(users))

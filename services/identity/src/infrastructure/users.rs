@@ -90,6 +90,30 @@ pub async fn update(conn: &mut PgConnection, user: &User) -> Result<(), sqlx::Er
     Ok(())
 }
 
+/// Блокирует строки активных владельцев тенанта (в порядке `id`, чтобы параллельные изменения
+/// шли по очереди) и возвращает их идентификаторы.
+pub async fn lock_active_owners(conn: &mut PgConnection) -> Result<Vec<Uuid>, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT id FROM users WHERE 'owner' = ANY(roles) AND status = 'active' ORDER BY id FOR UPDATE",
+    )
+    .fetch_all(conn)
+    .await
+}
+
+/// Сохраняет новый хеш пароля.
+pub async fn set_password_hash(
+    conn: &mut PgConnection,
+    id: Uuid,
+    hash: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE users SET password_hash = $2 WHERE id = $1")
+        .bind(id)
+        .bind(hash)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
 fn role_names(user: &User) -> Vec<String> {
     user.roles.iter().map(|r| r.as_str().to_string()).collect()
 }

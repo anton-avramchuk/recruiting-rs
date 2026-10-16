@@ -5,11 +5,16 @@ use leptos::{prelude::*, task::spawn_local};
 use leptos_router::{NavigateOptions, hooks::use_navigate};
 
 use super::{
-    commands::{Entry, Hit, MAX_CLIENTS, MAX_PEOPLE, Target, match_vacancies, results},
+    commands::{
+        Entry, Hit, MAX_CLIENTS, MAX_PEOPLE, Target, match_vacancies, results, with_owner_commands,
+    },
     keys::{CHEATSHEET, Press, Sequence, Shortcut},
 };
+use ui_kit::SessionCtx;
+
 use crate::{
     candidates::{
+        list::can_delete,
         outcome::ListOutcome,
         server::{PersonQuery, search_persons},
     },
@@ -303,14 +308,16 @@ fn PaletteDialog(palette: PaletteCtx, writable: Signal<bool>) -> impl IntoView {
     });
 
     let vacancies = Memo::new(move |_| match_vacancies(&query.get(), &all_vacancies.get()));
+    let session = expect_context::<SessionCtx>();
     let entries = Memo::new(move |_| {
-        results(
+        let rows = results(
             &query.get(),
             writable.get(),
             &found_clients.get(),
             &vacancies.get(),
             &people.get(),
-        )
+        );
+        with_owner_commands(rows, &query.get(), can_delete(session))
     });
 
     let run = move |entry: Entry| {

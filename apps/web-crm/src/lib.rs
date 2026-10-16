@@ -7,6 +7,7 @@ pub mod clients;
 pub mod comments;
 pub mod funnel;
 pub mod palette;
+pub mod security;
 
 use leptos::prelude::*;
 use leptos_meta::{MetaTags, Title, provide_meta_context};
@@ -74,6 +75,7 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/clients/positions") view=clients::positions::PositionsPage ssr=SsrMode::Async />
                     <Route path=path!("/clients/:id") view=clients::card::ClientCardPage ssr=SsrMode::Async />
                     <Route path=path!("/analytics") view=analytics::AnalyticsPage ssr=SsrMode::Async />
+                    <Route path=path!("/security") view=security::view::SecurityPage ssr=SsrMode::Async />
                     <Route path=path!("/applications") view=funnel::applications::ApplicationsPage ssr=SsrMode::Async />
                 </ParentRoute>
             </Routes>
@@ -134,6 +136,11 @@ fn Protected() -> impl IntoView {
                 user_label=Signal::derive(move || user().email)
                 on_search=Callback::new(move |_| palette.open.set(true))
                 actions=ViewFn::from(move || view! { <palette::actions::ShellActions palette writable /> })
+                nav_extra=ViewFn::from(move || {
+                    // раздел управления доступом виден только владельцу
+                    candidates::list::can_delete(ctx)
+                        .then(|| view! { <leptos_router::components::A href="/security">"Безопасность"</leptos_router::components::A> })
+                })
             />
             <palette::view::Overlays palette writable />
         </AuthGate>
