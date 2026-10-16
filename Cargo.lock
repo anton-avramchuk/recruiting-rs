@@ -4470,6 +4470,7 @@ dependencies = [
  "candidate-contracts",
  "candidate-import",
  "client-contracts",
+ "comment-contracts",
  "console_error_panic_hook",
  "js-sys",
  "leptos",

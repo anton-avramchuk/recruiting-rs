@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 #
 # Сборка всей платформы. Цели (--target):
-#   identity | admin | candidate | client | recruitment | bff-crm | bff-admin | web-crm | web-admin
+#   identity | admin | candidate | client | comment | recruitment | bff-crm | bff-admin | web-crm | web-admin
 # Пример: docker compose --profile app up -d --build
 
 # ---------- общая база сборки ----------
@@ -18,9 +18,9 @@ FROM toolchain AS backend-build
 COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
-    cargo build --release -p identity -p admin -p candidate -p client -p recruitment -p bff-crm -p bff-admin \
+    cargo build --release -p identity -p admin -p candidate -p client -p comment -p recruitment -p bff-crm -p bff-admin \
  && mkdir /out \
- && cp target/release/identity target/release/admin target/release/candidate target/release/client target/release/recruitment \
+ && cp target/release/identity target/release/admin target/release/candidate target/release/client target/release/comment target/release/recruitment \
        target/release/bff-crm target/release/bff-admin /out/
 
 # ---------- веб-приложения (SSR-бинарник + wasm-пакет) ----------
@@ -60,6 +60,10 @@ CMD ["app"]
 
 FROM runtime AS client
 COPY --from=backend-build /out/client /usr/local/bin/app
+CMD ["app"]
+
+FROM runtime AS comment
+COPY --from=backend-build /out/comment /usr/local/bin/app
 CMD ["app"]
 
 FROM runtime AS recruitment

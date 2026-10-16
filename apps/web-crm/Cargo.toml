@@ -35,6 +35,7 @@ hydrate = [
 ui-kit = { path = "../../crates/ui-kit" }
 candidate-contracts = { path = "../../crates/candidate-contracts" }
 client-contracts = { path = "../../crates/client-contracts" }
+comment-contracts = { path = "../../crates/comment-contracts" }
 recruitment-contracts = { path = "../../crates/recruitment-contracts" }
 candidate-import = { path = "../../crates/candidate-import" }
 serde.workspace = true

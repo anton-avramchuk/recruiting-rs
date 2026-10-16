@@ -105,6 +105,9 @@ pub fn VacanciesPage() -> impl IntoView {
                     })
             }}
         </Transition>
+        <Show when=move || !selected.get().is_empty()>
+            <crate::comments::Comments target_type="vacancy" target_id=selected />
+        </Show>
         <PersonPanel ctx=ctx writable=writable />
     }
 }

@@ -15,6 +15,7 @@ PDF-резюме (Кандидаты → «Импорт») и «Аналитик
 браузер ──► web-crm ──► bff-crm ──► identity ──┐
                               ├──► candidate (токены проверяет по JWKS identity)
                               ├──► client (заказчики, контакты, должности)
+                              ├──► comment (комментарии к заказчикам, вакансиям, кандидатам)
                               └──► recruitment ──► candidate (лента изменений людей)
                                                └──► client (лента изменений заказчиков)
 браузер ──► web-admin ► bff-admin ► admin ◄────┘ (справочник тенантов, создание владельца)
@@ -26,6 +27,7 @@ PDF-резюме (Кандидаты → «Импорт») и «Аналитик
 | `services/candidate` | кандидаты организации: контакты, места работы, образование, стаж, поиск, предупреждение о дубле; БД `candidate` |
 | `services/recruitment` | вакансии, отклики и воронка (8 этапов, SLA, совпадение по навыкам, история, групповые действия); БД `recruitment`; людей берёт из `candidate`, заказчиков и контакты — из `client` (см. ниже); вакансия привязана к заказчику |
 | `services/client` | заказчики организации, их контактные лица и справочник должностей (заказчик и контакты — один агрегат; архивация вместо удаления); БД `client`; лента изменений для `recruitment` |
+| `services/comment` | комментарии к заказчикам, вакансиям и кандидатам (текст, автор и время; автор правит и удаляет свои, владелец удаляет любые); БД `comment`; имя автора берёт из токена |
 | `services/admin` | реестр тенантов, платформенные администраторы, жизненный цикл тенанта; БД `admin` |
 | `services/bff-crm`, `services/bff-admin` | по BFF на каждый фронтенд: серверная сессия в Redis, cookie `HttpOnly`, CSRF, прозрачный refresh, прокси по allowlist |
 | `apps/web-crm`, `apps/web-admin` | Leptos (SSR + hydrate); каждое приложение общается только со своим BFF |
@@ -35,7 +37,7 @@ PDF-резюме (Кандидаты → «Импорт») и «Аналитик
 | `crates/platform-values` | значимые типы `Email` и `Phone` с нормализацией |
 | `crates/bff-core` | общий код обоих BFF |
 | `crates/ui-kit` | общие Leptos-компоненты и server functions входа/сессии |
-| `crates/admin-contracts`, `crates/candidate-contracts`, `crates/client-contracts`, `crates/recruitment-contracts` | DTO сервисов, общие для сервера и фронтенда (собираются и в wasm) |
+| `crates/admin-contracts`, `crates/candidate-contracts`, `crates/client-contracts`, `crates/comment-contracts`, `crates/recruitment-contracts` | DTO сервисов, общие для сервера и фронтенда (собираются и в wasm) |
 | `tests/e2e` | запуск платформы процессами и сквозные тесты, в том числе в браузере |
 
 Изоляция тенантов: общая БД сервиса, колонка `tenant_id` и Row-Level Security. Правила для новых
@@ -56,7 +58,7 @@ PDF-резюме (Кандидаты → «Импорт») и «Аналитик
 ## Быстрый старт
 
 ```sh
-docker compose up -d --wait        # PostgreSQL (БД identity, admin, candidate, recruitment, client; роль recruiting_app) и Redis
+docker compose up -d --wait        # PostgreSQL (БД identity, admin, candidate, recruitment, client, comment; роль recruiting_app) и Redis
 cargo run -p e2e --example dev     # вся платформа на свободных портах, одноразовые данные
 ```
 
@@ -81,8 +83,8 @@ docker compose --profile app up -d --build   # первая сборка - не�
 Одноразовый контейнер `demo-seed` создаёт организацию `demo` и трёх кандидатов, двух вакансий и четырёх откликов (повторный запуск безопасен:
 `docker compose --profile app run --rm demo-seed`). Остановить: `docker compose --profile app down`
 
-Скрипт `docker/postgres-init.sql` выполняется только на пустом томе PostgreSQL. Если том создан до появления `recruitment` или `client`, создайте базы вручную:
-`docker compose exec postgres psql -U postgres -c "CREATE DATABASE recruitment"` (и `client`) и выдайте роли `recruiting_app` права, как в init-скрипте (либо пересоздайте том: `docker compose down -v`).
+Скрипт `docker/postgres-init.sql` выполняется только на пустом томе PostgreSQL. Если том создан до появления `recruitment`, `client` или `comment`, создайте базы вручную:
+`docker compose exec postgres psql -U postgres -c "CREATE DATABASE recruitment"` (и `client`, `comment`) и выдайте роли `recruiting_app` права, как в init-скрипте (либо пересоздайте том: `docker compose down -v`).
 (`-v` дополнительно удалит данные). Учётные данные и `SERVICE_TOKEN` в `docker-compose.yml` - только для
 локального просмотра. Без профиля `app` поднимаются лишь PostgreSQL и Redis (их используют тесты).
 
@@ -109,9 +111,10 @@ Chrome и cargo-leptos; первый запуск e2e собирает все п
 | identity | `DATABASE_URL`, `ADMIN_URL`, `SERVICE_TOKEN` | `MIGRATION_DATABASE_URL`, `JWT_PRIVATE_KEY`, `ACCESS_TTL_SECS`, `TENANT_CACHE_TTL_SECS`, `LISTEN_ADDR` |
 | candidate | `DATABASE_URL`, `IDENTITY_JWKS_URL`, `SERVICE_TOKEN` | `MIGRATION_DATABASE_URL`, `LISTEN_ADDR` |
 | client | `DATABASE_URL`, `IDENTITY_JWKS_URL`, `SERVICE_TOKEN` | `MIGRATION_DATABASE_URL`, `LISTEN_ADDR` |
+| comment | `DATABASE_URL`, `IDENTITY_JWKS_URL`, `SERVICE_TOKEN` | `MIGRATION_DATABASE_URL`, `LISTEN_ADDR` |
 | recruitment | `DATABASE_URL`, `IDENTITY_JWKS_URL`, `SERVICE_TOKEN`, `CANDIDATE_URL`, `CLIENT_URL` | `MIGRATION_DATABASE_URL`, `LISTEN_ADDR` |
 | admin | `DATABASE_URL`, `IDENTITY_URL`, `SERVICE_TOKEN` | `MIGRATION_DATABASE_URL`, `JWT_PRIVATE_KEY`, `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `LISTEN_ADDR` |
-| bff-crm | `IDENTITY_URL`, `CANDIDATE_URL`, `RECRUITMENT_URL`, `CLIENT_URL` | `REDIS_URL`, `COOKIE_SECURE`, `BASE_DOMAIN`, `SESSION_TTL_HOURS`, `CORS_ORIGINS`, `LISTEN_ADDR` |
+| bff-crm | `IDENTITY_URL`, `CANDIDATE_URL`, `RECRUITMENT_URL`, `CLIENT_URL`, `COMMENT_URL` | `REDIS_URL`, `COOKIE_SECURE`, `BASE_DOMAIN`, `SESSION_TTL_HOURS`, `CORS_ORIGINS`, `LISTEN_ADDR` |
 | bff-admin | `ADMIN_URL` | `REDIS_URL`, `COOKIE_SECURE`, `SESSION_TTL_HOURS`, `CORS_ORIGINS`, `LISTEN_ADDR` |
 | web-crm / web-admin | `BFF_URL`, переменные `LEPTOS_*` | `BFF_PUBLIC_URL` |
 
@@ -163,6 +166,13 @@ Chrome и cargo-leptos; первый запуск e2e собирает все п
 Воронка получает заказчиков и контакты по ленте изменений `GET /internal/tenants/{id}/client-changes` — так же,
 как людей из `candidate` — и проверяет ссылки по своей проекции. Раздел «Заказчики» в интерфейсе: список, карточка с
 контактами, справочник должностей.
+
+## Комментарии
+
+Блок «Комментарии» есть на карточке заказчика, в карточке вакансии, в карточке кандидата и в панели человека.
+Комментарий — текст до 5000 символов с автором и временем; автор правит и удаляет свои комментарии, владелец
+организации удаляет любые, `viewer` только читает. Сервис `comment` не проверяет, что объект существует (ссылка по
+типу и идентификатору); имя автора он берёт из access-токена (поле `name`, которое выпускает identity).
 
 ## Воронка и данные людей
 

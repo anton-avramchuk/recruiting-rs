@@ -265,6 +265,7 @@ fn PanelBody(
         .collect_view();
 
     let person_id = app.person_id.to_string();
+    let comment_person = person_id.clone();
     let can_next = stage.next().is_some();
     let hired = stage == Stage::Hired;
 
@@ -394,6 +395,10 @@ fn PanelBody(
                 <h2>"История"</h2>
                 <ul class="history" data-testid="history">{history}</ul>
             </section>
+            <crate::comments::Comments
+                target_type="person"
+                target_id=Signal::derive(move || comment_person.clone())
+            />
         </div>
         <Show when=move || writable.get()>
             <div class="drawer__foot">

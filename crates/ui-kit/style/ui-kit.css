@@ -300,3 +300,9 @@ tr.row-cursor { background: var(--bg); box-shadow: inset 3px 0 0 var(--accent); 
 .topmenu__list a:hover { background: var(--bg); }
 .topmenu__list .s { color: var(--ink-muted); font-size: 0.8rem; }
 @media (max-width: 640px) { .topbtn__text, .topbtn kbd:not(:only-child) { display: none; } }
+
+/* комментарии */
+.comments textarea { width: 100%; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); resize: vertical; }
+.comment { padding: 10px 0; border-bottom: 1px dashed var(--line); }
+.comment__head { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+.comment__body { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }

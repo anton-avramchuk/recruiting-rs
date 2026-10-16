@@ -97,6 +97,19 @@ services:
       postgres: { condition: service_healthy }
     healthcheck: *health
 
+  comment:
+    <<: *service
+    build: { context: ., dockerfile: docker/Dockerfile, target: comment }
+    environment:
+      RUST_LOG: info
+      DATABASE_URL: postgres://recruiting_app:recruiting_app@postgres/comment
+      MIGRATION_DATABASE_URL: postgres://postgres:postgres@postgres/comment
+      IDENTITY_JWKS_URL: http://identity:8080/.well-known/jwks.json
+      SERVICE_TOKEN: dev-service-token-change-me
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck: *health
+
   recruitment:
     <<: *service
     build: { context: ., dockerfile: docker/Dockerfile, target: recruitment }
@@ -121,6 +134,7 @@ services:
       CANDIDATE_URL: http://candidate:8080
       RECRUITMENT_URL: http://recruitment:8080
       CLIENT_URL: http://client:8080
+      COMMENT_URL: http://comment:8080
       REDIS_URL: redis://redis:6379
       COOKIE_SECURE: "false" # локально по http
       # браузер ходит в BFF напрямую: разрешённый источник - адрес веб-приложения
@@ -132,6 +146,7 @@ services:
       candidate: { condition: service_healthy }
       recruitment: { condition: service_healthy }
       client: { condition: service_healthy }
+      comment: { condition: service_healthy }
     healthcheck: *health
 
   bff-admin:

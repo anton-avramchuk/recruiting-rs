@@ -195,6 +195,7 @@ fn Card(
         .collect_view();
 
     let header_id = id.clone();
+    let comment_target = id.clone();
     let toggle_id = id.clone();
     let save_id = id.clone();
     let add_positions = positions.clone();
@@ -293,6 +294,7 @@ fn Card(
             </div>
         </Show>
         <div data-testid="contacts">{contacts}</div>
+        <crate::comments::Comments target_type="client" target_id=Signal::derive(move || comment_target.clone()) />
     }
 }
 

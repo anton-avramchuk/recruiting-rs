@@ -4,6 +4,7 @@
 pub mod analytics;
 pub mod candidates;
 pub mod clients;
+pub mod comments;
 pub mod funnel;
 pub mod palette;
 

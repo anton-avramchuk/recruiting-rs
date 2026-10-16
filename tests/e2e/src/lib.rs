@@ -26,6 +26,7 @@ pub struct Stack {
     pub candidate_url: String,
     pub recruitment_url: String,
     pub client_url: String,
+    pub comment_url: String,
     pub bff_crm_url: String,
     pub bff_admin_url: String,
     /// Заполнены только в `start_with_web`.
@@ -209,6 +210,7 @@ impl Stack {
                     "admin",
                     "candidate",
                     "client",
+                    "comment",
                     "recruitment",
                     "bff-crm",
                     "bff-admin",
@@ -226,10 +228,12 @@ impl Stack {
         let candidate_db = EmptyDb::create("e2e_candidate").await;
         let recruitment_db = EmptyDb::create("e2e_recruitment").await;
         let client_db = EmptyDb::create("e2e_client").await;
+        let comment_db = EmptyDb::create("e2e_comment").await;
         let redis =
             std::env::var("TEST_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into());
 
         let ports = [
+            free_port(),
             free_port(),
             free_port(),
             free_port(),
@@ -247,6 +251,7 @@ impl Stack {
         let candidate_url = url(ports[6]);
         let recruitment_url = url(ports[7]);
         let client_url = url(ports[8]);
+        let comment_url = url(ports[9]);
 
         let mut stack = Stack {
             identity_url: identity_url.clone(),
@@ -254,6 +259,7 @@ impl Stack {
             candidate_url: candidate_url.clone(),
             recruitment_url: recruitment_url.clone(),
             client_url: client_url.clone(),
+            comment_url: comment_url.clone(),
             bff_crm_url: bff_crm_url.clone(),
             bff_admin_url: bff_admin_url.clone(),
             web_crm_url: url(ports[4]),
@@ -313,6 +319,19 @@ impl Stack {
             ],
         ));
         stack.services.push(spawn(
+            "comment",
+            &[
+                listen(ports[9]),
+                ("DATABASE_URL", comment_db.app_url.clone()),
+                ("MIGRATION_DATABASE_URL", comment_db.owner_url.clone()),
+                (
+                    "IDENTITY_JWKS_URL",
+                    format!("{identity_url}/.well-known/jwks.json"),
+                ),
+                ("SERVICE_TOKEN", SERVICE_TOKEN.into()),
+            ],
+        ));
+        stack.services.push(spawn(
             "recruitment",
             &[
                 listen(ports[7]),
@@ -335,6 +354,7 @@ impl Stack {
                 ("CANDIDATE_URL", candidate_url.clone()),
                 ("RECRUITMENT_URL", recruitment_url.clone()),
                 ("CLIENT_URL", client_url.clone()),
+                ("COMMENT_URL", comment_url.clone()),
                 ("REDIS_URL", redis.clone()),
                 ("COOKIE_SECURE", "false".into()),
                 // браузер ходит в BFF напрямую, источник — адрес веб-приложения
@@ -379,6 +399,7 @@ impl Stack {
             candidate_db,
             recruitment_db,
             client_db,
+            comment_db,
         ]);
 
         for (url, name) in [
@@ -387,6 +408,7 @@ impl Stack {
             (&stack.candidate_url, "candidate"),
             (&stack.recruitment_url, "recruitment"),
             (&stack.client_url, "client"),
+            (&stack.comment_url, "comment"),
             (&stack.bff_crm_url, "bff-crm"),
             (&stack.bff_admin_url, "bff-admin"),
         ] {

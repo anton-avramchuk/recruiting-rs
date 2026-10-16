@@ -16,7 +16,7 @@ fn valid(id: &str) -> bool {
 }
 
 /// Ответ без тела: успех — 200/204.
-fn classify_empty(status: u16, body: &serde_json::Value) -> Reply<()> {
+pub(crate) fn classify_empty(status: u16, body: &serde_json::Value) -> Reply<()> {
     match status {
         200 | 204 => Reply::Ok(()),
         other => classify(other, body, |_| Some(())),

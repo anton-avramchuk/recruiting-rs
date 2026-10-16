@@ -12,11 +12,11 @@ OWNER_PASSWORD="demo-password-1"
 
 csrf_of() { sed -n 's/.*"csrf_token":"\([^"]*\)".*/\1/p'; }
 
-echo "1/5 вход администратора платформы"
+echo "1/6 вход администратора платформы"
 ADMIN_CSRF=$(curl -fsS -c /tmp/admin.jar -H 'x-csrf-token: login' -H 'content-type: application/json' \
   -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" "$ADMIN_BFF/bff/login" | csrf_of)
 
-echo "2/5 организация demo"
+echo "2/6 организация demo"
 STATUS=$(curl -sS -o /tmp/tenant.out -w '%{http_code}' -b /tmp/admin.jar \
   -H "x-csrf-token: $ADMIN_CSRF" -H 'content-type: application/json' \
   -d "{\"slug\":\"demo\",\"name\":\"Demo\",\"owner\":{\"email\":\"$OWNER_EMAIL\",\"password\":\"$OWNER_PASSWORD\",\"display_name\":\"Владелец\"}}" \
@@ -27,7 +27,7 @@ case "$STATUS" in
   *) echo "  ошибка $STATUS: $(cat /tmp/tenant.out)"; exit 1 ;;
 esac
 
-echo "3/5 демо-кандидаты"
+echo "3/6 демо-кандидаты"
 CRM_CSRF=$(curl -fsS -c /tmp/crm.jar -H 'x-csrf-token: login' -H 'content-type: application/json' \
   -d "{\"tenant\":\"demo\",\"email\":\"$OWNER_EMAIL\",\"password\":\"$OWNER_PASSWORD\"}" "$CRM_BFF/bff/login" | csrf_of)
 add() {
@@ -45,7 +45,7 @@ post() {
 }
 id_of() { sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -n 1; }
 
-echo "4/5 демо-заказчик, должность и контакт"
+echo "4/6 демо-заказчик, должность и контакт"
 if [ "$(curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/clients")" = "[]" ]; then
   POSITION=$(post /api/positions '{"name":"HR-директор"}' | id_of)
   NEW_CLIENT=$(post /api/clients '{"name":"Acme Corp","note":"Крупный заказчик"}' | id_of)
@@ -57,7 +57,7 @@ fi
 CLIENT=$(curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/clients" | id_of)
 CONTACT=$(curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/clients/$CLIENT" | sed -n 's/.*"contacts":\[{"id":"\([^"]*\)".*/\1/p')
 
-echo "5/5 демо-вакансии и отклики"
+echo "5/6 демо-вакансии и отклики"
 if [ "$(curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/vacancies")" = "[]" ]; then
   post /api/vacancies "{\"title\":\"Senior Rust-разработчик\",\"client_id\":\"$CLIENT\",\"contact_id\":\"$CONTACT\",\"openings\":2,\"priority\":\"high\",\"recruiter\":\"Мария\",\"required_skills\":[\"Rust\",\"SQL\",\"Docker\"],\"open_days\":52}" >/dev/null
   post /api/vacancies "{\"title\":\"Go-разработчик\",\"client_id\":\"$CLIENT\",\"required_skills\":[\"Go\",\"SQL\"],\"open_days\":12}" >/dev/null
@@ -82,5 +82,16 @@ if curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/applications?page_size=1" | grep -q '
   apply "Анна Смирнова" "Go-разработчик" hr
 else
   echo "  отклики уже есть"
+fi
+echo "6/6 демо-комментарии"
+if curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/comments?target_type=client&target_id=$CLIENT" | grep -q '"items":\[\]'; then
+  post /api/comments "{\"target_type\":\"client\",\"target_id\":\"$CLIENT\",\"body\":\"Созваниваемся по понедельникам в 11:00, решения принимает Мария.\"}" >/dev/null
+  RUST_VACANCY=$(curl -fsS -b /tmp/crm.jar "$CRM_BFF/api/vacancies" | sed -n 's/.*"id":"\([^"]*\)","title":"Senior Rust-разработчик".*/\1/p' | head -n 1)
+  if [ -n "$RUST_VACANCY" ]; then
+    post /api/comments "{\"target_type\":\"vacancy\",\"target_id\":\"$RUST_VACANCY\",\"body\":\"Заказчик просит выход не позже чем через месяц.\"}" >/dev/null
+  fi
+  echo "  добавлены"
+else
+  echo "  уже есть"
 fi
 echo "готово"

@@ -119,6 +119,10 @@ fn PersonCard(person: PersonDto) -> impl IntoView {
         <ProfileSection state=state writable=writable />
         <EmploymentsSection state=state writable=writable />
         <EducationsSection state=state writable=writable />
+        <crate::comments::Comments
+            target_type="person"
+            target_id=Signal::derive(move || state.get().id.to_string())
+        />
     }
 }
 
