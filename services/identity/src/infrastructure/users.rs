@@ -16,6 +16,7 @@ struct UserRow {
     display_name: String,
     roles: Vec<String>,
     status: String,
+    created_at: chrono::DateTime<chrono::Utc>,
 }
 
 impl UserRow {
@@ -28,11 +29,13 @@ impl UserRow {
             display_name: self.display_name,
             roles: self.roles.iter().filter_map(|r| Role::parse(r)).collect(),
             status: UserStatus::parse(&self.status)?,
+            created_at: Some(self.created_at),
         })
     }
 }
 
-const COLUMNS: &str = "id, tenant_id, email, password_hash, display_name, roles, status";
+const COLUMNS: &str =
+    "id, tenant_id, email, password_hash, display_name, roles, status, created_at";
 
 /// Читает в контексте тенанта соединения (RLS), поэтому фильтр по тенанту не нужен.
 pub async fn find_by_email(

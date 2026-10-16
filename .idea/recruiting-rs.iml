@@ -39,6 +39,9 @@
       <sourceFolder url="file://$MODULE_DIR$/tests/e2e/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/client-contracts/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/comment-contracts/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/grid-contracts/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/platform-grid/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/platform-grid/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/services/client/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/services/client/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/services/comment/src" isTestSource="false" />

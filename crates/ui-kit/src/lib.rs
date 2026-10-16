@@ -5,6 +5,7 @@ mod client;
 mod components;
 mod encode;
 mod forms;
+pub mod grid;
 #[cfg(feature = "ssr")]
 pub mod server;
 mod session;

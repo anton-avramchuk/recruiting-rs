@@ -1,4 +1,5 @@
 //! Вызовы API пользователей организации через BFF (`/api/users`).
+use grid_contracts::{GridPage, GridQuery};
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -18,6 +19,9 @@ pub struct UserRow {
     pub display_name: String,
     pub roles: Vec<String>,
     pub status: String,
+    /// RFC 3339.
+    #[serde(default)]
+    pub created_at: Option<String>,
 }
 
 /// Новый пользователь.
@@ -86,8 +90,39 @@ impl UserPatch {
     }
 }
 
-pub async fn list_users() -> Result<Reply<Vec<UserRow>>, ServerFnError> {
-    let reply = ui_kit::api::call(Method::Get, "/api/users", None).await?;
+/// Страница пользователей по запросу грида.
+pub async fn list_users(query: GridQuery) -> Result<Reply<GridPage<UserRow>>, ServerFnError> {
+    let params = query
+        .to_pairs()
+        .into_iter()
+        .map(|(key, value)| format!("{key}={}", ui_kit::encode_query_value(&value)))
+        .collect::<Vec<_>>()
+        .join("&");
+    let path = if params.is_empty() {
+        "/api/users".to_string()
+    } else {
+        format!("/api/users?{params}")
+    };
+    let reply = ui_kit::api::call(Method::Get, &path, None).await?;
+    Ok(classify(reply.status, &reply.body, typed))
+}
+
+/// Загрузчик для `Grid`: страница либо текст ошибки.
+pub async fn load_users(query: GridQuery) -> Result<GridPage<UserRow>, String> {
+    match list_users(query).await {
+        Ok(Reply::Ok(page)) => Ok(page),
+        Ok(other) => Err(other
+            .failure()
+            .unwrap_or_else(|| "Не удалось загрузить пользователей.".into())),
+        Err(_) => Err("Не удалось загрузить пользователей. Попробуйте позже.".into()),
+    }
+}
+
+pub async fn get_user(id: String) -> Result<Reply<UserRow>, ServerFnError> {
+    if id.parse::<uuid_like::Id>().is_err() {
+        return Ok(Reply::NotFound);
+    }
+    let reply = ui_kit::api::call(Method::Get, &format!("/api/users/{id}"), None).await?;
     Ok(classify(reply.status, &reply.body, typed))
 }
 

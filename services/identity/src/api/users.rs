@@ -32,6 +32,8 @@ pub(super) struct UserDto {
     display_name: String,
     roles: Vec<Role>,
     status: &'static str,
+    /// RFC 3339; пусто у только что созданного пользователя.
+    created_at: Option<String>,
 }
 
 impl From<User> for UserDto {
@@ -42,6 +44,7 @@ impl From<User> for UserDto {
             display_name: u.display_name,
             roles: u.roles,
             status: u.status.as_str(),
+            created_at: u.created_at.map(|t| t.to_rfc3339()),
         }
     }
 }

@@ -55,6 +55,8 @@ pub struct User {
     pub display_name: String,
     pub roles: Vec<Role>,
     pub status: UserStatus,
+    /// Когда создан; у ещё не сохранённого пользователя не задано (проставляет БД).
+    pub created_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl User {
@@ -74,6 +76,7 @@ impl User {
             display_name,
             roles,
             status: UserStatus::Active,
+            created_at: None,
         })
     }
 

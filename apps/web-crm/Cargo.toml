@@ -37,6 +37,7 @@ candidate-contracts = { path = "../../crates/candidate-contracts" }
 client-contracts = { path = "../../crates/client-contracts" }
 comment-contracts = { path = "../../crates/comment-contracts" }
 recruitment-contracts = { path = "../../crates/recruitment-contracts" }
+grid-contracts = { path = "../../crates/grid-contracts" }
 candidate-import = { path = "../../crates/candidate-import" }
 serde.workspace = true
 serde_json.workspace = true

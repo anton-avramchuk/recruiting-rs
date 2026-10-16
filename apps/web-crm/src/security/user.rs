@@ -8,7 +8,7 @@ use ui_kit::{EmptyState, Notice, NoticeKind};
 
 use super::{
     role_label,
-    server::{NewUserForm, UserPatch, UserRow, create_user, failure_text, list_users, update_user},
+    server::{NewUserForm, UserPatch, UserRow, create_user, failure_text, get_user, update_user},
     view::{SecurityShell, roles_label},
 };
 use crate::funnel::server::Reply;
@@ -117,22 +117,23 @@ pub fn UserPage() -> impl IntoView {
     let params = use_params_map();
     let id = move || params.read().get("id").unwrap_or_default();
     let version = RwSignal::new(0u32);
-    let users = Resource::new(move || version.get(), |_| list_users());
+    let user = Resource::new(move || (id(), version.get()), |(id, _)| get_user(id));
+    // сообщения живут здесь: редактор пересоздаётся при каждом перечитывании пользователя
+    let error = RwSignal::new(None::<String>);
+    let done = RwSignal::new(None::<String>);
     view! {
         <SecurityShell title="Пользователь" actions=back_link()>
+            {move || error.get().map(|m| view! { <div data-testid="users-error"><Notice kind=NoticeKind::Error>{m}</Notice></div> })}
+            {move || done.get().map(|m| view! { <div data-testid="users-ok"><Notice kind=NoticeKind::Info>{m}</Notice></div> })}
             <Transition fallback=|| view! { <p class="muted">"Загрузка…"</p> }>
                 {move || {
-                    users
+                    user
                         .get()
                         .map(|result| match result {
-                            Ok(Reply::Ok(list)) => {
-                                match list.into_iter().find(|u| u.id == id()) {
-                                    Some(user) => view! { <UserEditor user version /> }.into_any(),
-                                    None => {
-                                        view! { <EmptyState title="Пользователь не найден" hint="Возможно, он из другой организации." /> }
-                                            .into_any()
-                                    }
-                                }
+                            Ok(Reply::Ok(user)) => view! { <UserEditor user version error done /> }.into_any(),
+                            Ok(Reply::NotFound) => {
+                                view! { <EmptyState title="Пользователь не найден" hint="Возможно, он из другой организации." /> }
+                                    .into_any()
                             }
                             _ => {
                                 view! { <Notice kind=NoticeKind::Error>"Не удалось загрузить пользователя. Попробуйте позже."</Notice> }
@@ -149,15 +150,18 @@ pub fn UserPage() -> impl IntoView {
 type Change = (UserPatch, &'static str);
 
 #[component]
-fn UserEditor(user: UserRow, version: RwSignal<u32>) -> impl IntoView {
+fn UserEditor(
+    user: UserRow,
+    version: RwSignal<u32>,
+    error: RwSignal<Option<String>>,
+    done: RwSignal<Option<String>>,
+) -> impl IntoView {
     let id = StoredValue::new(user.id.clone());
     let blocked = user.status == "blocked";
     let single_role = (user.roles.len() == 1).then(|| user.roles[0].clone());
     let name = RwSignal::new(user.display_name.clone());
     let role = RwSignal::new(single_role.clone().unwrap_or_default());
     let new_password = RwSignal::new(String::new());
-    let error = RwSignal::new(None::<String>);
-    let done = RwSignal::new(None::<String>);
 
     let update = Action::new(move |change: &Change| {
         let (patch, ok) = change.clone();
@@ -196,8 +200,6 @@ fn UserEditor(user: UserRow, version: RwSignal<u32>) -> impl IntoView {
     };
 
     view! {
-        {move || error.get().map(|m| view! { <div data-testid="users-error"><Notice kind=NoticeKind::Error>{m}</Notice></div> })}
-        {move || done.get().map(|m| view! { <div data-testid="users-ok"><Notice kind=NoticeKind::Info>{m}</Notice></div> })}
         <p class="muted" data-testid="user-heading">{user.email.clone()} " · " {roles_label(&user)}</p>
 
         <form

@@ -30,8 +30,13 @@ fn choose(tab: &Tab, selector: &str, label: &str) {
     );
 }
 
+/// Часть строки грида, в которой есть пользователь с этим email.
+fn path_with_query(tab: &Tab) -> String {
+    eval_str(tab, "location.pathname + location.search")
+}
+
 fn row(email: &str, part: &str) -> String {
-    format!("[data-email='{email}'] {part}")
+    format!("tr[data-testid=grid-row]:has([data-email='{email}']) {part}")
 }
 
 async fn world() -> Stack {
@@ -48,7 +53,7 @@ fn sign_in(tab: &Tab, base: &str, user: (&str, &str)) {
 }
 
 fn open_user(tab: &Tab, email: &str) {
-    click(tab, &format!("a[data-email='{email}']"));
+    click(tab, &format!("[data-email='{email}']"));
     wait_until(
         tab,
         "user page",
@@ -58,7 +63,7 @@ fn open_user(tab: &Tab, email: &str) {
 
 fn back_to_users(tab: &Tab) {
     click(tab, "[data-testid=back-to-users]");
-    wait_until(tab, "users list", &exists_js("[data-testid=users]"));
+    wait_until(tab, "users list", &exists_js("[data-testid=grid-row]"));
 }
 
 fn error_contains(part: &str) -> String {
@@ -85,8 +90,8 @@ async fn the_owner_manages_users_end_to_end() {
         set_marker(&tab);
 
         click(&tab, "nav a[href='/security']");
-        wait_until(&tab, "security page", &exists_js("[data-testid=user-new]"));
-        wait_count(&tab, "two users", "[data-testid=user-row]", 2);
+        wait_until(&tab, "security page", &exists_js("[data-testid=grid-row]"));
+        wait_count(&tab, "two users", "[data-testid=grid-row]", 2);
         assert_eq!(eval(&tab, &count_js("[data-testid=security-tabs]")), 1);
 
         // создание на отдельной странице
@@ -97,8 +102,8 @@ async fn the_owner_manages_users_end_to_end() {
         type_into(&tab, "[data-testid=user-name]", "Новый");
         type_into(&tab, "[data-testid=user-password]", "new-password-1");
         click(&tab, "[data-testid=user-add]");
-        wait_until(&tab, "back on list", &exists_js("[data-testid=users]"));
-        wait_count(&tab, "three users", "[data-testid=user-row]", 3);
+        wait_until(&tab, "back on list", &exists_js("[data-testid=grid]"));
+        wait_count(&tab, "three users", "[data-testid=grid-row]", 3);
         assert!(text(&tab, &row(NEW, "[data-testid=user-title]")).contains("Новый"));
 
         // занятый email и слабый пароль: ошибка у формы, остаёмся на странице
@@ -114,7 +119,7 @@ async fn the_owner_manages_users_end_to_end() {
         wait_until(&tab, "weak password error", &error_contains("8"));
         assert_eq!(path_of(&tab), "/security/users/new");
         back_to_users(&tab);
-        assert_eq!(eval(&tab, &count_js("[data-testid=user-row]")), 3);
+        assert_eq!(eval(&tab, &count_js("[data-testid=grid-row]")), 3);
 
         // смена роли на странице пользователя
         open_user(&tab, NEW);
@@ -197,6 +202,105 @@ async fn the_owner_manages_users_end_to_end() {
     stack.stop().await;
 }
 
+fn info(tab: &Tab) -> String {
+    text(tab, "[data-testid=grid-page-info]")
+}
+
+fn wait_info(tab: &Tab, expected: &str) {
+    wait_until(
+        tab,
+        &format!("pager shows {expected}"),
+        &format!(
+            "(document.querySelector('[data-testid=grid-page-info]')||{{}}).innerText === {expected:?}"
+        ),
+    );
+}
+
+#[tokio::test]
+async fn the_users_grid_pages_sorts_filters_and_keeps_its_state_in_the_address() {
+    let stack = world().await;
+    let owner = stack.crm_client("acme", OWNER.0, OWNER.1).await;
+    for i in 0..22 {
+        let role = if i % 2 == 0 { "recruiter" } else { "viewer" };
+        stack
+            .add_user(
+                &owner,
+                &format!("user{i:02}@acme.io"),
+                "long-enough-1",
+                role,
+            )
+            .await;
+    }
+    let base = stack.web_crm_url.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let browser = launch();
+        let tab = browser.new_tab().unwrap();
+        sign_in(&tab, &base, OWNER);
+        click(&tab, "nav a[href='/security']");
+        wait_until(&tab, "grid", &exists_js("[data-testid=grid-row]"));
+
+        // 24 пользователя: владелец, наблюдатель и 22 созданных
+        wait_info(&tab, "1–20 из 24");
+        assert_eq!(eval(&tab, &count_js("[data-testid=grid-row]")), 20);
+        click(&tab, "[data-testid=grid-next]");
+        wait_info(&tab, "21–24 из 24");
+        assert!(path_with_query(&tab).contains("page=2"));
+        click(&tab, "[data-testid=grid-prev]");
+        wait_info(&tab, "1–20 из 24");
+
+        // сортировка по заголовку: по возрастанию, по убыванию, без сортировки
+        click(&tab, "[data-testid=grid-sort-email]");
+        wait_until(&tab, "ascending", "document.querySelector('th[aria-sort=ascending]') !== null");
+        assert!(text(&tab, "[data-testid=grid-row]").contains("boss@acme.io"));
+        click(&tab, "[data-testid=grid-sort-email]");
+        wait_until(&tab, "descending", "document.querySelector('th[aria-sort=descending]') !== null");
+        wait_until(
+            &tab,
+            "viewer first",
+            "(document.querySelector('[data-testid=grid-row]')||{}).innerText?.includes('viewer@acme.io')",
+        );
+
+        // фильтр по роли
+        choose(&tab, "[data-testid=grid-filter-role]", "Рекрутёр");
+        wait_info(&tab, "1–11 из 11");
+        assert!(path_with_query(&tab).contains("f.role=recruiter"));
+
+        // адрес хранит представление: после перезагрузки оно то же
+        let url = tab.get_url();
+        tab.navigate_to(&url).unwrap();
+        std::thread::sleep(Duration::from_millis(1500));
+        wait_info(&tab, "1–11 из 11");
+        assert_eq!(
+            eval_str(&tab, "document.querySelector('[data-testid=grid-filter-role]').value"),
+            "recruiter"
+        );
+
+        // поиск внутри фильтра
+        type_into(&tab, "[data-testid=grid-search]", "user04");
+        wait_info(&tab, "1–1 из 1");
+        assert!(path_with_query(&tab).contains("q=user04"));
+
+        // ничего не найдено
+        replace_text(&tab, "[data-testid=grid-search]", "no-such-person");
+        wait_until(&tab, "empty state", &exists_js("[data-testid=grid-empty]"));
+        assert_eq!(info(&tab), "Ничего нет");
+
+        // сброс возвращает полный список
+        click(&tab, "[data-testid=grid-reset]");
+        wait_info(&tab, "1–20 из 24");
+        assert_eq!(eval(&tab, &count_js("[data-testid=grid-reset]")), 0);
+
+        // размер страницы
+        choose(&tab, "[data-testid=grid-page-size]", "50");
+        wait_info(&tab, "1–24 из 24");
+        assert_eq!(eval(&tab, &count_js("[data-testid=grid-row]")), 24);
+    })
+    .await
+    .unwrap();
+    stack.stop().await;
+}
+
 #[tokio::test]
 async fn other_roles_do_not_see_the_security_section() {
     let stack = world().await;
@@ -210,7 +314,7 @@ async fn other_roles_do_not_see_the_security_section() {
 
         tab.navigate_to(&format!("{base}/security")).unwrap();
         wait_until(&tab, "denied", &exists_js("[data-testid=security-denied]"));
-        assert_eq!(eval(&tab, &count_js("[data-testid=user-row]")), 0);
+        assert_eq!(eval(&tab, &count_js("[data-testid=grid-row]")), 0);
 
         // палитра не предлагает раздел
         std::thread::sleep(Duration::from_millis(1500)); // гидратация после перезагрузки

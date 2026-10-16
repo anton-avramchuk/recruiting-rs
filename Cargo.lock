@@ -1670,6 +1670,7 @@ dependencies = [
  "async-trait",
  "axum",
  "base64 0.22.1",
+ "chrono",
  "grid-contracts",
  "http-body-util",
  "platform-auth",
@@ -4167,6 +4168,7 @@ name = "ui-kit"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "grid-contracts",
  "js-sys",
  "leptos",
  "leptos_axum",
@@ -4498,6 +4500,7 @@ dependencies = [
  "client-contracts",
  "comment-contracts",
  "console_error_panic_hook",
+ "grid-contracts",
  "js-sys",
  "leptos",
  "leptos_axum",

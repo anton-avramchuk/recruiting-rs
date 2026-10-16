@@ -1,13 +1,17 @@
 //! Раздел «Безопасность»: каркас с вкладками и список пользователей.
+use grid_contracts::Operator;
 use leptos::prelude::*;
 use leptos_router::components::A;
-use ui_kit::{EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
+use ui_kit::{
+    EmptyState, PageHeader, SessionCtx,
+    grid::{Column, Grid},
+};
 
 use super::{
     role_label,
-    server::{UserRow, list_users},
+    server::{UserRow, load_users},
 };
-use crate::{candidates::list::can_delete, funnel::server::Reply};
+use crate::candidates::list::can_delete;
 
 /// Вкладки раздела; новые вкладки добавляются сюда.
 #[component]
@@ -74,77 +78,84 @@ pub fn SecurityPage() -> impl IntoView {
     }
 }
 
-#[component]
-fn UsersList() -> impl IntoView {
-    let session = expect_context::<SessionCtx>();
-    let me = move || {
-        session
-            .current()
-            .and_then(Result::ok)
-            .and_then(|s| s.user)
-            .map(|u| u.id)
-            .unwrap_or_default()
-    };
-    let users = Resource::new(|| (), |_| list_users());
-    view! {
-        <Transition fallback=|| view! { <p class="muted">"Загрузка…"</p> }>
-            {move || {
-                users
-                    .get()
-                    .map(|result| match result {
-                        Ok(Reply::Ok(list)) if list.is_empty() => {
-                            view! { <EmptyState title="Пользователей пока нет" hint="Добавьте первого пользователя." /> }
-                                .into_any()
-                        }
-                        Ok(Reply::Ok(list)) => {
-                            let me = me();
-                            view! {
-                                <div class="card list-card" data-testid="users">
-                                    {list
-                                        .into_iter()
-                                        .map(|u| {
-                                            let is_me = u.id == me;
-                                            view! { <UserRowView user=u is_me /> }
-                                        })
-                                        .collect_view()}
-                                </div>
-                            }
-                                .into_any()
-                        }
-                        Ok(Reply::Forbidden) => {
-                            view! { <EmptyState title="Нет доступа" hint="Управлять пользователями может только владелец организации." /> }
-                                .into_any()
-                        }
-                        _ => {
-                            view! { <Notice kind=NoticeKind::Error>"Не удалось загрузить пользователей. Попробуйте позже."</Notice> }
-                                .into_any()
-                        }
-                    })
-            }}
-        </Transition>
-    }
+/// Адрес страницы пользователя.
+fn user_href(user: &UserRow) -> String {
+    format!("/security/users/{}", user.id)
+}
+
+fn user_columns(me: String) -> Vec<Column<UserRow>> {
+    vec![
+        Column::new("email", "Пользователь", move |u: &UserRow| {
+            let title = if u.display_name.trim().is_empty() {
+                u.email.clone()
+            } else {
+                u.display_name.clone()
+            };
+            let you = (u.id == me).then_some(" (вы)");
+            view! {
+                <span data-testid="user-title" data-email=u.email.clone()>{title} {you}</span>
+                <span class="cell-sub">{u.email.clone()}</span>
+            }
+            .into_any()
+        })
+        .sortable(),
+        Column::new("role", "Роль", |u: &UserRow| {
+            view! { <span class="chip" data-testid="user-role-label">{roles_label(u)}</span> }.into_any()
+        })
+        .filter_select(
+            vec![
+                ("owner", "Владелец"),
+                ("recruiter", "Рекрутёр"),
+                ("viewer", "Наблюдатель"),
+            ],
+            Operator::Contains,
+        ),
+        Column::new("status", "Статус", |u: &UserRow| {
+            let blocked = u.status == "blocked";
+            view! {
+                <span class=if blocked { "badge badge--off" } else { "badge" } data-testid="user-status">
+                    {if blocked { "Заблокирован" } else { "Активен" }}
+                </span>
+            }
+            .into_any()
+        })
+        .sortable()
+        .filter_select(
+            vec![("active", "Активен"), ("blocked", "Заблокирован")],
+            Operator::Eq,
+        ),
+        Column::new("created_at", "Создан", |u: &UserRow| {
+            let date = u
+                .created_at
+                .as_deref()
+                .and_then(|t| t.get(..10))
+                .unwrap_or("")
+                .to_string();
+            view! { <span class="muted">{date}</span> }.into_any()
+        })
+        .sortable(),
+    ]
 }
 
 #[component]
-fn UserRowView(user: UserRow, is_me: bool) -> impl IntoView {
-    let blocked = user.status == "blocked";
-    let title = if user.display_name.trim().is_empty() {
-        user.email.clone()
-    } else {
-        user.display_name.clone()
-    };
-    let role = roles_label(&user);
-    let (email, email_attr) = (user.email.clone(), user.email.clone());
+fn UsersList() -> impl IntoView {
+    let session = expect_context::<SessionCtx>();
+    let me = session
+        .current()
+        .and_then(Result::ok)
+        .and_then(|s| s.user)
+        .map(|u| u.id)
+        .unwrap_or_default();
+    let href: fn(&UserRow) -> String = user_href;
     view! {
-        <A href=format!("/security/users/{}", user.id) attr:class="qrow" attr:data-testid="user-row" attr:data-email=email_attr>
-            <span class="qrow__main">
-                <span class="nm" data-testid="user-title">{title} {is_me.then_some(" (вы)")}</span>
-                <span class="sub">{email}</span>
-            </span>
-            <span class="chip" data-testid="user-role-label">{role}</span>
-            <span class=if blocked { "badge badge--off" } else { "badge" } data-testid="user-status">
-                {if blocked { "Заблокирован" } else { "Активен" }}
-            </span>
-        </A>
+        <Grid
+            columns=user_columns(me)
+            load=load_users
+            row_href=href
+            search_fields=vec!["email", "display_name"]
+            search_placeholder="Поиск по имени и email"
+            empty_title="Пользователей пока нет"
+            empty_hint="Добавьте первого пользователя."
+        />
     }
 }
