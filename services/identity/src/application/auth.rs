@@ -167,7 +167,13 @@ impl AuthService {
             user.roles.clone(),
             Audience::Tenant,
             self.lifetimes.access_secs,
-        );
+        )
+        // имя для подписей действий в других сервисах: отображаемое, а без него - email
+        .with_name(if user.display_name.trim().is_empty() {
+            user.email.as_str()
+        } else {
+            user.display_name.as_str()
+        });
         let access_token = self
             .signer
             .sign(&claims)

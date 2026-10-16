@@ -31,6 +31,9 @@ pub struct Claims {
     pub aud: Audience,
     pub iat: i64,
     pub exp: i64,
+    /// Отображаемое имя пользователя (или email); есть не во всех токенах.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 impl Claims {
@@ -49,7 +52,16 @@ impl Claims {
             aud,
             iat: now,
             exp: now + ttl_secs,
+            name: None,
         }
+    }
+
+    /// Добавляет имя пользователя; пустое имя считается отсутствующим.
+    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+        let name = name.into();
+        let name = name.trim();
+        self.name = (!name.is_empty()).then(|| name.to_string());
+        self
     }
 
     pub fn has(&self, permission: Permission) -> bool {

@@ -229,3 +229,25 @@ async fn tenant_token_on_platform_endpoint_is_forbidden() {
     let platform_app = app(TokenVerifier::new(&kp.public_key(), Audience::Platform));
     assert_eq!(call(platform_app, Some(&tenant_token)).await, 403);
 }
+
+#[test]
+fn the_name_survives_signing_and_old_tokens_have_none() {
+    let kp = KeyPair::generate("k1");
+    let signer = TokenSigner::new(&kp);
+    let verifier = TokenVerifier::new(&kp.public_key(), Audience::Tenant);
+
+    let named = claims(Audience::Tenant, vec![Role::Recruiter], 600).with_name("  Мария Петрова ");
+    let got = verifier.verify(&signer.sign(&named).unwrap()).unwrap();
+    assert_eq!(got.name.as_deref(), Some("Мария Петрова"));
+
+    // токен без имени (выпущен до появления поля) по-прежнему действителен
+    let anonymous = claims(Audience::Tenant, vec![Role::Recruiter], 600);
+    let got = verifier.verify(&signer.sign(&anonymous).unwrap()).unwrap();
+    assert_eq!(got.name, None);
+}
+
+#[test]
+fn an_empty_name_counts_as_missing() {
+    let c = claims(Audience::Tenant, vec![], 600).with_name("   ");
+    assert_eq!(c.name, None);
+}
