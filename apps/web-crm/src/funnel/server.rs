@@ -88,7 +88,23 @@ pub struct AppQuery {
 }
 
 pub async fn list_vacancies() -> Result<Reply<Vec<VacancyDto>>, ServerFnError> {
-    let reply = ui_kit::api::call(Method::Get, "/api/vacancies", None).await?;
+    list_vacancies_of(String::new()).await
+}
+
+/// Вакансии организации; непустой `client_id` оставляет вакансии одного заказчика.
+pub async fn list_vacancies_of(client_id: String) -> Result<Reply<Vec<VacancyDto>>, ServerFnError> {
+    let client_id = client_id.trim();
+    let mut path = String::from("/api/vacancies");
+    if !client_id.is_empty() {
+        if client_id
+            .parse::<crate::candidates::server::uuid_like::Id>()
+            .is_err()
+        {
+            return Ok(Reply::NotFound);
+        }
+        path.push_str(&format!("?client_id={client_id}"));
+    }
+    let reply = ui_kit::api::call(Method::Get, &path, None).await?;
     Ok(classify(reply.status, &reply.body, typed))
 }
 

@@ -203,6 +203,8 @@ pub struct ListFilter {
     pub max_experience: Option<i32>,
     pub min_salary: Option<i64>,
     pub max_salary: Option<i64>,
+    /// Только эти люди; `None` - без ограничения.
+    pub ids: Option<Vec<Uuid>>,
 }
 
 /// Строка списка: без истории.
@@ -232,7 +234,8 @@ const LIST_FILTER: &str = r"
     AND ($5::int IS NULL OR experience_years >= $5)
     AND ($6::int IS NULL OR experience_years <= $6)
     AND ($7::bigint IS NULL OR expected_salary >= $7)
-    AND ($8::bigint IS NULL OR expected_salary <= $8)";
+    AND ($8::bigint IS NULL OR expected_salary <= $8)
+    AND ($9::uuid[] IS NULL OR id = ANY($9))";
 
 pub async fn list(
     conn: &mut PgConnection,
@@ -258,12 +261,13 @@ pub async fn list(
             .bind(filter.max_experience)
             .bind(filter.min_salary)
             .bind(filter.max_salary)
+            .bind(&filter.ids)
             .fetch_one(&mut *conn)
             .await?;
     let items: Vec<PersonSummary> = sqlx::query_as(&format!(
         "SELECT id, full_name, source, phone, email, city, expected_salary, skills, experience_years, created_at
          FROM persons WHERE {LIST_FILTER}
-         ORDER BY created_at DESC, id LIMIT $9 OFFSET $10"
+         ORDER BY created_at DESC, id LIMIT $10 OFFSET $11"
     ))
     .bind(&text_pattern)
     .bind(&phone_pattern)
@@ -273,6 +277,7 @@ pub async fn list(
     .bind(filter.max_experience)
     .bind(filter.min_salary)
     .bind(filter.max_salary)
+    .bind(&filter.ids)
     .bind(limit)
     .bind(offset)
     .fetch_all(conn)

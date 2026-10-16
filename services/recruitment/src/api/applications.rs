@@ -8,8 +8,9 @@ use platform_auth::{AuthUser, Permission};
 use platform_core::error::{ApiError, ProblemDetails};
 use recruitment_contracts::{
     ApplicationDetailDto, ApplicationDto, ApplicationPage, BatchApplicationsRequest,
-    BatchApplicationsResponse, BulkRequest, BulkResult, CreateApplicationRequest, HandoffRequest,
-    InterviewItemDto, InterviewRequest, MoveRequest, OverviewDto, RejectRequest, Stage, StageCount,
+    BatchApplicationsResponse, BulkRequest, BulkResult, ClientPeopleDto, CreateApplicationRequest,
+    HandoffRequest, InterviewItemDto, InterviewRequest, MoveRequest, OverviewDto, RejectRequest,
+    Stage, StageCount,
 };
 use serde::Deserialize;
 use uuid::Uuid;
@@ -27,6 +28,7 @@ use crate::{
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/applications", get(list).post(create))
+        .route("/applications/people", get(people_of_client))
         .route("/applications/bulk", post(bulk))
         .route("/applications/batch", post(batch))
         .route("/applications/{id}", get(get_one))
@@ -37,6 +39,38 @@ pub fn routes() -> Router<AppState> {
         .route("/applications/{id}/handoff", post(handoff))
         .route("/overview", get(overview))
         .route("/interviews", get(interviews))
+}
+
+/// Предел перечня людей заказчика (длина адреса у потребителя).
+const MAX_CLIENT_PEOPLE: i64 = 200;
+
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub(super) struct PeopleParams {
+    /// Заказчик (обязателен).
+    client_id: Uuid,
+}
+
+#[utoipa::path(get, path = "/applications/people", security(("bearer" = [])), params(PeopleParams), responses(
+    (status = 200, body = ClientPeopleDto),
+    (status = 400, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 401, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn people_of_client(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Query(params): Query<PeopleParams>,
+) -> Result<Json<ClientPeopleDto>, ApiError> {
+    user.require(Permission::ReadData)?;
+    let (person_ids, truncated) = state
+        .applications
+        .people_of_client(tenant_of(&user)?, params.client_id, MAX_CLIENT_PEOPLE)
+        .await?;
+    Ok(Json(ClientPeopleDto {
+        person_ids,
+        truncated,
+    }))
 }
 
 #[utoipa::path(post, path = "/applications", security(("bearer" = [])), request_body = CreateApplicationRequest, responses(

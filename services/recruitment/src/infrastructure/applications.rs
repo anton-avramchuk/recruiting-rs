@@ -350,6 +350,23 @@ pub async fn row(
     Ok(rows.pop())
 }
 
+/// Различные люди с откликами на вакансии заказчика (не больше `limit`).
+pub async fn people_of_client(
+    conn: &mut PgConnection,
+    client_id: Uuid,
+    limit: i64,
+) -> Result<Vec<Uuid>, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT DISTINCT a.person_id FROM applications a
+         JOIN vacancies v ON v.id = a.vacancy_id
+         WHERE v.client_id = $1 ORDER BY a.person_id LIMIT $2",
+    )
+    .bind(client_id)
+    .bind(limit)
+    .fetch_all(conn)
+    .await
+}
+
 /// Все отклики человека (для панели).
 pub async fn person_rows(
     conn: &mut PgConnection,

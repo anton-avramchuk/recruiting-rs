@@ -169,8 +169,42 @@ pub(super) struct ListParams {
     max_experience: Option<i32>,
     min_salary: Option<i64>,
     max_salary: Option<i64>,
+    /// Только эти кандидаты: идентификаторы через запятую, не больше 200.
+    ids: Option<String>,
     page: Option<i64>,
     page_size: Option<i64>,
+}
+
+/// Предел перечня `ids` (длина адреса запроса).
+const MAX_IDS: usize = 200;
+
+/// Разбирает `ids`: пусто - без ограничения; мусор или больше `MAX_IDS` - 400 с полем `ids`.
+fn parse_ids(raw: Option<&str>) -> Result<Option<Vec<Uuid>>, ApiError> {
+    let items: Vec<&str> = raw
+        .map(|r| {
+            r.split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    if items.is_empty() {
+        return Ok(None);
+    }
+    if items.len() > MAX_IDS {
+        return Err(ApiError::bad_request("не больше 200 идентификаторов")
+            .with_extension("field", "ids".into()));
+    }
+    items
+        .into_iter()
+        .map(|s| {
+            s.parse::<Uuid>().map_err(|_| {
+                ApiError::bad_request("некорректный идентификатор")
+                    .with_extension("field", "ids".into())
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
 }
 
 #[utoipa::path(get, path = "/persons", security(("bearer" = [])), params(ListParams), responses(
@@ -198,6 +232,7 @@ pub(super) async fn list(
                     max_experience: params.max_experience,
                     min_salary: params.min_salary,
                     max_salary: params.max_salary,
+                    ids: parse_ids(params.ids.as_deref())?,
                 },
                 page: params.page.unwrap_or(1),
                 page_size: params.page_size.unwrap_or(DEFAULT_PAGE_SIZE),

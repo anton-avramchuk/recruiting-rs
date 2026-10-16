@@ -10,7 +10,7 @@ use super::{
     format::{LONG_OPEN_DAYS, client_line, time_label},
     panel::PersonPanel,
     server::{
-        AppQuery, Reply, application_action, create_vacancy, list_applications, list_vacancies,
+        AppQuery, Reply, application_action, create_vacancy, list_applications, list_vacancies_of,
     },
 };
 use crate::{
@@ -52,15 +52,24 @@ pub fn VacanciesPage() -> impl IntoView {
 
     // список перечитывается только при создании вакансии: доска не должна пересоздаваться
     let list_version = RwSignal::new(0u32);
-    let vacancies = Resource::new(move || list_version.get(), |_| list_vacancies());
+    // заказчик в фильтре: пусто - все; смена заказчика пересоздаёт доску, смена вакансии - нет
+    let client = RwSignal::new(String::new());
+    let clients = Resource::new(|| (), |_| list_clients(String::new(), true));
+    let vacancies = Resource::new(
+        move || (list_version.get(), client.get()),
+        |(_, client)| list_vacancies_of(client),
+    );
     Effect::new(move |_| {
-        if let Some(Ok(Reply::Ok(list))) = vacancies.get()
-            && !list
+        if let Some(Ok(Reply::Ok(list))) = vacancies.get() {
+            if list.is_empty() {
+                selected.set(String::new());
+            } else if !list
                 .iter()
                 .any(|v| v.id.to_string() == selected.get_untracked())
-            && let Some(first) = list.first()
-        {
-            selected.set(first.id.to_string());
+                && let Some(first) = list.first()
+            {
+                selected.set(first.id.to_string());
+            }
         }
     });
 
@@ -77,11 +86,51 @@ pub fn VacanciesPage() -> impl IntoView {
             <VacancyForm list_version=list_version selected=selected creating=creating />
         </Show>
 
+        <div class="toolbar">
+            <label>
+                "Заказчик "
+                <select
+                    aria-label="Заказчик"
+                    data-testid="vacancy-client-filter"
+                    prop:value=move || client.get()
+                    on:change=move |ev| client.set(event_target_value(&ev))
+                >
+                    <option value="">"Все заказчики"</option>
+                    <Transition fallback=|| ()>
+                        {move || {
+                            clients
+                                .get()
+                                .and_then(Result::ok)
+                                .and_then(Reply::ok)
+                                .map(|list| {
+                                    list.into_iter()
+                                        .map(|c| {
+                                            let label = if c.archived { format!("{} (архив)", c.name) } else { c.name.clone() };
+                                            let id = c.id.to_string();
+                                            view! { <option value=id.clone() selected=move || client.get() == id>{label}</option> }
+                                        })
+                                        .collect_view()
+                                })
+                        }}
+                    </Transition>
+                </select>
+            </label>
+        </div>
+
         <Transition fallback=|| view! { <p class="muted">"Загрузка…"</p> }>
             {move || {
                 vacancies
                     .get()
                     .map(|result| match result {
+                        Ok(Reply::Ok(list)) if list.is_empty() && !client.get_untracked().is_empty() => {
+                            view! {
+                                <EmptyState
+                                    title="У заказчика пока нет вакансий"
+                                    hint="Создайте вакансию для этого заказчика или выберите «Все заказчики»."
+                                />
+                            }
+                                .into_any()
+                        }
                         Ok(Reply::Ok(list)) if list.is_empty() => {
                             view! {
                                 <EmptyState

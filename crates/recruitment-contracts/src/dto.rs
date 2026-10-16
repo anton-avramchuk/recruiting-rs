@@ -320,6 +320,15 @@ pub struct VacancyLoadDto {
     pub open_days: i64,
 }
 
+/// Люди, откликавшиеся на вакансии заказчика (для фильтра списка кандидатов).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct ClientPeopleDto {
+    /// Различные люди, не больше 200.
+    pub person_ids: Vec<Uuid>,
+    /// Людей больше, чем отдано.
+    pub truncated: bool,
+}
+
 /// Заказчик в аналитике: вакансии, отклики периода и результат.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ClientStatDto {

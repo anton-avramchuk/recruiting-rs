@@ -418,3 +418,153 @@ async fn applications_can_be_filtered_by_client_from_the_card_and_the_screen() {
     .unwrap();
     stack.stop().await;
 }
+
+#[tokio::test]
+async fn candidates_and_vacancies_can_be_filtered_by_client() {
+    let stack = world().await;
+    let owner = stack.crm_client("acme", OWNER.0, OWNER.1).await;
+    let acme = stack.add_client(&owner, "Acme Corp").await;
+    let globex = stack.add_client(&owner, "Globex").await;
+    stack.add_client(&owner, "Пустой заказчик").await;
+    let mut vacancy_ids = Vec::new();
+    for (client, title) in [
+        (&acme, "Senior Go"),
+        (&acme, "Rust-разработчик"),
+        (&globex, "QA инженер"),
+    ] {
+        let v: serde_json::Value = owner
+            .post(
+                "/api/vacancies",
+                json!({"title": title, "client_id": client}),
+            )
+            .await
+            .json()
+            .await
+            .unwrap();
+        vacancy_ids.push(v["id"].clone());
+    }
+    let mut people = Vec::new();
+    for name in [
+        "Анна Смирнова",
+        "Борис Иванов",
+        "Вера Орлова",
+        "Одинокий Кандидат",
+    ] {
+        let person: serde_json::Value = owner
+            .post("/api/persons", json!({"full_name": name}))
+            .await
+            .json()
+            .await
+            .unwrap();
+        people.push(person["id"].clone());
+    }
+    // Анна и Борис - у Acme (Анна дважды), Вера - у Globex, Одинокий - без откликов
+    for (person, vacancy) in [(0, 0), (0, 1), (1, 0), (2, 2)] {
+        let res = owner
+            .post(
+                "/api/applications",
+                json!({"person_id": people[person], "vacancy_id": vacancy_ids[vacancy]}),
+            )
+            .await;
+        assert_eq!(res.status(), 201);
+    }
+    let base = stack.web_crm_url.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let browser = launch();
+        let tab = browser.new_tab().unwrap();
+        sign_in(&tab, &base, OWNER);
+
+        // кандидаты заказчика
+        click(&tab, "nav a[href='/candidates']");
+        wait_count(&tab, "all people", "[data-testid=persons] tbody tr", 4);
+        std::thread::sleep(Duration::from_millis(1200));
+        set_marker(&tab);
+        choose(&tab, "[data-testid=filter-client]", "Acme Corp");
+        wait_count(&tab, "people of acme", "[data-testid=persons] tbody tr", 2);
+        let rows = text(&tab, "[data-testid=persons]");
+        assert!(
+            rows.contains("Анна Смирнова") && rows.contains("Борис Иванов"),
+            "{rows}"
+        );
+        assert!(
+            !rows.contains("Вера Орлова") && !rows.contains("Одинокий"),
+            "{rows}"
+        );
+        assert!(
+            text(&tab, "main").contains("Найдено: 2"),
+            "different people, not applications"
+        );
+
+        // вместе с поиском
+        type_into(&tab, "[data-testid=search]", "борис");
+        wait_count(
+            &tab,
+            "search within the client",
+            "[data-testid=persons] tbody tr",
+            1,
+        );
+
+        // сброс возвращает всех
+        click(&tab, "[data-testid=reset-filters]");
+        wait_count(&tab, "everyone again", "[data-testid=persons] tbody tr", 4);
+        assert_eq!(
+            eval_str(
+                &tab,
+                "document.querySelector('[data-testid=filter-client]').value"
+            ),
+            ""
+        );
+
+        // заказчик, на чьи вакансии никто не откликался
+        choose(&tab, "[data-testid=filter-client]", "Пустой заказчик");
+        wait_until(
+            &tab,
+            "empty note",
+            "document.querySelector('main').innerText.includes('Кандидатов заказчика пока нет')",
+        );
+        assert!(marker_alive(&tab), "no reload");
+
+        // вакансии заказчика
+        click(&tab, "nav a[href='/vacancies']");
+        wait_until(&tab, "board", &exists_js("[data-testid=vacancy-select]"));
+        std::thread::sleep(Duration::from_millis(1200));
+        assert_eq!(
+            eval(&tab, &count_js("[data-testid=vacancy-select] option")),
+            3
+        );
+        choose(&tab, "[data-testid=vacancy-client-filter]", "Globex");
+        wait_until(
+            &tab,
+            "one vacancy",
+            "document.querySelectorAll('[data-testid=vacancy-select] option').length === 1",
+        );
+        assert!(text(&tab, "[data-testid=vacancy-select]").contains("QA инженер"));
+        choose(&tab, "[data-testid=vacancy-client-filter]", "Acme Corp");
+        wait_until(
+            &tab,
+            "two vacancies",
+            "document.querySelectorAll('[data-testid=vacancy-select] option').length === 2",
+        );
+        // у заказчика без вакансий - пустое состояние
+        choose(
+            &tab,
+            "[data-testid=vacancy-client-filter]",
+            "Пустой заказчик",
+        );
+        wait_until(
+            &tab,
+            "empty vacancies",
+            "document.querySelector('main').innerText.includes('У заказчика пока нет вакансий')",
+        );
+        choose(&tab, "[data-testid=vacancy-client-filter]", "Все заказчики");
+        wait_until(
+            &tab,
+            "all vacancies",
+            "document.querySelectorAll('[data-testid=vacancy-select] option').length === 3",
+        );
+    })
+    .await
+    .unwrap();
+    stack.stop().await;
+}

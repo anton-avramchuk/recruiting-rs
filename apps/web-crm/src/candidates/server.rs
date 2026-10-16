@@ -19,6 +19,8 @@ pub struct PersonQuery {
     pub source: String,
     pub skill: String,
     pub min_experience: String,
+    /// Только эти люди (идентификаторы через запятую); пусто - без ограничения.
+    pub ids: String,
     pub page: i64,
 }
 
@@ -30,6 +32,7 @@ pub async fn search_persons(query: PersonQuery) -> Result<ListOutcome, ServerFnE
         ("q", query.q.trim()),
         ("source", query.source.trim()),
         ("skill", query.skill.trim()),
+        ("ids", query.ids.trim()),
     ] {
         if !value.is_empty() {
             path.push_str(&format!("&{name}={}", enc(value)));
@@ -40,6 +43,50 @@ pub async fn search_persons(query: PersonQuery) -> Result<ListOutcome, ServerFnE
     }
     let reply = ui_kit::api::call(Method::Get, &path, None).await?;
     Ok(super::outcome::classify_list(reply.status, &reply.body))
+}
+
+/// Кандидаты заказчика: сначала люди с откликами на его вакансии (`recruitment`), затем список
+/// `candidate` с этим перечнем. Возвращает и признак «людей больше, чем показано».
+pub async fn search_persons_of_client(
+    query: PersonQuery,
+    client_id: String,
+) -> Result<(ListOutcome, bool), ServerFnError> {
+    let client_id = client_id.trim().to_string();
+    if client_id.is_empty() {
+        return Ok((search_persons(query).await?, false));
+    }
+    if client_id.parse::<uuid_like::Id>().is_err() {
+        return Ok((ListOutcome::Unavailable, false));
+    }
+    let reply = ui_kit::api::call(
+        Method::Get,
+        &format!("/api/applications/people?client_id={client_id}"),
+        None,
+    )
+    .await?;
+    let Reply::Ok(people) =
+        classify::<recruitment_contracts::ClientPeopleDto>(reply.status, &reply.body, typed)
+    else {
+        return Ok((ListOutcome::Unavailable, false));
+    };
+    if people.person_ids.is_empty() {
+        // пустой перечень в `candidate` значил бы «без ограничения», поэтому запрос не отправляется
+        let empty = candidate_contracts::PersonPage {
+            items: Vec::new(),
+            total: 0,
+            page: 1,
+            page_size: 20,
+        };
+        return Ok((ListOutcome::Page(empty), false));
+    }
+    let ids = people
+        .person_ids
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(",");
+    let outcome = search_persons(PersonQuery { ids, ..query }).await?;
+    Ok((outcome, people.truncated))
 }
 
 /// Пакет разобранных строк импорта (файл остаётся в браузере).

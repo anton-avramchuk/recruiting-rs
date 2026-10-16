@@ -204,6 +204,21 @@ impl ApplicationService {
         })
     }
 
+    /// Люди с откликами на вакансии заказчика: не больше `limit`, признак «людей больше».
+    pub async fn people_of_client(
+        &self,
+        tenant: TenantId,
+        client: Uuid,
+        limit: i64,
+    ) -> Result<(Vec<Uuid>, bool), FunnelError> {
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        let mut ids = store::people_of_client(&mut tx, client, limit + 1).await?;
+        tx.rollback().await?;
+        let truncated = ids.len() as i64 > limit;
+        ids.truncate(limit as usize);
+        Ok((ids, truncated))
+    }
+
     /// Сводка по воронке организации.
     pub async fn overview(&self, tenant: TenantId) -> Result<Overview, FunnelError> {
         self.sync.sync(tenant).await;

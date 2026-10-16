@@ -77,6 +77,18 @@ async fn funnel_routes_reach_the_recruitment_service() {
 }
 
 #[tokio::test]
+async fn the_people_of_a_client_come_from_the_recruitment_service() {
+    let w = world(None).await;
+    let res = w
+        .client
+        .send("GET", "/api/applications/people?client_id=1", &[], None)
+        .await;
+    assert_eq!(res.status, 200);
+    assert_eq!(w.recruitment.api_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(w.candidate.api_calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
 async fn funnel_writes_need_the_csrf_token() {
     let w = world(None).await;
     let body = || Some(json!({"stage": "hr"}));

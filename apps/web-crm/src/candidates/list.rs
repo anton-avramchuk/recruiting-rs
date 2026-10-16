@@ -6,8 +6,9 @@ use ui_kit::{EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
 use super::{
     format::{format_salary, years_label},
     outcome::ListOutcome,
-    server::{PersonQuery, search_persons},
+    server::{PersonQuery, search_persons_of_client},
 };
+use crate::{clients::server::list_clients, funnel::server::Reply};
 
 /// Задержка перед запросом после ввода, мс.
 const DEBOUNCE_MS: u64 = 250;
@@ -26,6 +27,19 @@ pub fn can_delete(ctx: SessionCtx) -> bool {
         .and_then(Result::ok)
         .and_then(|s| s.user)
         .is_some_and(|u| u.roles.iter().any(|r| r == "owner"))
+}
+
+/// Есть ли непустые текстовые фильтры (поиск, источник, навык, стаж).
+fn has_text_filters(
+    q: ReadSignal<String>,
+    source: ReadSignal<String>,
+    skill: ReadSignal<String>,
+    min_experience: ReadSignal<String>,
+) -> bool {
+    !q.get_untracked().trim().is_empty()
+        || !source.get_untracked().trim().is_empty()
+        || !skill.get_untracked().trim().is_empty()
+        || !min_experience.get_untracked().trim().is_empty()
 }
 
 /// Поле, значение которого применяется после паузы в наборе.
@@ -70,6 +84,11 @@ pub fn CandidatesPage() -> impl IntoView {
     let (skill, set_skill) = signal(String::new());
     let (min_experience, set_min_experience) = signal(String::new());
     let (page, set_page) = signal(1i64);
+    // выбранный заказчик: пустая строка - все; epoch пересоздаёт поля ввода при сбросе
+    let client = RwSignal::new(String::new());
+    let epoch = RwSignal::new(0u32);
+    let truncated = RwSignal::new(false);
+    let clients = Resource::new(|| (), |_| list_clients(String::new(), true));
 
     let results = Resource::new(
         move || {
@@ -79,16 +98,21 @@ pub fn CandidatesPage() -> impl IntoView {
                 skill.get(),
                 min_experience.get(),
                 page.get(),
+                client.get(),
             )
         },
-        |(q, source, skill, min_experience, page)| {
-            search_persons(PersonQuery {
+        move |(q, source, skill, min_experience, page, client)| async move {
+            let query = PersonQuery {
                 q,
                 source,
                 skill,
                 min_experience,
+                ids: String::new(),
                 page,
-            })
+            };
+            let (outcome, cut) = search_persons_of_client(query, client).await?;
+            truncated.set(cut);
+            Ok::<_, ServerFnError>(outcome)
         },
     );
     let filtered = move || {
@@ -96,6 +120,7 @@ pub fn CandidatesPage() -> impl IntoView {
             || !source.get().trim().is_empty()
             || !skill.get().trim().is_empty()
             || !min_experience.get().trim().is_empty()
+            || !client.get().is_empty()
     };
 
     view! {
@@ -110,8 +135,11 @@ pub fn CandidatesPage() -> impl IntoView {
             </Show>
         </PageHeader>
 
-        <div class="toolbar">
-            <DebouncedInput
+        {move || {
+            epoch.get();
+            view! {
+                <div class="toolbar">
+                    <DebouncedInput
                 applied=set_q
                 reset_page=set_page
                 placeholder="Поиск по имени, email, телефону, навыкам"
@@ -139,7 +167,65 @@ pub fn CandidatesPage() -> impl IntoView {
                 label="Стаж от"
                 testid="filter-min-experience"
             />
+            <select
+                aria-label="Заказчик"
+                data-testid="filter-client"
+                prop:value=move || client.get()
+                on:change=move |ev| {
+                    client.set(event_target_value(&ev));
+                    set_page.set(1);
+                }
+            >
+                <option value="">"Все заказчики"</option>
+                <Transition fallback=|| ()>
+                    {move || {
+                        clients
+                            .get()
+                            .and_then(Result::ok)
+                            .and_then(Reply::ok)
+                            .map(|list| {
+                                list.into_iter()
+                                    .map(|c| {
+                                        let label = if c.archived { format!("{} (архив)", c.name) } else { c.name.clone() };
+                                        let id = c.id.to_string();
+                                        view! { <option value=id.clone() selected=move || client.get() == id>{label}</option> }
+                                    })
+                                    .collect_view()
+                            })
+                    }}
+                </Transition>
+            </select>
+            <Show when=filtered>
+                <button
+                    class="btn btn--ghost"
+                    data-testid="reset-filters"
+                    on:click=move |_| {
+                        set_q.set(String::new());
+                        set_source.set(String::new());
+                        set_skill.set(String::new());
+                        set_min_experience.set(String::new());
+                        client.set(String::new());
+                        set_page.set(1);
+                        epoch.update(|e| *e += 1);
+                    }
+                >
+                    "Сбросить фильтры"
+                </button>
+            </Show>
         </div>
+            }
+        }}
+        {move || {
+            truncated
+                .get()
+                .then(|| {
+                    view! {
+                        <p class="muted" data-testid="client-people-truncated">
+                            "У заказчика больше 200 откликнувшихся: показаны первые 200, остальных ищите на экране «Отклики»."
+                        </p>
+                    }
+                })
+        }}
 
         <Transition fallback=|| view! { <p class="muted">"Загрузка…"</p> }>
             {move || {
@@ -147,7 +233,15 @@ pub fn CandidatesPage() -> impl IntoView {
                     .get()
                     .map(|result| match result {
                         Ok(ListOutcome::Page(data)) if data.items.is_empty() => {
-                            if filtered() {
+                            if !client.get_untracked().is_empty() && !has_text_filters(q, source, skill, min_experience) {
+                                view! {
+                                    <EmptyState
+                                        title="Кандидатов заказчика пока нет"
+                                        hint="На его вакансии ещё никто не откликался."
+                                    />
+                                }
+                                    .into_any()
+                            } else if filtered() {
                                 view! {
                                     <EmptyState
                                         title="Ничего не найдено"
