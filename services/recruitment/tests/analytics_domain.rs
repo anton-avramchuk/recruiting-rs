@@ -1,9 +1,12 @@
 //! Метрики аналитики: чистые функции над фактами об откликах.
 use chrono::{DateTime, Duration, NaiveDate, TimeZone, Utc};
 use recruitment::domain::analytics::{
-    AppFact, days_to_hire, first_touch_hours, funnel, median, sources, week_series, week_start,
+    AppFact, ClientInfo, NO_CLIENT, UNKNOWN_CLIENT, VacancyRef, clients, days_to_hire,
+    first_touch_hours, funnel, median, sources, week_series, week_start,
 };
 use recruitment_contracts::Stage;
+use std::collections::HashMap;
+use uuid::Uuid;
 
 fn t(day: u32, hour: u32) -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 3, day, hour, 0, 0).unwrap()
@@ -15,6 +18,7 @@ fn fact(stage: Stage, reached: usize) -> AppFact {
         stage,
         stage_changed_at: t(1, 10),
         source: None,
+        client_id: None,
         reached,
         first_touch: None,
     }
@@ -243,4 +247,148 @@ fn the_series_has_twelve_weeks_ending_with_the_current_one() {
     assert_eq!(total, 8, "weeks outside the window are dropped");
     assert_eq!(series.iter().find(|(w, _)| *w == d(2, 16)).unwrap().1, 3);
     assert_eq!(series.iter().filter(|(_, n)| *n == 0).count(), 10);
+}
+
+// ---------- заказчики ----------
+
+fn of_client(client: Option<Uuid>, stage: Stage, reached: usize) -> AppFact {
+    AppFact {
+        client_id: client,
+        ..fact(stage, reached)
+    }
+}
+
+fn hired_after(client: Option<Uuid>, days: i64) -> AppFact {
+    AppFact {
+        client_id: client,
+        stage: Stage::Hired,
+        reached: 7,
+        created_at: t(1, 10),
+        stage_changed_at: t(1, 10) + Duration::days(days),
+        ..fact(Stage::Hired, 7)
+    }
+}
+
+fn vacancy(client: Option<Uuid>, active: i64) -> VacancyRef {
+    VacancyRef {
+        client_id: client,
+        active_applications: active,
+    }
+}
+
+fn names(pairs: &[(Uuid, &str, bool)]) -> HashMap<Uuid, ClientInfo> {
+    pairs
+        .iter()
+        .map(|(id, name, archived)| {
+            (
+                *id,
+                ClientInfo {
+                    name: (*name).into(),
+                    archived: *archived,
+                },
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn clients_are_compared_by_applications_interviews_hires_and_time_to_hire() {
+    let (acme, globex) = (Uuid::new_v4(), Uuid::new_v4());
+    let facts = [
+        of_client(Some(acme), Stage::New, 1),
+        of_client(Some(acme), Stage::Rejected, 3),
+        of_client(Some(acme), Stage::Rejected, 4),
+        hired_after(Some(acme), 20),
+        of_client(Some(globex), Stage::New, 1),
+        of_client(Some(globex), Stage::Screening, 2),
+    ];
+    let vacancies = [
+        vacancy(Some(acme), 2),
+        vacancy(Some(acme), 1),
+        vacancy(Some(globex), 2),
+    ];
+    let out = clients(
+        &facts,
+        &vacancies,
+        &names(&[(acme, "Acme", false), (globex, "Globex", false)]),
+    );
+
+    assert_eq!(out.len(), 2);
+    let a = &out[0];
+    assert_eq!((a.name.as_str(), a.client_id), ("Acme", Some(acme)));
+    assert_eq!((a.vacancies, a.active_applications), (2, 3));
+    assert_eq!((a.applications, a.interviews, a.conversion), (4, 3, 75));
+    assert_eq!((a.hired, a.median_days_to_hire), (1, Some(20.0)));
+    let g = &out[1];
+    assert_eq!((g.applications, g.interviews, g.conversion), (2, 0, 0));
+    assert_eq!((g.hired, g.median_days_to_hire), (0, None));
+}
+
+#[test]
+fn old_vacancies_form_a_row_without_a_client_that_goes_last_on_ties() {
+    let acme = Uuid::new_v4();
+    let facts = [
+        of_client(Some(acme), Stage::New, 1),
+        of_client(None, Stage::New, 1),
+    ];
+    let out = clients(
+        &facts,
+        &[vacancy(None, 1), vacancy(Some(acme), 1)],
+        &names(&[(acme, "Zeta", false)]),
+    );
+    assert_eq!(out[0].name, "Zeta");
+    assert_eq!((out[1].name.as_str(), out[1].client_id), (NO_CLIENT, None));
+}
+
+#[test]
+fn equal_applications_are_ordered_by_name() {
+    let (b, a) = (Uuid::new_v4(), Uuid::new_v4());
+    let out = clients(
+        &[],
+        &[vacancy(Some(b), 0), vacancy(Some(a), 0)],
+        &names(&[(b, "Бета", false), (a, "Альфа", false)]),
+    );
+    let order: Vec<_> = out.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(order, ["Альфа", "Бета"]);
+}
+
+#[test]
+fn a_client_with_vacancies_but_no_applications_shows_zeros_and_no_median() {
+    let acme = Uuid::new_v4();
+    let out = clients(
+        &[],
+        &[vacancy(Some(acme), 0)],
+        &names(&[(acme, "Acme", true)]),
+    );
+    assert_eq!(out.len(), 1);
+    let c = &out[0];
+    assert_eq!(
+        (
+            c.vacancies,
+            c.applications,
+            c.interviews,
+            c.conversion,
+            c.hired
+        ),
+        (1, 0, 0, 0, 0)
+    );
+    assert_eq!(c.median_days_to_hire, None);
+    assert!(c.archived);
+}
+
+#[test]
+fn a_client_without_vacancies_is_not_listed_and_an_unknown_one_gets_a_label() {
+    let (listed, ghost) = (Uuid::new_v4(), Uuid::new_v4());
+    let out = clients(
+        &[],
+        &[vacancy(Some(ghost), 0)],
+        &names(&[(listed, "Без вакансий", false)]),
+    );
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].name, UNKNOWN_CLIENT);
+}
+
+#[test]
+fn no_vacancies_means_no_rows() {
+    assert!(clients(&[], &[], &HashMap::new()).is_empty());
 }

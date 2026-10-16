@@ -1,7 +1,7 @@
 use axum::{Json, Router, routing::get};
 use recruitment_contracts::{
     AnalyticsDto, ApplicationDetailDto, ApplicationDto, ApplicationPage, BatchApplicationsRequest,
-    BatchApplicationsResponse, BulkRequest, BulkResult, ClientRefDto, ContactRefDto,
+    BatchApplicationsResponse, BulkRequest, BulkResult, ClientRefDto, ClientStatDto, ContactRefDto,
     CreateApplicationRequest, CreateVacancyRequest, EventDto, FunnelStepDto, HandoffRequest,
     InterviewItemDto, InterviewRequest, MoveRequest, OverviewDto, RejectRequest, SourceStatDto,
     Stage, StageCount, UpdateVacancyRequest, VacancyDto, VacancyLoadDto, WeekCountDto,
@@ -39,6 +39,7 @@ use super::{AppState, analytics, applications, vacancies};
     components(schemas(
         VacancyDto,
         ClientRefDto,
+        ClientStatDto,
         ContactRefDto,
         CreateVacancyRequest,
         UpdateVacancyRequest,

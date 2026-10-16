@@ -45,9 +45,9 @@ impl AppState {
         let sync = PeopleSync::new(pool.clone(), feed.clone());
         let clients_sync = ClientsSync::new(pool.clone(), client_feed.clone());
         Self {
-            vacancies: VacancyService::new(pool.clone(), clients_sync, clock),
+            vacancies: VacancyService::new(pool.clone(), clients_sync.clone(), clock),
             applications: ApplicationService::new(pool.clone(), sync.clone(), clock),
-            analytics: AnalyticsService::new(pool.clone(), sync, clock),
+            analytics: AnalyticsService::new(pool.clone(), sync, clients_sync.clone(), clock),
             verifier,
             pool,
             feed,

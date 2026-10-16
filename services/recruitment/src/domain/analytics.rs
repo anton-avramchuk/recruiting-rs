@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
 use recruitment_contracts::Stage;
+use uuid::Uuid;
 
 /// Этапы линии воронки по порядку; отказ в неё не входит.
 pub const LINE: [Stage; 7] = [
@@ -28,6 +29,8 @@ pub struct AppFact {
     pub stage: Stage,
     pub stage_changed_at: DateTime<Utc>,
     pub source: Option<String>,
+    /// Заказчик вакансии отклика (пусто у вакансий без заказчика).
+    pub client_id: Option<Uuid>,
     /// Самый дальний этап линии по истории переходов (1…7), `0` — переходов нет.
     pub reached: usize,
     /// Время первого действия по отклику (кроме его создания).
@@ -179,6 +182,99 @@ pub fn sources(facts: &[AppFact]) -> Vec<SourceStat> {
             .cmp(&a.conversion)
             .then(b.total.cmp(&a.total))
             .then(a.source.cmp(&b.source))
+    });
+    out
+}
+
+/// Название строки для вакансий без заказчика.
+pub const NO_CLIENT: &str = "Без заказчика";
+/// Название заказчика, которого нет в проекции.
+pub const UNKNOWN_CLIENT: &str = "Неизвестный заказчик";
+
+/// Вакансия для счётчиков заказчика.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VacancyRef {
+    pub client_id: Option<Uuid>,
+    pub active_applications: i64,
+}
+
+/// Название и признак архива заказчика из проекции.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientInfo {
+    pub name: String,
+    pub archived: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientStat {
+    /// `None` - вакансии без заказчика.
+    pub client_id: Option<Uuid>,
+    pub name: String,
+    pub archived: bool,
+    pub vacancies: i64,
+    pub active_applications: i64,
+    pub applications: i64,
+    pub interviews: i64,
+    pub conversion: i64,
+    pub hired: i64,
+    pub median_days_to_hire: Option<f64>,
+}
+
+/// Заказчики: вакансии, отклики периода, доля дошедших до интервью, вышедшие и медиана срока
+/// найма. В список попадают заказчики, у которых есть вакансии. Порядок: больше откликов, затем
+/// название; «Без заказчика» при равенстве последним.
+pub fn clients(
+    facts: &[AppFact],
+    vacancies: &[VacancyRef],
+    info: &HashMap<Uuid, ClientInfo>,
+) -> Vec<ClientStat> {
+    let mut keys: Vec<Option<Uuid>> = Vec::new();
+    for v in vacancies {
+        if !keys.contains(&v.client_id) {
+            keys.push(v.client_id);
+        }
+    }
+    let mut out: Vec<ClientStat> = keys
+        .into_iter()
+        .map(|key| {
+            let own: Vec<AppFact> = facts
+                .iter()
+                .filter(|f| f.client_id == key)
+                .cloned()
+                .collect();
+            let own_vacancies: Vec<&VacancyRef> =
+                vacancies.iter().filter(|v| v.client_id == key).collect();
+            let applications = own.len() as i64;
+            let interviews = own
+                .iter()
+                .filter(|f| f.effective_reached() >= INTERVIEW_ORDINAL)
+                .count() as i64;
+            let (name, archived) = match key {
+                None => (NO_CLIENT.to_string(), false),
+                Some(id) => info.get(&id).map_or_else(
+                    || (UNKNOWN_CLIENT.to_string(), false),
+                    |c| (c.name.clone(), c.archived),
+                ),
+            };
+            ClientStat {
+                client_id: key,
+                name,
+                archived,
+                vacancies: own_vacancies.len() as i64,
+                active_applications: own_vacancies.iter().map(|v| v.active_applications).sum(),
+                applications,
+                interviews,
+                conversion: percent(interviews, applications),
+                hired: own.iter().filter(|f| f.stage == Stage::Hired).count() as i64,
+                median_days_to_hire: days_to_hire(&own),
+            }
+        })
+        .collect();
+    out.sort_by(|a, b| {
+        b.applications
+            .cmp(&a.applications)
+            .then(a.client_id.is_none().cmp(&b.client_id.is_none()))
+            .then(a.name.cmp(&b.name))
     });
     out
 }

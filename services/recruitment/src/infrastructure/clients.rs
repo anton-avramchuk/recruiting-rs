@@ -111,6 +111,13 @@ pub async fn archived(
         .await
 }
 
+/// Все заказчики проекции: идентификатор, название, архив.
+pub async fn all(conn: &mut PgConnection) -> Result<Vec<(Uuid, String, bool)>, sqlx::Error> {
+    sqlx::query_as("SELECT client_id, name, archived FROM clients")
+        .fetch_all(conn)
+        .await
+}
+
 /// Заказчик контакта, если контакт есть в проекции.
 pub async fn contact_client(
     conn: &mut PgConnection,

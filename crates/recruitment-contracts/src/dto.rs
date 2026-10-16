@@ -320,6 +320,25 @@ pub struct VacancyLoadDto {
     pub open_days: i64,
 }
 
+/// Заказчик в аналитике: вакансии, отклики периода и результат.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct ClientStatDto {
+    /// Нет у строки «Без заказчика».
+    pub client_id: Option<Uuid>,
+    pub name: String,
+    pub archived: bool,
+    pub vacancies: i64,
+    pub active_applications: i64,
+    /// Откликов за период.
+    pub applications: i64,
+    /// Дошли до «Интервью HR» и дальше.
+    pub interviews: i64,
+    pub conversion: i64,
+    /// Вышли на работу.
+    pub hired: i64,
+    pub median_days_to_hire: Option<f64>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct AnalyticsDto {
     pub period_days: i64,
@@ -333,4 +352,7 @@ pub struct AnalyticsDto {
     pub weekly: Vec<WeekCountDto>,
     pub sources: Vec<SourceStatDto>,
     pub vacancies: Vec<VacancyLoadDto>,
+    /// Заказчики организации; фильтр по заказчику их не сужает.
+    #[serde(default)]
+    pub clients: Vec<ClientStatDto>,
 }
