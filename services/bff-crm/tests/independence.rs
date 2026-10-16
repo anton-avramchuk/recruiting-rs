@@ -25,6 +25,7 @@ async fn stopping_the_admin_bff_does_not_affect_the_crm_bff() {
             candidate_url: backend.clone(),
             recruitment_url: "http://127.0.0.1:9".into(),
             client_url: "http://127.0.0.1:9".into(),
+            comment_url: "http://127.0.0.1:9".into(),
             cors_origins: Vec::new(),
             cookie_secure: false,
             base_domain: None,

@@ -28,6 +28,7 @@ async fn world(client_url: Option<String>) -> World {
         identity_url: identity.serve().await,
         candidate_url: candidate.serve().await,
         recruitment_url: recruitment.serve().await,
+        comment_url: "http://127.0.0.1:9".into(),
         client_url: match client_url {
             Some(url) => url,
             None => client_service.serve().await,

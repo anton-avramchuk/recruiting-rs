@@ -149,6 +149,8 @@ impl Upstream {
             .route("/overview", get(users))
             .route("/interviews", get(users))
             .route("/analytics", get(users))
+            .route("/comments", get(users).post(users))
+            .route("/comments/1", get(users).patch(users).delete(users))
             .route("/clients", get(users).post(users))
             .route("/clients/1", get(users).patch(users))
             .route("/clients/1/contacts", post(users))

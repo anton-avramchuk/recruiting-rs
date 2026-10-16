@@ -5,15 +5,15 @@
 
 ## 2. Сервис comment
 
-- [ ] 2.1 Crate `comment-contracts` (DTO, запросы, ответ с курсором) и каркас `services/comment` (config, main, MIGRATOR, AppState, health, OpenAPI)
-- [ ] 2.2 Домен `Comment` и `TargetType`: валидация текста, правила прав автора и `owner` (юнит-тесты)
-- [ ] 2.3 Миграция `comments` с индексом и RLS (FORCE); тест-страж `tables_without_rls`
-- [ ] 2.4 Инфраструктура и приложение: создание, лента с курсором, правка, удаление в `TenantTx`
-- [ ] 2.5 HTTP `/comments`: права `owner/recruiter/viewer`, 400/401/403/404; интеграционные тесты изоляции организаций, прав автора и порядка ленты
+- [x] 2.1 Crate `comment-contracts` (DTO, запросы, ответ с курсором) и каркас `services/comment` (config, main, MIGRATOR, AppState, health, OpenAPI)
+- [x] 2.2 Домен `Comment` и `TargetType`: валидация текста, правила прав автора и `owner` (юнит-тесты)
+- [x] 2.3 Миграция `comments` с индексом и RLS (FORCE); тест-страж `tables_without_rls`
+- [x] 2.4 Инфраструктура и приложение: создание, лента с курсором, правка, удаление в `TenantTx`
+- [x] 2.5 HTTP `/comments`: права `owner/recruiter/viewer`, 400/401/403/404; интеграционные тесты изоляции организаций, прав автора и порядка ленты
 
 ## 3. BFF
 
-- [ ] 3.1 `bff-crm`: апстрим `COMMENT_URL`, allowlist `/comments`; мок в `bff-core::testing`; тесты маршрутизации и ролей
+- [x] 3.1 `bff-crm`: апстрим `COMMENT_URL`, allowlist `/comments`; мок в `bff-core::testing`; тесты маршрутизации и ролей
 
 ## 4. Интерфейс
 

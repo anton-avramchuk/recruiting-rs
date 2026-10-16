@@ -15,6 +15,7 @@ pub struct CrmConfig {
     pub candidate_url: String,
     pub recruitment_url: String,
     pub client_url: String,
+    pub comment_url: String,
     /// Источники браузера для запросов напрямую в BFF (пусто - CORS выключен).
     pub cors_origins: Vec<String>,
     pub cookie_secure: bool,
@@ -36,6 +37,7 @@ fn allowlist() -> Vec<AllowRule> {
         AllowRule::any("/clients").to("client"),
         AllowRule::any("/contacts").to("client"),
         AllowRule::any("/positions").to("client"),
+        AllowRule::any("/comments").to("comment"),
     ]
 }
 
@@ -84,6 +86,7 @@ pub fn build(cfg: &CrmConfig, store: Arc<dyn SessionStore>) -> Router {
             ("candidate".to_string(), cfg.candidate_url.clone()),
             ("recruitment".to_string(), cfg.recruitment_url.clone()),
             ("client".to_string(), cfg.client_url.clone()),
+            ("comment".to_string(), cfg.comment_url.clone()),
         ]),
         allow: allowlist(),
         cors_origins: cfg.cors_origins.clone(),

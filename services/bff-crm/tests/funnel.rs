@@ -29,6 +29,7 @@ async fn world(recruitment_url: Option<String>) -> World {
         candidate_url: candidate.serve().await,
         cors_origins: Vec::new(),
         client_url: "http://127.0.0.1:9".into(),
+        comment_url: "http://127.0.0.1:9".into(),
         recruitment_url: match recruitment_url {
             Some(url) => url,
             None => recruitment.serve().await,
