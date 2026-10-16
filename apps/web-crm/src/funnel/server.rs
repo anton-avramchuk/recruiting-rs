@@ -132,9 +132,23 @@ pub async fn list_applications(query: AppQuery) -> Result<Reply<ApplicationPage>
 }
 
 /// Метрики найма за период в сутках (7…365).
-pub async fn get_analytics(days: i64) -> Result<Reply<AnalyticsDto>, ServerFnError> {
-    let reply =
-        ui_kit::api::call(Method::Get, &format!("/api/analytics?days={days}"), None).await?;
+/// Метрики за период; непустой `client_id` сужает их до вакансий одного заказчика.
+pub async fn get_analytics(
+    days: i64,
+    client_id: String,
+) -> Result<Reply<AnalyticsDto>, ServerFnError> {
+    let mut path = format!("/api/analytics?days={days}");
+    let client_id = client_id.trim();
+    if !client_id.is_empty() {
+        if client_id
+            .parse::<crate::candidates::server::uuid_like::Id>()
+            .is_err()
+        {
+            return Ok(Reply::NotFound);
+        }
+        path.push_str(&format!("&client_id={client_id}"));
+    }
+    let reply = ui_kit::api::call(Method::Get, &path, None).await?;
     Ok(classify(reply.status, &reply.body, typed))
 }
 

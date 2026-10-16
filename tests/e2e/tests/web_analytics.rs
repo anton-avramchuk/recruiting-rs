@@ -217,3 +217,113 @@ async fn viewers_can_read_the_analytics() {
     .unwrap();
     stack.stop().await;
 }
+
+fn select_client(tab: &Tab, value: &str) {
+    eval(
+        tab,
+        &format!(
+            "(() => {{ const s = document.querySelector('[data-testid=client-filter]');              s.value = {value:?}; s.dispatchEvent(new Event('change', {{bubbles: true}})); }})()"
+        ),
+    );
+}
+
+#[tokio::test]
+async fn the_client_table_and_filter_work_without_a_reload() {
+    let stack = Stack::start_with_web().await;
+    stack.seed_tenant("acme", OWNER.0, OWNER.1).await;
+    let owner = stack.crm_client("acme", OWNER.0, OWNER.1).await;
+    stack.add_user(&owner, VIEWER.0, VIEWER.1, "viewer").await;
+    let acme = stack.add_client(&owner, "Acme Corp").await;
+    let globex = stack.add_client(&owner, "Globex").await;
+    let mut vacancies = Vec::new();
+    for (title, client) in [("Senior Go", &acme), ("QA инженер", &globex)] {
+        let v: Value = owner
+            .post(
+                "/api/vacancies",
+                json!({"title": title, "client_id": client}),
+            )
+            .await
+            .json()
+            .await
+            .unwrap();
+        vacancies.push(v);
+    }
+    apply(&owner, &vacancies[0], "Анна Смирнова", "hh.ru", Some("hr")).await;
+    apply(&owner, &vacancies[0], "Борис Иванов", "hh.ru", None).await;
+    apply(
+        &owner,
+        &vacancies[0],
+        "Вера Орлова",
+        "Реферал",
+        Some("hired"),
+    )
+    .await;
+    apply(&owner, &vacancies[1], "Дарья Белова", "hh.ru", None).await;
+    let base = stack.web_crm_url.clone();
+    let (acme_id, globex_id) = (acme.clone(), globex.clone());
+
+    tokio::task::spawn_blocking(move || {
+        let browser = launch();
+        let tab = browser.new_tab().unwrap();
+        login_crm(&tab, &base, "acme", OWNER.0, OWNER.1);
+        click(&tab, "nav a[href='/analytics']");
+        wait_until(&tab, "table", "document.querySelectorAll('[data-testid=client-stat-row]').length === 2");
+        std::thread::sleep(Duration::from_millis(1500));
+        set_marker(&tab);
+
+        // таблица: Acme первой (3 отклика), у Globex 1 и срока найма нет
+        let first = text(&tab, "[data-testid=client-stat-row]");
+        assert!(first.contains("Acme Corp") && first.contains("3"), "{first}");
+        assert!(first.contains("дн"), "у Acme есть вышедший: {first}");
+        let hire_times = eval_str(
+            &tab,
+            "Array.from(document.querySelectorAll('[data-testid=client-hire-time]')).map(e => e.innerText).join('|')",
+        );
+        assert!(hire_times.ends_with("|—"), "{hire_times}");
+        assert_eq!(counts(&tab)[0], "4");
+
+        // выбор заказчика сужает воронку, таблица остаётся полной
+        select_client(&tab, &globex_id);
+        wait_until(&tab, "narrowed", "document.querySelector('[data-testid=funnel-count]').innerText === '1'");
+        assert_eq!(eval(&tab, &count_js("[data-testid=client-stat-row]")), 2);
+        assert!(text(&tab, "[data-testid=load]").contains("QA инженер"));
+        assert!(!text(&tab, "[data-testid=load]").contains("Senior Go"));
+
+        // клик по строке таблицы включает фильтр
+        click(&tab, "[data-testid=client-stat-row] [data-testid=client-filter-row]");
+        wait_until(&tab, "acme filter", "document.querySelector('[data-testid=funnel-count]').innerText === '3'");
+        assert_eq!(
+            eval_str(&tab, "document.querySelector('[data-testid=client-filter]').value"),
+            acme_id
+        );
+        assert!(text(&tab, "[data-testid=load]").contains("Senior Go"));
+
+        // сброс возвращает всю организацию
+        select_client(&tab, "");
+        wait_until(&tab, "all again", "document.querySelector('[data-testid=funnel-count]').innerText === '4'");
+        assert!(marker_alive(&tab), "no reload");
+
+        // ссылка на карточку заказчика
+        click(&tab, "[data-testid=client-card-link]");
+        wait_until(&tab, "card", "location.pathname.startsWith('/clients/')");
+    })
+    .await
+    .unwrap();
+
+    // наблюдатель читает ту же таблицу
+    let base = stack.web_crm_url.clone();
+    tokio::task::spawn_blocking(move || {
+        let browser = launch();
+        let tab = browser.new_tab().unwrap();
+        login_crm(&tab, &base, "acme", VIEWER.0, VIEWER.1);
+        tab.navigate_to(&format!("{base}/analytics")).unwrap();
+        wait_until(
+            &tab,
+            "table",
+            "document.querySelectorAll('[data-testid=client-stat-row]').length === 2",
+        );
+    })
+    .await
+    .unwrap();
+    stack.stop().await;
+}

@@ -1,6 +1,7 @@
 //! «Аналитика»: воронка, сроки, источники, динамика откликов и нагрузка на вакансии.
 use leptos::prelude::*;
-use recruitment_contracts::{AnalyticsDto, FunnelStepDto, Stage};
+use leptos_router::components::A;
+use recruitment_contracts::{AnalyticsDto, ClientStatDto, FunnelStepDto, Stage};
 use ui_kit::{Notice, NoticeKind, PageHeader};
 
 use crate::funnel::{
@@ -48,6 +49,11 @@ pub fn period_label(days: i64) -> String {
     format!("{days} дней")
 }
 
+/// «Срок найма» заказчика: медиана в сутках или прочерк.
+pub fn client_hire_time(c: &ClientStatDto) -> String {
+    metric(c.median_days_to_hire, "дн")
+}
+
 /// Нет ли в организации откликов за период (воронка пуста).
 pub fn is_empty(a: &AnalyticsDto) -> bool {
     a.funnel.first().is_none_or(|s| s.reached == 0)
@@ -56,7 +62,12 @@ pub fn is_empty(a: &AnalyticsDto) -> bool {
 #[component]
 pub fn AnalyticsPage() -> impl IntoView {
     let days = RwSignal::new(90i64);
-    let report = Resource::new(move || days.get(), get_analytics);
+    // выбранный заказчик: пустая строка - вся организация
+    let client = RwSignal::new(String::new());
+    let report = Resource::new(
+        move || (days.get(), client.get()),
+        |(days, client)| get_analytics(days, client),
+    );
 
     view! {
         <PageHeader title="Аналитика">
@@ -84,7 +95,7 @@ pub fn AnalyticsPage() -> impl IntoView {
                 report
                     .get()
                     .map(|result| match result {
-                        Ok(Reply::Ok(a)) => view! { <Report a=a /> }.into_any(),
+                        Ok(Reply::Ok(a)) => view! { <Report a=a client=client /> }.into_any(),
                         _ => {
                             view! {
                                 <Notice kind=NoticeKind::Error>"Не удалось загрузить аналитику. Попробуйте позже."</Notice>
@@ -98,8 +109,14 @@ pub fn AnalyticsPage() -> impl IntoView {
 }
 
 #[component]
-fn Report(a: AnalyticsDto) -> impl IntoView {
+fn Report(a: AnalyticsDto, client: RwSignal<String>) -> impl IntoView {
     let empty = is_empty(&a);
+    let options = a
+        .clients
+        .iter()
+        .filter_map(|c| c.client_id.map(|id| (id.to_string(), c.name.clone())))
+        .collect::<Vec<_>>();
+    let client_rows = client_rows(&a.clients, client);
     let max = a.funnel.iter().map(|s| s.reached).max().unwrap_or(0);
     let weekly_max = a.weekly.iter().map(|w| w.count).max().unwrap_or(0);
     let worst = a.worst_stage;
@@ -160,6 +177,23 @@ fn Report(a: AnalyticsDto) -> impl IntoView {
         .collect_view();
 
     view! {
+        <div class="toolbar">
+            <label>
+                "Заказчик "
+                <select
+                    data-testid="client-filter"
+                    aria-label="Заказчик"
+                    prop:value=move || client.get()
+                    on:change=move |ev| client.set(event_target_value(&ev))
+                >
+                    <option value="">"Все заказчики"</option>
+                    {options
+                        .into_iter()
+                        .map(|(id, name)| view! { <option value=id>{name}</option> })
+                        .collect_view()}
+                </select>
+            </label>
+        </div>
         {empty
             .then(|| {
                 view! {
@@ -223,12 +257,92 @@ fn Report(a: AnalyticsDto) -> impl IntoView {
                     </table>
                 </div>
                 <div class="sec-h">
+                    <h2>"Заказчики"</h2>
+                    <span class="muted">"по числу откликов"</span>
+                </div>
+                {client_rows}
+                <div class="sec-h">
                     <h2>"Нагрузка на вакансии"</h2>
                 </div>
                 <div class="card list-card" data-testid="load">{vacancies}</div>
             </section>
         </div>
     }
+}
+
+/// Таблица заказчиков: клик по названию включает фильтр, рядом ссылка на карточку.
+fn client_rows(clients: &[ClientStatDto], selected: RwSignal<String>) -> impl IntoView + use<> {
+    if clients.is_empty() {
+        return view! {
+            <p class="muted" data-testid="clients-empty">"Заказчиков с вакансиями пока нет."</p>
+        }
+        .into_any();
+    }
+    let rows = clients
+        .iter()
+        .map(|c| {
+            let id = c.client_id.map(|id| id.to_string());
+            let name = c.name.clone();
+            let filter_id = id.clone();
+            let compare_id = id.clone();
+            view! {
+                <tr
+                    data-testid="client-stat-row"
+                    class:row-selected=move || compare_id.as_ref().is_some_and(|i| *i == selected.get())
+                >
+                    <td>
+                        {match filter_id {
+                            Some(id) => {
+                                view! {
+                                    <button
+                                        class="btn btn--ghost"
+                                        data-testid="client-filter-row"
+                                        on:click=move |_| selected.set(id.clone())
+                                    >
+                                        {name.clone()}
+                                    </button>
+                                }
+                                    .into_any()
+                            }
+                            None => view! { <span data-testid="client-none">{name.clone()}</span> }.into_any(),
+                        }}
+                        {c.archived.then(|| view! { <span class="chip">"архив"</span> })}
+                        {id
+                            .map(|id| {
+                                view! {
+                                    <A href=format!("/clients/{id}") attr:data-testid="client-card-link" attr:aria-label="Карточка заказчика">
+                                        "↗"
+                                    </A>
+                                }
+                            })}
+                    </td>
+                    <td class="mono">{c.vacancies}</td>
+                    <td class="mono" data-testid="client-applications">{c.applications}</td>
+                    <td class="mono">{format!("{}%", c.conversion)}</td>
+                    <td class="mono">{c.hired}</td>
+                    <td class="mono" data-testid="client-hire-time">{client_hire_time(c)}</td>
+                </tr>
+            }
+        })
+        .collect_view();
+    view! {
+        <div class="card list-card">
+            <table data-testid="clients-table">
+                <thead>
+                    <tr>
+                        <th>"Заказчик"</th>
+                        <th>"Вакансий"</th>
+                        <th>"Откликов"</th>
+                        <th>"В интервью"</th>
+                        <th>"Вышли"</th>
+                        <th>"Срок найма"</th>
+                    </tr>
+                </thead>
+                <tbody>{rows}</tbody>
+            </table>
+        </div>
+    }
+    .into_any()
 }
 
 fn funnel_row(step: &FunnelStepDto, max: i64, worst: bool) -> impl IntoView + use<> {
@@ -279,6 +393,25 @@ mod tests {
     fn week_labels_are_day_and_month() {
         assert_eq!(week_label("2026-03-02"), "02.03");
         assert_eq!(week_label("мусор"), "мусор");
+    }
+
+    #[test]
+    fn a_missing_hire_time_is_a_dash() {
+        let mut stat = ClientStatDto {
+            client_id: None,
+            name: "Acme".into(),
+            archived: false,
+            vacancies: 1,
+            active_applications: 0,
+            applications: 0,
+            interviews: 0,
+            conversion: 0,
+            hired: 0,
+            median_days_to_hire: None,
+        };
+        assert_eq!(client_hire_time(&stat), "—");
+        stat.median_days_to_hire = Some(20.0);
+        assert_eq!(client_hire_time(&stat), "20 дн");
     }
 
     #[test]
