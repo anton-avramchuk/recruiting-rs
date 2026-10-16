@@ -198,7 +198,7 @@ async fn a_failing_people_search_leaves_commands_available() {
         std::thread::sleep(Duration::from_millis(1500));
         eval(
             &tab,
-            "(() => { const f = window.fetch; window.fetch = (u, ...a) => String(u).includes('/persons') \
+            "(() => { const f = window.fetch; window.fetch = (u, ...a) => ((typeof u === 'string' ? u : (u && u.url) || '').includes('/persons')) \
              ? Promise.reject(new Error('down')) : f(u, ...a); })()",
         );
         open_palette(&tab);
