@@ -116,7 +116,8 @@ mod tests {
         s.deselect_all(["a", "c", "x"]);
         assert_eq!(s.ids(), ["b"]);
         s.clear();
-        assert!(s.is_empty() && s.len() == 0);
+        assert!(s.is_empty());
+        assert_eq!(s.len(), 0);
     }
 
     #[test]
