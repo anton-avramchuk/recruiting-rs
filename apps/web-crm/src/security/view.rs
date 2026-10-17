@@ -9,16 +9,33 @@ use ui_kit::{
 
 use super::{
     role_label,
-    server::{UserRow, load_users},
+    server::{RoleRow, UserRow, list_roles, load_users},
 };
-use crate::candidates::list::can_delete;
+use crate::{candidates::list::is_owner, funnel::server::Reply};
 
 /// Вкладки раздела; новые вкладки добавляются сюда.
 #[component]
 pub fn SecurityTabs() -> impl IntoView {
+    let location = leptos_router::hooks::use_location();
+    let users_tab = move || !location.pathname.get().starts_with("/security/roles");
     view! {
         <nav class="tabs" aria-label="Вкладки раздела «Безопасность»" data-testid="security-tabs">
-            <A href="/security" attr:class="tab">"Пользователи"</A>
+            <a
+                href="/security"
+                class="tab"
+                data-testid="tab-users"
+                aria-current=move || users_tab().then_some("page")
+            >
+                "Пользователи"
+            </a>
+            <a
+                href="/security/roles"
+                class="tab"
+                data-testid="tab-roles"
+                aria-current=move || (!users_tab()).then_some("page")
+            >
+                "Роли"
+            </a>
         </nav>
     }
 }
@@ -33,7 +50,7 @@ pub fn SecurityShell(
     children: ChildrenFn,
 ) -> impl IntoView {
     let session = expect_context::<SessionCtx>();
-    let owner = Signal::derive(move || can_delete(session));
+    let owner = Signal::derive(move || is_owner(session));
     view! {
         <PageHeader title=title>{actions.map(|a| a.run())}</PageHeader>
         <Show
@@ -54,6 +71,9 @@ pub fn SecurityShell(
 
 /// Подпись роли пользователя в списке.
 pub fn roles_label(user: &UserRow) -> String {
+    if let Some(name) = &user.role_name {
+        return name.clone();
+    }
     match user.roles.as_slice() {
         [one] => role_label(one).to_string(),
         _ => "Несколько ролей".into(),
@@ -83,7 +103,7 @@ fn user_href(user: &UserRow) -> String {
     format!("/security/users/{}", user.id)
 }
 
-fn user_columns(me: String) -> Vec<Column<UserRow>> {
+fn user_columns(me: String, role_options: Signal<Vec<(String, String)>>) -> Vec<Column<UserRow>> {
     vec![
         Column::new("email", "Пользователь", move |u: &UserRow| {
             let title = if u.display_name.trim().is_empty() {
@@ -102,14 +122,7 @@ fn user_columns(me: String) -> Vec<Column<UserRow>> {
         Column::new("role", "Роль", |u: &UserRow| {
             view! { <span class="chip" data-testid="user-role-label">{roles_label(u)}</span> }.into_any()
         })
-        .filter_select(
-            vec![
-                ("owner", "Владелец"),
-                ("recruiter", "Рекрутёр"),
-                ("viewer", "Наблюдатель"),
-            ],
-            Operator::Contains,
-        ),
+        .filter_select(role_options, Operator::Contains),
         Column::new("status", "Статус", |u: &UserRow| {
             let blocked = u.status == "blocked";
             view! {
@@ -121,7 +134,10 @@ fn user_columns(me: String) -> Vec<Column<UserRow>> {
         })
         .sortable()
         .filter_select(
-            vec![("active", "Активен"), ("blocked", "Заблокирован")],
+            Signal::stored(vec![
+                ("active".to_string(), "Активен".to_string()),
+                ("blocked".to_string(), "Заблокирован".to_string()),
+            ]),
             Operator::Eq,
         ),
         Column::new("created_at", "Создан", |u: &UserRow| {
@@ -147,9 +163,22 @@ fn UsersList() -> impl IntoView {
         .map(|u| u.id)
         .unwrap_or_default();
     let href: fn(&UserRow) -> String = user_href;
+    // варианты фильтра по роли: встроенные отбираются по коду, собственные - по идентификатору;
+    // пока список ролей не загрузился, предлагаются встроенные
+    let roles = LocalResource::new(list_roles);
+    let role_options = Signal::derive(move || {
+        roles
+            .get()
+            .and_then(Result::ok)
+            .and_then(Reply::ok)
+            .unwrap_or_else(built_in_roles)
+            .into_iter()
+            .map(|r| (r.id, r.name))
+            .collect::<Vec<_>>()
+    });
     view! {
         <Grid
-            columns=user_columns(me)
+            columns=user_columns(me, role_options)
             load=load_users
             row_href=href
             search_fields=vec!["email", "display_name"]
@@ -158,4 +187,22 @@ fn UsersList() -> impl IntoView {
             empty_hint="Добавьте первого пользователя."
         />
     }
+}
+
+/// Встроенные роли на случай, когда список ролей не загрузился.
+pub fn built_in_roles() -> Vec<RoleRow> {
+    [
+        ("owner", "Владелец"),
+        ("recruiter", "Рекрутёр"),
+        ("viewer", "Наблюдатель"),
+    ]
+    .into_iter()
+    .map(|(id, name)| RoleRow {
+        id: id.into(),
+        kind: "builtin".into(),
+        name: name.into(),
+        permissions: Vec::new(),
+        users: 0,
+    })
+    .collect()
 }

@@ -332,3 +332,128 @@ async fn other_roles_do_not_see_the_security_section() {
     .unwrap();
     stack.stop().await;
 }
+
+/// Ждёт, пока в выбор загрузится вариант, и выбирает его.
+fn choose_ready(tab: &Tab, selector: &str, label: &str) {
+    wait_until(
+        tab,
+        &format!("option {label} in {selector}"),
+        &format!(
+            "Array.from(document.querySelectorAll({selector:?} + ' option')).some(o => o.textContent.includes({label:?}))"
+        ),
+    );
+    choose(tab, selector, label);
+}
+
+fn roles_error_contains(part: &str) -> String {
+    format!(
+        "(document.querySelector('[data-testid=roles-error]')||{{}}).innerText?.includes({part:?})"
+    )
+}
+
+#[tokio::test]
+async fn the_owner_manages_custom_roles_and_their_users() {
+    let stack = world().await;
+    let base = stack.web_crm_url.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let browser = launch();
+        let tab = browser.new_tab().unwrap();
+        sign_in(&tab, &base, OWNER);
+
+        // вкладка «Роли»: три встроенные роли
+        click(&tab, "nav a[href='/security']");
+        wait_until(&tab, "security page", &exists_js("[data-testid=tab-roles]"));
+        click(&tab, "[data-testid=tab-roles]");
+        wait_count(&tab, "built-in roles", "[data-testid=role-row]", 3);
+        assert_eq!(eval(&tab, &count_js("[data-testid=role-row][data-kind=builtin]")), 3);
+
+        // создание роли «Стажёр»: чтение и запись (запись включает чтение)
+        click(&tab, "[data-testid=role-new]");
+        wait_until(&tab, "new role page", &exists_js("[data-testid=role-name-input]"));
+        type_into(&tab, "[data-testid=role-name-input]", "Стажёр");
+        click(&tab, "[data-testid=perm-write]");
+        click(&tab, "[data-testid=role-save]");
+        wait_count(&tab, "four roles", "[data-testid=role-row]", 4);
+        let role_text = text(&tab, "[data-testid=role-row][data-kind=custom]");
+        assert!(role_text.contains("Стажёр") && role_text.contains("Чтение") && role_text.contains("Запись"), "{role_text}");
+        assert!(!role_text.contains("Удаление"), "{role_text}");
+
+        // занятое и зарезервированное названия
+        click(&tab, "[data-testid=role-new]");
+        wait_until(&tab, "new role page", &exists_js("[data-testid=role-name-input]"));
+        type_into(&tab, "[data-testid=role-name-input]", "стажёр");
+        click(&tab, "[data-testid=role-save]");
+        wait_until(&tab, "duplicate", &roles_error_contains("уже есть"));
+        replace_text(&tab, "[data-testid=role-name-input]", "Владелец");
+        click(&tab, "[data-testid=role-save]");
+        wait_until(&tab, "reserved", &roles_error_contains("встроенной"));
+        click(&tab, "[data-testid=back-to-roles]");
+        wait_count(&tab, "still four", "[data-testid=role-row]", 4);
+
+        // пользователь с этой ролью
+        click(&tab, "[data-testid=tab-users]");
+        wait_until(&tab, "users", &exists_js("[data-testid=user-new]"));
+        click(&tab, "[data-testid=user-new]");
+        wait_until(&tab, "new user", &exists_js("[data-testid=user-email]"));
+        type_into(&tab, "[data-testid=user-email]", "intern@acme.io");
+        type_into(&tab, "[data-testid=user-password]", "intern-password-1");
+        choose_ready(&tab, "[data-testid=user-role]", "Стажёр");
+        click(&tab, "[data-testid=user-add]");
+        wait_until(&tab, "back on list", &exists_js("[data-testid=grid-row]"));
+        wait_until(
+            &tab,
+            "role name in the list",
+            &format!(
+                "(document.querySelector({:?})||{{}}).innerText === 'Стажёр'",
+                row("intern@acme.io", "[data-testid=user-role-label]")
+            ),
+        );
+
+        // стажёр видит кнопки записи, но не раздел «Безопасность»
+        let other = launch();
+        let tab2 = other.new_tab().unwrap();
+        login_crm(&tab2, &base, "acme", "intern@acme.io", "intern-password-1");
+        std::thread::sleep(Duration::from_millis(1500));
+        assert_eq!(eval(&tab2, &count_js("nav a[href='/security']")), 0);
+        click(&tab2, "nav a[href='/candidates']");
+        wait_until(&tab2, "candidates", &exists_js("[data-testid=import-button]"));
+
+        // удалить назначенную роль нельзя
+        click(&tab, "[data-testid=tab-roles]");
+        wait_count(&tab, "roles", "[data-testid=role-row]", 4);
+        click(&tab, "[data-testid=role-row][data-kind=custom]");
+        wait_until(&tab, "role page", &exists_js("[data-testid=role-delete]"));
+        assert!(text(&tab, "[data-testid=role-heading]").contains('1'));
+        click(&tab, "[data-testid=role-delete]");
+        wait_until(&tab, "assigned", &roles_error_contains("назначена"));
+
+        // без права записи кнопок записи нет: оставляем только чтение
+        click(&tab, "[data-testid=perm-write]");
+        click(&tab, "[data-testid=role-save]");
+        wait_until(
+            &tab,
+            "role saved",
+            "(document.querySelector('[data-testid=roles-ok]')||{}).innerText?.includes('сохранена')",
+        );
+        assert_eq!(eval(&tab, &count_js("[data-testid=perm-write]:checked")), 0);
+
+        // смена пользователю роли на встроенную и удаление свободной роли
+        click(&tab, "[data-testid=tab-users]");
+        wait_until(&tab, "users", &exists_js("[data-testid=grid-row]"));
+        click(&tab, &row("intern@acme.io", "[data-email]"));
+        wait_until(&tab, "user page", &exists_js("[data-testid=user-role-select]"));
+        choose_ready(&tab, "[data-testid=user-role-select]", "Наблюдатель");
+        click(&tab, "[data-testid=user-role-save]");
+        wait_until(&tab, "role changed", &ok_contains("Роль"));
+        click(&tab, "[data-testid=tab-roles]");
+        wait_count(&tab, "roles", "[data-testid=role-row]", 4);
+        click(&tab, "[data-testid=role-row][data-kind=custom]");
+        wait_until(&tab, "role page", &exists_js("[data-testid=role-delete]"));
+        click(&tab, "[data-testid=role-delete]");
+        wait_count(&tab, "role removed", "[data-testid=role-row]", 3);
+    })
+    .await
+    .unwrap();
+    stack.stop().await;
+}

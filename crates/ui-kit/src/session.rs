@@ -22,6 +22,9 @@ pub struct UserInfo {
     pub tenant: String,
     #[serde(default)]
     pub roles: Vec<String>,
+    /// Права собственной роли организации (`read_data`, `write_data`, `delete_data`); у встроенных ролей нет.
+    #[serde(default)]
+    pub perms: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

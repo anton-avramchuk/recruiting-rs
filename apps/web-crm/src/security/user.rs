@@ -7,13 +7,13 @@ use leptos_router::{
 use ui_kit::{EmptyState, Notice, NoticeKind};
 
 use super::{
-    role_label,
-    server::{NewUserForm, UserPatch, UserRow, create_user, failure_text, get_user, update_user},
-    view::{SecurityShell, roles_label},
+    server::{
+        NewUserForm, UserPatch, UserRow, create_user, failure_text, get_user, list_roles,
+        update_user,
+    },
+    view::{SecurityShell, built_in_roles, roles_label},
 };
 use crate::funnel::server::Reply;
-
-const ROLES: [&str; 3] = ["owner", "recruiter", "viewer"];
 
 fn back_link() -> ViewFn {
     ViewFn::from(
@@ -83,12 +83,7 @@ pub fn NewUserPage() -> impl IntoView {
                     </label>
                     <label>
                         "Роль"
-                        <select data-testid="user-role" prop:value=move || role.get() on:change=move |ev| role.set(event_target_value(&ev))>
-                            {ROLES
-                                .into_iter()
-                                .map(|r| view! { <option value=r selected=move || role.get() == r>{role_label(r)}</option> })
-                                .collect_view()}
-                        </select>
+                        <RoleSelect value=role testid="user-role" />
                     </label>
                     <label>
                         "Начальный пароль"
@@ -158,7 +153,7 @@ fn UserEditor(
 ) -> impl IntoView {
     let id = StoredValue::new(user.id.clone());
     let blocked = user.status == "blocked";
-    let single_role = (user.roles.len() == 1).then(|| user.roles[0].clone());
+    let single_role = Some(user.role_value()).filter(|v| !v.is_empty());
     let name = RwSignal::new(user.display_name.clone());
     let role = RwSignal::new(single_role.clone().unwrap_or_default());
     let new_password = RwSignal::new(String::new());
@@ -243,13 +238,7 @@ fn UserEditor(
             <div class="form-grid">
                 <label>
                     "Роль"
-                    <select data-testid="user-role-select" prop:value=move || role.get() on:change=move |ev| role.set(event_target_value(&ev))>
-                        {single_role.is_none().then(|| view! { <option value="" selected disabled>"Несколько ролей"</option> })}
-                        {ROLES
-                            .into_iter()
-                            .map(|r| view! { <option value=r selected=move || role.get() == r>{role_label(r)}</option> })
-                            .collect_view()}
-                    </select>
+                    <RoleSelect value=role testid="user-role-select" unset=single_role.is_none() />
                 </label>
             </div>
             <p>
@@ -312,5 +301,36 @@ fn UserEditor(
             <p class="muted">"Все сессии пользователя будут завершены."</p>
             <p><button type="submit" class="btn btn--primary" data-testid="password-save">"Сменить пароль"</button></p>
         </form>
+    }
+}
+
+/// Выбор роли: встроенные и собственные роли организации. Значение - код встроенной роли или
+/// идентификатор собственной; пока список не загрузился, показываются встроенные.
+#[component]
+fn RoleSelect(
+    value: RwSignal<String>,
+    testid: &'static str,
+    /// Показать пустой недоступный вариант «Несколько ролей» (у пользователя нет единственной роли).
+    #[prop(optional)]
+    unset: bool,
+) -> impl IntoView {
+    let roles = LocalResource::new(list_roles);
+    view! {
+        <select data-testid=testid on:change=move |ev| value.set(event_target_value(&ev))>
+            {unset.then(|| view! { <option value="" selected disabled>"Несколько ролей"</option> })}
+            {move || {
+                let list = roles
+                    .get()
+                    .and_then(Result::ok)
+                    .and_then(Reply::ok)
+                    .unwrap_or_else(built_in_roles);
+                list.into_iter()
+                    .map(|r| {
+                        let id = r.id.clone();
+                        view! { <option value=r.id prop:selected=move || value.get() == id>{r.name}</option> }
+                    })
+                    .collect_view()
+            }}
+        </select>
     }
 }

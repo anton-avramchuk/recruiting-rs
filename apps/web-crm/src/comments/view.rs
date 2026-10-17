@@ -33,7 +33,10 @@ pub fn Comments(
             .current()
             .and_then(Result::ok)
             .and_then(|s| s.user)
-            .map(|u| (u.id, u.roles.iter().any(|r| r == "owner")))
+            .map(|u| {
+                let remove_any = crate::access::can_delete(&u);
+                (u.id, remove_any)
+            })
             .unwrap_or_default()
     };
 

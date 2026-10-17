@@ -14,7 +14,7 @@ use ui_kit::SessionCtx;
 
 use crate::{
     candidates::{
-        list::can_delete,
+        list::is_owner,
         outcome::ListOutcome,
         server::{PersonQuery, search_persons},
     },
@@ -317,7 +317,7 @@ fn PaletteDialog(palette: PaletteCtx, writable: Signal<bool>) -> impl IntoView {
             &vacancies.get(),
             &people.get(),
         );
-        with_owner_commands(rows, &query.get(), can_delete(session))
+        with_owner_commands(rows, &query.get(), is_owner(session))
     });
 
     let run = move |entry: Entry| {

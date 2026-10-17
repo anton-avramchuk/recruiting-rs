@@ -1,6 +1,7 @@
 //! Клиентское приложение рекрутеров (Leptos, SSR + hydrate). Общается только с bff-crm.
 // глубокие вложенные представления доски превышают лимит по умолчанию при сборке wasm в release
 #![recursion_limit = "1024"]
+pub mod access;
 pub mod analytics;
 pub mod candidates;
 pub mod clients;
@@ -78,6 +79,9 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/security") view=security::view::SecurityPage ssr=SsrMode::Async />
                     <Route path=path!("/security/users/new") view=security::user::NewUserPage ssr=SsrMode::Async />
                     <Route path=path!("/security/users/:id") view=security::user::UserPage ssr=SsrMode::Async />
+                    <Route path=path!("/security/roles") view=security::roles::RolesPage ssr=SsrMode::Async />
+                    <Route path=path!("/security/roles/new") view=security::roles::NewRolePage ssr=SsrMode::Async />
+                    <Route path=path!("/security/roles/:id") view=security::roles::RolePage ssr=SsrMode::Async />
                     <Route path=path!("/applications") view=funnel::applications::ApplicationsPage ssr=SsrMode::Async />
                 </ParentRoute>
             </Routes>
@@ -140,7 +144,7 @@ fn Protected() -> impl IntoView {
                 actions=ViewFn::from(move || view! { <palette::actions::ShellActions palette writable /> })
                 nav_extra=ViewFn::from(move || {
                     // раздел управления доступом виден только владельцу
-                    candidates::list::can_delete(ctx)
+                    candidates::list::is_owner(ctx)
                         .then(|| view! { <leptos_router::components::A href="/security">"Безопасность"</leptos_router::components::A> })
                 })
             />

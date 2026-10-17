@@ -23,7 +23,7 @@ pub enum ColumnFilter {
     /// Текст: условие «содержит».
     Text,
     /// Выбор значения из списка (значение, подпись); `Operator` - как сравнивать с полем.
-    Select(Vec<(&'static str, &'static str)>, Operator),
+    Select(Signal<Vec<(String, String)>>, Operator),
 }
 
 /// Столбец таблицы.
@@ -73,11 +73,7 @@ impl<T> Column<T> {
         self
     }
 
-    pub fn filter_select(
-        mut self,
-        options: Vec<(&'static str, &'static str)>,
-        op: Operator,
-    ) -> Self {
+    pub fn filter_select(mut self, options: Signal<Vec<(String, String)>>, op: Operator) -> Self {
         self.filter = ColumnFilter::Select(options, op);
         self
     }
@@ -305,7 +301,7 @@ where
                         }
                         .into_any(),
                         ColumnFilter::Select(options, _) => {
-                            let options = options.clone();
+                            let options = *options;
                             view! {
                                 <select
                                     aria-label=format!("Фильтр: {}", col.header)
@@ -316,16 +312,20 @@ where
                                     }
                                 >
                                     <option value="" selected=move || !url.get().filters.contains_key(field)>"Все"</option>
-                                    {options
-                                        .into_iter()
-                                        .map(|(value, label)| {
-                                            view! {
-                                                <option value=value selected=move || url.get().filters.get(field).is_some_and(|v| v == value)>
-                                                    {label}
-                                                </option>
-                                            }
-                                        })
-                                        .collect_view()}
+                                    {move || {
+                                        options
+                                            .get()
+                                            .into_iter()
+                                            .map(|(value, label)| {
+                                                let current = value.clone();
+                                                view! {
+                                                    <option value=value selected=move || url.get().filters.get(field).is_some_and(|v| *v == current)>
+                                                        {label}
+                                                    </option>
+                                                }
+                                            })
+                                            .collect_view()
+                                    }}
                                 </select>
                             }
                             .into_any()

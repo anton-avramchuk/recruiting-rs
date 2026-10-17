@@ -13,20 +13,23 @@ use crate::{clients::server::list_clients, funnel::server::Reply};
 /// Задержка перед запросом после ввода, мс.
 const DEBOUNCE_MS: u64 = 250;
 
-/// Может ли пользователь создавать и менять кандидатов (по ролям из сессии).
+/// Может ли пользователь создавать и менять данные (по сессии).
 pub fn can_write(ctx: SessionCtx) -> bool {
-    ctx.current()
-        .and_then(Result::ok)
-        .and_then(|s| s.user)
-        .is_some_and(|u| u.roles.iter().any(|r| r == "owner" || r == "recruiter"))
+    session_user(ctx).is_some_and(|u| crate::access::can_write(&u))
 }
 
-/// Может ли пользователь удалять данные организации (только владелец).
+/// Может ли пользователь удалять данные организации (владелец или роль с правом удаления).
 pub fn can_delete(ctx: SessionCtx) -> bool {
-    ctx.current()
-        .and_then(Result::ok)
-        .and_then(|s| s.user)
-        .is_some_and(|u| u.roles.iter().any(|r| r == "owner"))
+    session_user(ctx).is_some_and(|u| crate::access::can_delete(&u))
+}
+
+/// Владелец организации: ему доступен раздел «Безопасность».
+pub fn is_owner(ctx: SessionCtx) -> bool {
+    session_user(ctx).is_some_and(|u| crate::access::is_owner(&u))
+}
+
+fn session_user(ctx: SessionCtx) -> Option<ui_kit::UserInfo> {
+    ctx.current().and_then(Result::ok).and_then(|s| s.user)
 }
 
 /// Есть ли непустые текстовые фильтры (поиск, источник, навык, стаж).

@@ -10,7 +10,7 @@ pub fn launch() -> Browser {
     Browser::new(LaunchOptions {
         headless: true,
         window_size: Some((1280, 900)),
-        idle_browser_timeout: Duration::from_secs(300),
+        idle_browser_timeout: Duration::from_secs(900),
         ..LaunchOptions::default()
     })
     .expect("launch Chrome (install Google Chrome)")
