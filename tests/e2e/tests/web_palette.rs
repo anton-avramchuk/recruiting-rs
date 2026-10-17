@@ -275,7 +275,10 @@ async fn shortcuts_move_around_and_stay_out_of_text_fields() {
         // поиск грида хранится в адресе, но раздел остаётся тем же
         assert_eq!(eval_str(&tab, "location.pathname"), "/candidates");
         assert_eq!(
-            eval_str(&tab, "document.querySelector('[data-testid=grid-search]').value"),
+            eval_str(
+                &tab,
+                "document.querySelector('[data-testid=grid-search]').value"
+            ),
             "gai"
         );
 

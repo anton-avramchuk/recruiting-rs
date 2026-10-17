@@ -141,3 +141,18 @@ async fn a_dead_client_service_does_not_break_the_rest() {
         );
     }
 }
+
+#[tokio::test]
+async fn grid_parameters_reach_the_client_service_unchanged() {
+    let w = world(None).await;
+    let query = "page=1&page_size=20&sort=full_name%3Aasc&filter=%7B%22field%22%3A%22source%22%2C%22operator%22%3A%22eq%22%2C%22value%22%3A%22hh.ru%22%7D";
+    let res = w
+        .client
+        .send("GET", &format!("/api/clients/grid?{query}"), &[], None)
+        .await;
+    assert_eq!(res.status, 200);
+    assert_eq!(
+        w.client_service.last_query.lock().unwrap().as_deref(),
+        Some(query)
+    );
+}

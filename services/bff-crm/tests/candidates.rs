@@ -105,3 +105,18 @@ async fn admin_internal_and_service_paths_stay_closed() {
     assert_eq!(w.candidate.api_calls.load(Ordering::SeqCst), 0);
     assert_eq!(w.identity.api_calls.load(Ordering::SeqCst), 0);
 }
+
+#[tokio::test]
+async fn grid_parameters_reach_the_candidate_service_unchanged() {
+    let w = world().await;
+    let query = "page=1&page_size=20&sort=full_name%3Aasc&filter=%7B%22field%22%3A%22source%22%2C%22operator%22%3A%22eq%22%2C%22value%22%3A%22hh.ru%22%7D";
+    let res = w
+        .client
+        .send("GET", &format!("/api/persons?{query}"), &[], None)
+        .await;
+    assert_eq!(res.status, 200);
+    assert_eq!(
+        w.candidate.last_query.lock().unwrap().as_deref(),
+        Some(query)
+    );
+}

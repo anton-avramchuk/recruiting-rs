@@ -3,8 +3,8 @@ use client_contracts::{ClientDto, CreateClientRequest};
 use grid_contracts::Operator;
 use leptos::prelude::*;
 use leptos_router::{components::A, hooks::use_navigate};
-use ui_data::EntityGrid;
-use ui_kit::{Notice, NoticeKind, PageHeader, Reply, SessionCtx, grid::Column};
+use ui_data::{EntityGrid, Mutation, MutationConfig};
+use ui_kit::{Notice, NoticeKind, PageHeader, SessionCtx, grid::Column};
 
 use super::{
     opt,
@@ -90,24 +90,22 @@ fn NewClientForm() -> impl IntoView {
     let note = RwSignal::new(String::new());
     let error = RwSignal::new(None::<String>);
     let navigate = use_navigate();
-    let create = Action::new(move |request: &CreateClientRequest| {
-        let request = request.clone();
-        async move { create_client(request).await }
-    });
+    // переход делает эффект: навигатор браузера не Send
+    let created = RwSignal::new(None::<String>);
     Effect::new(move |_| {
-        if let Some(result) = create.value().get() {
-            match result {
-                Ok(Reply::Ok(client)) => {
-                    error.set(None);
-                    navigate(&format!("/clients/{}", client.id), Default::default());
-                }
-                Ok(other) => {
-                    error.set(other.failure_with(|_| "Заказчик с таким названием уже есть.".into()))
-                }
-                Err(_) => error.set(Some("Не удалось создать заказчика.".into())),
-            }
+        if let Some(id) = created.get() {
+            navigate(&format!("/clients/{id}"), Default::default());
         }
     });
+    let create = Mutation::new(
+        create_client,
+        move |client: ClientDto| created.set(Some(client.id.to_string())),
+        MutationConfig {
+            fallback: "Не удалось создать заказчика.",
+            conflict: |_| "Заказчик с таким названием уже есть.".into(),
+            message: Some(error),
+        },
+    );
 
     view! {
         <form
@@ -118,7 +116,7 @@ fn NewClientForm() -> impl IntoView {
             on:submit=move |ev| {
                 ev.prevent_default();
                 create
-                    .dispatch(CreateClientRequest {
+                    .run(CreateClientRequest {
                         name: name.get(),
                         note: opt(&note.get()),
                     });
