@@ -24,6 +24,7 @@ hydrate = [
 
 [dependencies]
 grid-contracts = { path = "../grid-contracts" }
+ui-core = { path = "../ui-core" }
 leptos.workspace = true
 leptos_meta.workspace = true
 leptos_router.workspace = true

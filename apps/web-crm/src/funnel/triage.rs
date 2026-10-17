@@ -5,11 +5,12 @@ use leptos::prelude::*;
 use leptos_router::{components::A, hooks::use_navigate};
 use recruitment_contracts::ApplicationDto;
 use serde_json::json;
+use ui_kit::Reply;
 use ui_kit::{Notice, NoticeKind, SessionCtx};
 
 use super::{
     format::{initials, now_ms, time_label},
-    server::{AppQuery, Reply, TriageData, application_action, list_applications, triage_card},
+    server::{AppQuery, TriageData, application_action, list_applications, triage_card},
 };
 use crate::candidates::{
     format::{format_salary, years_label},

@@ -1,6 +1,7 @@
 //! Список кандидатов: поиск, фильтры, постраничная выдача.
 use leptos::prelude::*;
 use leptos_router::components::A;
+use ui_kit::Reply;
 use ui_kit::{EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
 
 use super::{
@@ -8,7 +9,7 @@ use super::{
     outcome::ListOutcome,
     server::{PersonQuery, search_persons_of_client},
 };
-use crate::{clients::server::list_clients, funnel::server::Reply};
+use crate::clients::server::list_clients;
 
 /// Задержка перед запросом после ввода, мс.
 const DEBOUNCE_MS: u64 = 250;

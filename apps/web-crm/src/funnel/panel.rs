@@ -2,14 +2,13 @@
 use leptos::prelude::*;
 use recruitment_contracts::{ApplicationDetailDto, ApplicationDto, HR_SYSTEMS, Stage, VacancyDto};
 use serde_json::{Value, json};
+use ui_kit::Reply;
 
 use super::{
     FunnelCtx,
     format::{browser_timezone_offset, client_line, local_to_rfc3339, short_moment, time_label},
     keys::{PanelKey, panel_key},
-    server::{
-        Reply, application_action, create_application, get_application, list_vacancies, save_note,
-    },
+    server::{application_action, create_application, get_application, list_vacancies, save_note},
 };
 use crate::{
     candidates::{

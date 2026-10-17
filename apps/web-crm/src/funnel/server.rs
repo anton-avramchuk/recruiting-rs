@@ -6,69 +6,7 @@ use recruitment_contracts::{
     VacancyDto,
 };
 use serde::{Deserialize, Serialize};
-use ui_kit::api::Method;
-
-/// Исход обращения к воронке в виде значения: интерфейс различает его без разбора HTTP.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Reply<T> {
-    Ok(T),
-    Invalid { field: String, message: String },
-    Conflict(String),
-    Forbidden,
-    NotFound,
-    Unavailable,
-}
-
-impl<T> Reply<T> {
-    pub fn ok(self) -> Option<T> {
-        match self {
-            Reply::Ok(v) => Some(v),
-            _ => None,
-        }
-    }
-
-    /// Сообщение для пользователя, когда действие не удалось.
-    pub fn failure(&self) -> Option<String> {
-        Some(match self {
-            Reply::Ok(_) => return None,
-            Reply::Invalid { message, .. } => message.clone(),
-            Reply::Conflict(m) => m.clone(),
-            Reply::Forbidden => "Недостаточно прав для этого действия.".into(),
-            Reply::NotFound => "Не найдено: возможно, запись уже удалена.".into(),
-            Reply::Unavailable => "Сервис временно недоступен. Попробуйте позже.".into(),
-        })
-    }
-}
-
-/// Преобразует ответ BFF в `Reply`; `parse` достаёт данные из успешного тела.
-pub fn classify<T>(
-    status: u16,
-    body: &serde_json::Value,
-    parse: impl Fn(&serde_json::Value) -> Option<T>,
-) -> Reply<T> {
-    let text = |key: &str| body[key].as_str().unwrap_or_default().to_string();
-    match status {
-        200 | 201 => parse(body).map_or(Reply::Unavailable, Reply::Ok),
-        400 => Reply::Invalid {
-            field: text("field"),
-            message: match text("detail") {
-                d if d.is_empty() => "Проверьте введённые данные".into(),
-                d => d,
-            },
-        },
-        401 | 403 => Reply::Forbidden,
-        404 => Reply::NotFound,
-        409 => Reply::Conflict(match text("detail") {
-            d if d.is_empty() => "Действие сейчас недоступно".into(),
-            d => d,
-        }),
-        _ => Reply::Unavailable,
-    }
-}
-
-pub(crate) fn typed<T: serde::de::DeserializeOwned>(body: &serde_json::Value) -> Option<T> {
-    serde_json::from_value(body.clone()).ok()
-}
+use ui_kit::{Reply, api::Method, classify, typed};
 
 /// Параметры списка откликов; пустые строки не ограничивают выборку.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -300,51 +238,4 @@ pub async fn save_note(person_id: String, note: String) -> Result<Reply<()>, Ser
     )
     .await?;
     Ok(classify(reply.status, &reply.body, |_| Some(())))
-}
-
-#[cfg(test)]
-mod tests {
-    use serde_json::json;
-
-    use super::*;
-
-    #[test]
-    fn statuses_become_values() {
-        let ok: Reply<u8> = classify(200, &json!(7), |v| v.as_u64().map(|n| n as u8));
-        assert_eq!(ok, Reply::Ok(7));
-        assert_eq!(
-            classify::<u8>(200, &json!("x"), |_| None),
-            Reply::Unavailable
-        );
-        assert_eq!(
-            classify::<u8>(400, &json!({"field": "at", "detail": "прошло"}), |_| None),
-            Reply::Invalid {
-                field: "at".into(),
-                message: "прошло".into()
-            }
-        );
-        assert_eq!(
-            classify::<u8>(403, &json!(null), |_| None),
-            Reply::Forbidden
-        );
-        assert_eq!(classify::<u8>(404, &json!(null), |_| None), Reply::NotFound);
-        assert!(matches!(
-            classify::<u8>(409, &json!({}), |_| None),
-            Reply::Conflict(_)
-        ));
-        assert_eq!(
-            classify::<u8>(502, &json!(null), |_| None),
-            Reply::Unavailable
-        );
-    }
-
-    #[test]
-    fn failure_message_exists_only_for_failures() {
-        assert!(Reply::Ok(1).failure().is_none());
-        assert!(Reply::<u8>::Forbidden.failure().is_some());
-        assert_eq!(
-            Reply::<u8>::Conflict("нельзя".into()).failure().as_deref(),
-            Some("нельзя")
-        );
-    }
 }

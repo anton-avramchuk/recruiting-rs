@@ -18,7 +18,8 @@ use super::{
     list::can_write,
     server::import_persons,
 };
-use crate::funnel::server::{Reply, create_applications_batch, list_vacancies};
+use crate::funnel::server::{create_applications_batch, list_vacancies};
+use ui_kit::Reply;
 
 /// Строк в одном запросе импорта.
 const CHUNK: usize = 200;

@@ -8,10 +8,13 @@ use ui_kit::{ConfirmDialog, EmptyState, Notice, NoticeKind};
 
 use super::{
     permission_label,
-    server::{RoleRow, create_role, delete_role, list_roles, role_failure_text, update_role},
+    server::{
+        RoleRow, create_role, delete_role, list_roles, role_conflict_text, role_invalid_text,
+        update_role,
+    },
     view::SecurityShell,
 };
-use crate::funnel::server::Reply;
+use ui_kit::Reply;
 
 fn back_link() -> ViewFn {
     ViewFn::from(
@@ -186,7 +189,7 @@ pub fn NewRolePage() -> impl IntoView {
         if let Some(result) = create.value().get() {
             match result {
                 Ok(Reply::Ok(_)) => navigate("/security/roles", Default::default()),
-                Ok(other) => error.set(role_failure_text(&other)),
+                Ok(other) => error.set(other.failure_map(role_conflict_text, role_invalid_text)),
                 Err(_) => error.set(Some("Не удалось создать роль.".into())),
             }
         }
@@ -299,7 +302,7 @@ fn RoleEditor(
                 }
                 Ok(other) => {
                     done.set(None);
-                    error.set(role_failure_text(&other));
+                    error.set(other.failure_map(role_conflict_text, role_invalid_text));
                 }
                 Err(_) => {
                     done.set(None);
@@ -322,7 +325,7 @@ fn RoleEditor(
                 Ok(Reply::Ok(())) => navigate("/security/roles", Default::default()),
                 Ok(other) => {
                     done.set(None);
-                    error.set(role_failure_text(&other));
+                    error.set(other.failure_map(role_conflict_text, role_invalid_text));
                 }
                 Err(_) => error.set(Some("Не удалось удалить роль.".into())),
             }

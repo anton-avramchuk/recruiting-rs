@@ -4,6 +4,7 @@ use std::time::Duration;
 use leptos::prelude::*;
 use recruitment_contracts::{ApplicationDto, Stage};
 use serde_json::json;
+use ui_kit::Reply;
 use ui_kit::{EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
 
 use super::{
@@ -11,9 +12,7 @@ use super::{
     format::time_label,
     keys::{ListKey, clamp_cursor, list_key, move_cursor},
     panel::PersonPanel,
-    server::{
-        AppQuery, Reply, application_action, bulk_applications, list_applications, list_vacancies,
-    },
+    server::{AppQuery, application_action, bulk_applications, list_applications, list_vacancies},
 };
 use crate::palette::view::{overlay_check, typing_in_a_field, with_press};
 use crate::{

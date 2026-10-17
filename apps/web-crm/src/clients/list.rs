@@ -2,16 +2,14 @@
 use client_contracts::CreateClientRequest;
 use leptos::prelude::*;
 use leptos_router::{components::A, hooks::use_navigate};
+use ui_kit::Reply;
 use ui_kit::{EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
 
 use super::{
     opt,
-    server::{create_client, failure_text, list_clients},
+    server::{create_client, list_clients},
 };
-use crate::{
-    candidates::list::{DebouncedInput, can_write},
-    funnel::server::Reply,
-};
+use crate::candidates::list::{DebouncedInput, can_write};
 
 #[component]
 pub fn ClientsPage() -> impl IntoView {
@@ -138,7 +136,7 @@ fn NewClientForm() -> impl IntoView {
                     navigate(&format!("/clients/{}", client.id), Default::default());
                 }
                 Ok(other) => {
-                    error.set(failure_text(&other, "Заказчик с таким названием уже есть."))
+                    error.set(other.failure_with(|_| "Заказчик с таким названием уже есть.".into()))
                 }
                 Err(_) => error.set(Some("Не удалось создать заказчика.".into())),
             }

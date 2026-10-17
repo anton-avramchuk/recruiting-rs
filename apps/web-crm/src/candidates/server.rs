@@ -8,7 +8,7 @@ use ui_kit::api::Method;
 
 use candidate_contracts::{EducationDto, EmploymentDto, ImportRequest, ImportResponse};
 
-use crate::funnel::server::{Reply, classify, typed};
+use ui_kit::{Reply, classify, typed};
 
 use super::outcome::{CreateOutcome, DeleteOutcome, ListOutcome, LoadOutcome, SaveOutcome};
 

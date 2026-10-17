@@ -4,7 +4,8 @@ use leptos_router::{components::A, hooks::use_navigate};
 use recruitment_contracts::Stage;
 use ui_kit::{Notice, NoticeKind, PageHeader};
 
-use crate::funnel::server::{Reply, create_application, list_vacancies};
+use crate::funnel::server::{create_application, list_vacancies};
+use ui_kit::Reply;
 
 use super::{
     fields::Field,

@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 
 use grid_contracts::{DEFAULT_PAGE_SIZE, Filter, GridQuery, Operator, SortKey, parse_sort};
 
-use crate::encode_query_value;
+use crate::encode::encode_query_value;
 
 /// Допустимые размеры страницы в выборе.
 pub const PAGE_SIZES: [u32; 3] = [20, 50, 100];

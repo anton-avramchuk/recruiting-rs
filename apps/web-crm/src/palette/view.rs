@@ -220,7 +220,7 @@ async fn find_clients(q: String) -> Vec<Hit> {
         return Vec::new();
     }
     match crate::clients::server::list_clients(q, false).await {
-        Ok(crate::funnel::server::Reply::Ok(list)) => list
+        Ok(ui_kit::Reply::Ok(list)) => list
             .into_iter()
             .take(MAX_CLIENTS)
             .map(|c| Hit {

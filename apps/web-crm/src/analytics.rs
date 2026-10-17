@@ -2,12 +2,10 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
 use recruitment_contracts::{AnalyticsDto, ClientStatDto, FunnelStepDto, Stage};
+use ui_kit::Reply;
 use ui_kit::{Notice, NoticeKind, PageHeader};
 
-use crate::funnel::{
-    format::LONG_OPEN_DAYS,
-    server::{Reply, get_analytics},
-};
+use crate::funnel::{format::LONG_OPEN_DAYS, server::get_analytics};
 
 /// Периоды переключателя, суток.
 pub const PERIODS: [i64; 4] = [30, 90, 180, 365];

@@ -2,10 +2,10 @@
 
 ## 1. Волна 1 — основа: ui-core, ui, ui-data
 
-- [ ] 1.1 Создать `crates/ui-core` и перенести в него логику грида без Leptos (`GridUrl`, `FilterSpec`, `page_info`, `RowActions`, правила двойного щелчка) вместе с тестами
-- [ ] 1.2 Красные тесты `ui-core`: расчёт числа страниц и диапазона (`page_count`, граничные случаи), подпись «Страница N из M»
-- [ ] 1.3 Красные тесты `ui-core`: `Reply<T>`, `classify` (200/201/400/401/403/404/409/5xx), дубль как данные в `Conflict`, перевод сообщений по контексту
-- [ ] 1.4 Перенести `Reply`/`classify`/`failure` из `funnel/server.rs` в `ui-core`; заменить три `failure_text` одной функцией
+- [x] 1.1 Создать `crates/ui-core` и перенести в него логику грида без Leptos (`GridUrl`, `FilterSpec`, `page_info`, `RowActions`, правила двойного щелчка) вместе с тестами
+- [x] 1.2 Красные тесты `ui-core`: расчёт числа страниц и диапазона (`page_count`, граничные случаи), подпись «Страница N из M»
+- [x] 1.3 Красные тесты `ui-core`: `Reply<T>`, `classify` (200/201/400/401/403/404/409/5xx), дубль как данные в `Conflict`, перевод сообщений по контексту
+- [x] 1.4 Перенести `Reply`/`classify`/`failure` из `funnel/server.rs` в `ui-core`; заменить три `failure_text` одной функцией
 - [ ] 1.5 Создать `crates/ui`; перенести `Grid`, `Column`, `ColumnFilter`, `DebouncedText`, `RowRemove`, `ConfirmDialog`, `Notice`, `EmptyState`; `ui-kit` остаётся фасадом с `pub use`
 - [ ] 1.6 Контрол `Pager` (подпись, «Назад/Вперёд», размер страницы) на `ui-core`; `Grid` использует его
 - [ ] 1.7 Контролы `Dialog` и `Drawer`; `ConfirmDialog` строится на `Dialog`; палитра, шпаргалка и панель человека воронки переходят на них (e2e `web_palette`, воронка)

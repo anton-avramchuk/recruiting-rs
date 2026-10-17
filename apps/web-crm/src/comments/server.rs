@@ -1,13 +1,9 @@
 //! Вызовы сервиса комментариев через BFF.
 use comment_contracts::{CommentDto, CommentPage, CreateCommentRequest, UpdateCommentRequest};
 use leptos::prelude::*;
-use ui_kit::api::Method;
+use ui_kit::{Reply, api::Method, classify, classify_empty, typed};
 
-use crate::{
-    candidates::server::uuid_like,
-    clients::server::classify_empty,
-    funnel::server::{Reply, classify, typed},
-};
+use crate::candidates::server::uuid_like;
 
 fn valid(id: &str) -> bool {
     id.parse::<uuid_like::Id>().is_ok()

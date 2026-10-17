@@ -10,11 +10,8 @@ use leptos_router::{
 };
 use serde::{Serialize, de::DeserializeOwned};
 
-use super::{
-    actions::{RowActions, is_interactive},
-    state::{FilterSpec, GridUrl, PAGE_SIZES, page_info},
-};
 use crate::{ConfirmDialog, EmptyState, Notice, NoticeKind};
+use ui_core::grid::{FilterSpec, GridUrl, PAGE_SIZES, RowActions, is_interactive, page_info};
 
 /// Пауза в наборе перед запросом, мс.
 const DEBOUNCE_MS: u64 = 300;

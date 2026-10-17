@@ -3,12 +3,9 @@ use grid_contracts::{GridPage, GridQuery};
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use ui_kit::api::Method;
+use ui_kit::{Reply, api::Method, classify, typed};
 
-use crate::{
-    candidates::server::uuid_like,
-    funnel::server::{Reply, classify, typed},
-};
+use crate::candidates::server::uuid_like;
 
 /// Пользователь организации в списке.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -210,28 +207,6 @@ pub async fn delete_role(id: String) -> Result<Reply<()>, ServerFnError> {
     })
 }
 
-/// Текст ошибки у формы роли: конфликты переводятся.
-pub fn role_failure_text<T>(reply: &Reply<T>) -> Option<String> {
-    match reply {
-        Reply::Conflict(m) => Some(role_conflict_text(m)),
-        Reply::Invalid { message, .. } => Some(role_invalid_text(message)),
-        other => other.failure(),
-    }
-}
-
-/// Сообщения проверки роли по-русски.
-pub fn role_invalid_text(message: &str) -> String {
-    if message.contains("at least one permission") || message.contains("read_data is required") {
-        "Выберите хотя бы одно право; запись и удаление требуют чтения.".into()
-    } else if message.contains("role name must be") {
-        "Название роли: от 1 до 60 символов.".into()
-    } else if message.contains("permission") {
-        "Недопустимый набор прав.".into()
-    } else {
-        message.to_string()
-    }
-}
-
 pub fn role_conflict_text(message: &str) -> String {
     if message.contains("already in use") {
         "Роль с таким названием уже есть.".into()
@@ -258,11 +233,16 @@ pub async fn update_user(id: String, patch: UserPatch) -> Result<Reply<UserRow>,
     Ok(classify(reply.status, &reply.body, typed))
 }
 
-/// Текст ошибки у формы: сообщения конфликтов переводятся, остальное - общими фразами.
-pub fn failure_text<T>(reply: &Reply<T>) -> Option<String> {
-    match reply {
-        Reply::Conflict(m) => Some(conflict_text(m)),
-        other => other.failure(),
+/// Сообщения проверки роли по-русски.
+pub fn role_invalid_text(message: &str) -> String {
+    if message.contains("at least one permission") || message.contains("read_data is required") {
+        "Выберите хотя бы одно право; запись и удаление требуют чтения.".into()
+    } else if message.contains("role name must be") {
+        "Название роли: от 1 до 60 символов.".into()
+    } else if message.contains("permission") {
+        "Недопустимый набор прав.".into()
+    } else {
+        message.to_string()
     }
 }
 
@@ -378,7 +358,7 @@ mod tests {
     fn a_conflict_reply_is_translated() {
         let reply: Reply<()> = Reply::Conflict("cannot block yourself".into());
         assert_eq!(
-            failure_text(&reply).as_deref(),
+            reply.failure_with(conflict_text).as_deref(),
             Some("Нельзя заблокировать самого себя.")
         );
     }

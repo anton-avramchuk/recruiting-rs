@@ -2,6 +2,7 @@
 use grid_contracts::Operator;
 use leptos::prelude::*;
 use leptos_router::components::A;
+use ui_kit::Reply;
 use ui_kit::{
     EmptyState, PageHeader, SessionCtx,
     grid::{Column, Grid},
@@ -11,7 +12,7 @@ use super::{
     role_label,
     server::{RoleRow, UserRow, list_roles, load_users},
 };
-use crate::{candidates::list::is_owner, funnel::server::Reply};
+use crate::candidates::list::is_owner;
 
 /// Вкладки раздела; новые вкладки добавляются сюда.
 #[component]

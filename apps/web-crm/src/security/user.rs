@@ -8,12 +8,12 @@ use ui_kit::{EmptyState, Notice, NoticeKind};
 
 use super::{
     server::{
-        NewUserForm, UserPatch, UserRow, create_user, failure_text, get_user, list_roles,
+        NewUserForm, UserPatch, UserRow, conflict_text, create_user, get_user, list_roles,
         update_user,
     },
     view::{SecurityShell, built_in_roles, roles_label},
 };
-use crate::funnel::server::Reply;
+use ui_kit::Reply;
 
 fn back_link() -> ViewFn {
     ViewFn::from(
@@ -37,7 +37,7 @@ pub fn NewUserPage() -> impl IntoView {
         if let Some(result) = create.value().get() {
             match result {
                 Ok(Reply::Ok(_)) => navigate("/security", Default::default()),
-                Ok(other) => error.set(failure_text(&other)),
+                Ok(other) => error.set(other.failure_with(conflict_text)),
                 Err(_) => error.set(Some("Не удалось добавить пользователя.".into())),
             }
         }
@@ -176,7 +176,7 @@ fn UserEditor(
                 }
                 Ok(other) => {
                     done.set(None);
-                    error.set(failure_text(&other));
+                    error.set(other.failure_with(conflict_text));
                     if !keep_input {
                         version.update(|v| *v += 1);
                     }

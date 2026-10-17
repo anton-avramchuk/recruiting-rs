@@ -2,12 +2,11 @@
 use client_contracts::PositionDto;
 use leptos::prelude::*;
 use leptos_router::components::A;
+use ui_kit::Reply;
 use ui_kit::{EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
 
-use super::server::{
-    create_position, delete_position, failure_text, list_positions, rename_position,
-};
-use crate::{candidates::list::can_write, funnel::server::Reply};
+use super::server::{create_position, delete_position, list_positions, rename_position};
+use crate::candidates::list::can_write;
 
 #[component]
 pub fn PositionsPage() -> impl IntoView {
@@ -30,7 +29,9 @@ pub fn PositionsPage() -> impl IntoView {
                     name.set(String::new());
                     version.update(|v| *v += 1);
                 }
-                Ok(other) => message.set(failure_text(&other, "Такая должность уже есть.")),
+                Ok(other) => {
+                    message.set(other.failure_with(|_| "Такая должность уже есть.".into()))
+                }
                 Err(_) => message.set(Some("Не удалось добавить должность.".into())),
             }
         }
@@ -119,7 +120,9 @@ fn PositionRow(
                     message.set(None);
                     version.update(|v| *v += 1);
                 }
-                Ok(other) => message.set(failure_text(&other, "Такая должность уже есть.")),
+                Ok(other) => {
+                    message.set(other.failure_with(|_| "Такая должность уже есть.".into()))
+                }
                 Err(_) => message.set(Some("Не удалось переименовать.".into())),
             }
         }
@@ -135,10 +138,9 @@ fn PositionRow(
                     message.set(None);
                     version.update(|v| *v += 1);
                 }
-                Ok(other) => message.set(failure_text(
-                    &other,
-                    "Должность назначена контактам: сначала смените её у них.",
-                )),
+                Ok(other) => message.set(other.failure_with(|_| {
+                    "Должность назначена контактам: сначала смените её у них.".into()
+                })),
                 Err(_) => message.set(Some("Не удалось удалить должность.".into())),
             }
         }

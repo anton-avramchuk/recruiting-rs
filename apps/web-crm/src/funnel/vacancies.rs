@@ -2,6 +2,7 @@
 use leptos::prelude::*;
 use recruitment_contracts::{ApplicationDto, CreateVacancyRequest, Stage, VacancyDto};
 use serde_json::json;
+use ui_kit::Reply;
 use ui_kit::{EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
 use uuid::Uuid;
 
@@ -9,9 +10,7 @@ use super::{
     FunnelCtx,
     format::{LONG_OPEN_DAYS, client_line, time_label},
     panel::PersonPanel,
-    server::{
-        AppQuery, Reply, application_action, create_vacancy, list_applications, list_vacancies_of,
-    },
+    server::{AppQuery, application_action, create_vacancy, list_applications, list_vacancies_of},
 };
 use crate::{
     candidates::list::can_write,

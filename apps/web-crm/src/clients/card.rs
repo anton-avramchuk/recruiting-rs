@@ -5,17 +5,17 @@ use client_contracts::{
 };
 use leptos::prelude::*;
 use leptos_router::{components::A, hooks::use_params_map};
+use ui_kit::Reply;
 use ui_kit::{EmptyState, Notice, NoticeKind, SessionCtx};
 use uuid::Uuid;
 
 use super::{
     opt,
     server::{
-        add_contact, delete_contact, failure_text, get_client, list_positions, update_client,
-        update_contact,
+        add_contact, delete_contact, get_client, list_positions, update_client, update_contact,
     },
 };
-use crate::{candidates::list::can_write, funnel::server::Reply};
+use crate::candidates::list::can_write;
 
 #[component]
 pub fn ClientCardPage() -> impl IntoView {
@@ -89,9 +89,8 @@ fn Card(
                     message.set(None);
                     version.update(|v| *v += 1);
                 }
-                Ok(other) => {
-                    message.set(failure_text(&other, "Заказчик с таким названием уже есть."))
-                }
+                Ok(other) => message
+                    .set(other.failure_with(|_| "Заказчик с таким названием уже есть.".into())),
                 Err(_) => message.set(Some("Не удалось сохранить.".into())),
             }
         }

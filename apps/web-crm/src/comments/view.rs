@@ -1,16 +1,13 @@
 //! Блок «Комментарии»: лента, добавление, правка и удаление на месте.
 use comment_contracts::CommentDto;
 use leptos::{prelude::*, task::spawn_local};
-use ui_kit::{Notice, NoticeKind, SessionCtx};
+use ui_kit::{Notice, NoticeKind, Reply, SessionCtx};
 
 use super::{
     reload_limit, rights,
     server::{create_comment, delete_comment, edit_comment, list_comments},
 };
-use crate::{
-    candidates::list::can_write,
-    funnel::{format::short_moment, server::Reply},
-};
+use crate::{candidates::list::can_write, funnel::format::short_moment};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Load {

@@ -4,23 +4,12 @@ use client_contracts::{
     PositionRequest, UpdateClientRequest, UpdateContactRequest,
 };
 use leptos::prelude::*;
-use ui_kit::api::Method;
+use ui_kit::{Reply, api::Method, classify, classify_empty, typed};
 
-use crate::{
-    candidates::server::uuid_like,
-    funnel::server::{Reply, classify, typed},
-};
+use crate::candidates::server::uuid_like;
 
 fn valid(id: &str) -> bool {
     id.parse::<uuid_like::Id>().is_ok()
-}
-
-/// Ответ без тела: успех — 200/204.
-pub(crate) fn classify_empty(status: u16, body: &serde_json::Value) -> Reply<()> {
-    match status {
-        200 | 204 => Reply::Ok(()),
-        other => classify(other, body, |_| Some(())),
-    }
 }
 
 fn json_of<T: serde::Serialize>(value: &T) -> Result<serde_json::Value, ServerFnError> {
@@ -147,41 +136,9 @@ pub async fn delete_position(id: String) -> Result<Reply<()>, ServerFnError> {
     Ok(classify_empty(reply.status, &reply.body))
 }
 
-/// Текст ошибки у формы: конфликт заменяется понятной фразой, остальное — как есть.
-pub fn failure_text<T>(reply: &Reply<T>, on_conflict: &str) -> Option<String> {
-    match reply {
-        Reply::Conflict(_) => Some(on_conflict.to_string()),
-        other => other.failure(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
-
     use super::*;
-
-    #[test]
-    fn deletes_succeed_on_204_and_report_failures() {
-        assert_eq!(classify_empty(204, &json!(null)), Reply::Ok(()));
-        assert_eq!(classify_empty(404, &json!(null)), Reply::NotFound);
-        assert!(matches!(
-            classify_empty(409, &json!({"detail": "x"})),
-            Reply::Conflict(_)
-        ));
-        assert_eq!(classify_empty(502, &json!(null)), Reply::Unavailable);
-    }
-
-    #[test]
-    fn a_conflict_gets_the_callers_phrase() {
-        let reply: Reply<()> = Reply::Conflict("position is assigned".into());
-        assert_eq!(
-            failure_text(&reply, "Должность используется").as_deref(),
-            Some("Должность используется")
-        );
-        assert_eq!(failure_text(&Reply::Ok(()), "x"), None);
-        assert!(failure_text(&Reply::<()>::Forbidden, "x").is_some());
-    }
 
     #[test]
     fn malformed_ids_never_reach_the_network() {
