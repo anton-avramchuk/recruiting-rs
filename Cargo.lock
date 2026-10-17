@@ -4184,6 +4184,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ui-data"
+version = "0.1.0"
+dependencies = [
+ "grid-contracts",
+ "leptos",
+ "leptos_router",
+ "serde",
+ "ui",
+ "ui-core",
+]
+
+[[package]]
 name = "ui-kit"
 version = "0.1.0"
 dependencies = [

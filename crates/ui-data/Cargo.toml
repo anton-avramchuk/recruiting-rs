@@ -1,0 +1,20 @@
+[package]
+name = "ui-data"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+ssr = ["ui/ssr", "leptos/ssr", "leptos_router/ssr"]
+hydrate = ["ui/hydrate", "leptos/hydrate"]
+
+[dependencies]
+grid-contracts = { path = "../grid-contracts" }
+ui = { path = "../ui" }
+ui-core = { path = "../ui-core" }
+leptos.workspace = true
+leptos_router.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true

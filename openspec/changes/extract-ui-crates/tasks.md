@@ -9,7 +9,7 @@
 - [x] 1.5 Создать `crates/ui`; перенести `Grid`, `Column`, `ColumnFilter`, `DebouncedText`, `RowRemove`, `ConfirmDialog`, `Notice`, `EmptyState`; `ui-kit` остаётся фасадом с `pub use`
 - [x] 1.6 Контрол `Pager` (подпись, «Назад/Вперёд», размер страницы) на `ui-core`; `Grid` использует его
 - [x] 1.7 Контролы `Dialog` и `Drawer`; `ConfirmDialog` строится на `Dialog`; палитра, шпаргалка и панель человека воронки переходят на них (e2e `web_palette`, воронка)
-- [ ] 1.8 Создать `crates/ui-data`: `Query`, `Mutation` (тесты состояний: загрузка, успех, ошибка, двойной запуск), `EntityGrid`
+- [x] 1.8 Создать `crates/ui-data`: `Query`, `Mutation` (тесты состояний: загрузка, успех, ошибка, двойной запуск), `EntityGrid`
 - [ ] 1.9 Красные интеграционные тесты схем `platform-grid` для `persons` (candidate): страница, сортировка, фильтр, неизвестное поле, изоляция организаций, прежние `page`/`page_size`
 - [ ] 1.10 Схема и список `persons` на `GridQuery`; параметры в BFF и allowlist; тесты BFF
 - [ ] 1.11 То же для `clients` (client): тесты, схема, BFF

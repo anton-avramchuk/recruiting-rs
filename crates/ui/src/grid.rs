@@ -189,10 +189,10 @@ pub fn Grid<T, F, Fut>(
     columns: Vec<Column<T>>,
     load: F,
     /// Страница записи: по ней ведут двойной щелчок по строке и действие «Изменить».
-    #[prop(optional)]
+    #[prop(default = None)]
     row_href: Option<fn(&T) -> String>,
     /// Удаление записи из строки (с подтверждением); без него действия «Удалить» нет.
-    #[prop(optional)]
+    #[prop(default = None)]
     remove: Option<RowRemove<T>>,
     /// Поля, по которым работает общий поиск; пусто - поиска нет.
     #[prop(optional)]
@@ -201,7 +201,7 @@ pub fn Grid<T, F, Fut>(
     #[prop(default = "Пока ничего нет")] empty_title: &'static str,
     #[prop(default = "Записи появятся здесь.")] empty_hint: &'static str,
     /// Кнопки справа от поиска.
-    #[prop(optional)]
+    #[prop(default = None)]
     toolbar: Option<ViewFn>,
 ) -> impl IntoView
 where

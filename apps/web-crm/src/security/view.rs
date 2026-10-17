@@ -181,7 +181,7 @@ fn UsersList() -> impl IntoView {
         <Grid
             columns=user_columns(me, role_options)
             load=load_users
-            row_href=href
+            row_href=Some(href)
             search_fields=vec!["email", "display_name"]
             search_placeholder="Поиск по имени и email"
             empty_title="Пользователей пока нет"

@@ -2,6 +2,7 @@
 //! крейты `ui`, `ui-data`, `ui-shell` и приложения строятся на ней.
 mod encode;
 pub mod grid;
+pub mod mutation;
 pub mod paging;
 pub mod reply;
 
