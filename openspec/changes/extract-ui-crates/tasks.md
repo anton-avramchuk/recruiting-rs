@@ -18,7 +18,7 @@
 - [ ] 1.14 Экран кандидатов на `EntityGrid`; удалить `candidates/outcome.rs` и ручной пейджер; красный e2e: сортировка, фильтр, адрес, перезагрузка (`web_candidates`)
 - [ ] 1.15 Экран заказчиков на `EntityGrid`; e2e
 - [ ] 1.16 Экран откликов на `EntityGrid`; e2e
-- [ ] 1.17 Экран тенантов (`web-admin`) на `EntityGrid`; удалить `CreateOutcome`/`StatusOutcome` и ручной пейджер; e2e `web_admin`
+- [x] 1.17 Экран тенантов (`web-admin`) на `EntityGrid`; удалить `CreateOutcome`/`StatusOutcome` и ручной пейджер; e2e `web_admin`
 - [ ] 1.18 Заменить ручные цепочки `Action` + `Effect` и `Resource` + `Transition` в переведённых экранах на `Mutation` и `Query`
 - [ ] 1.19 Регрессия волны 1: fmt, clippy (workspace и wasm), юнит, интеграционные, e2e по файлам; обновить спеки `grid` и README; коммиты; пересборка Docker по просьбе
 

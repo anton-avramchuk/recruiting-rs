@@ -7,11 +7,13 @@ use common::*;
 use e2e::{ADMIN_EMAIL, ADMIN_PASSWORD, Stack};
 
 fn row_exists(slug: &str) -> String {
-    format!("!!document.querySelector(\"tr[data-slug='{slug}']\")")
+    format!("!!document.querySelector(\"tr[data-testid=grid-row]:has([data-slug='{slug}'])\")")
 }
 
 fn row_text(slug: &str) -> String {
-    format!("(document.querySelector(\"tr[data-slug='{slug}']\")||{{}}).innerText||''")
+    format!(
+        "(document.querySelector(\"tr[data-testid=grid-row]:has([data-slug='{slug}'])\")||{{}}).innerText||''"
+    )
 }
 
 #[tokio::test]
@@ -48,7 +50,7 @@ async fn platform_admin_manages_organizations() {
         wait_until(
             &tab,
             "tenants page",
-            "!!document.querySelector('[data-testid=search]')",
+            "!!document.querySelector('[data-testid=grid-search]')",
         );
         assert_eq!(eval(&tab, "location.pathname"), "/");
         assert!(
@@ -99,7 +101,7 @@ async fn platform_admin_manages_organizations() {
         );
 
         // 3. приостановка: статус меняется на месте, страница не перезагружается
-        tab.find_element("tr[data-slug='acme'] button")
+        tab.find_element("tr[data-testid=grid-row]:has([data-slug='acme']) [data-testid=tenant-toggle]")
             .unwrap()
             .click()
             .unwrap();
@@ -120,7 +122,7 @@ async fn platform_admin_manages_organizations() {
         // 4. фильтр по статусу и поиск работают без перезагрузки
         eval(
             &tab,
-            "(() => { const s = document.querySelector('[data-testid=status-filter]'); \
+            "(() => { const s = document.querySelector('[data-testid=grid-filter-status]'); \
              s.value = 'active'; s.dispatchEvent(new Event('change', {bubbles: true})); })()",
         );
         wait_until(
@@ -130,11 +132,11 @@ async fn platform_admin_manages_organizations() {
         );
         eval(
             &tab,
-            "(() => { const s = document.querySelector('[data-testid=status-filter]'); \
+            "(() => { const s = document.querySelector('[data-testid=grid-filter-status]'); \
              s.value = 'suspended'; s.dispatchEvent(new Event('change', {bubbles: true})); })()",
         );
         wait_until(&tab, "suspended filter shows the row", &row_exists("acme"));
-        type_into(&tab, "[data-testid=search]", "zzz-nothing");
+        type_into(&tab, "[data-testid=grid-search]", "zzz-nothing");
         wait_until(
             &tab,
             "search finds nothing",
@@ -145,11 +147,11 @@ async fn platform_admin_manages_organizations() {
         // 5. активация возвращает статус
         eval(
             &tab,
-            "(() => { const i = document.querySelector('[data-testid=search]'); \
+            "(() => { const i = document.querySelector('[data-testid=grid-search]'); \
              i.value = ''; i.dispatchEvent(new Event('input', {bubbles: true})); })()",
         );
         wait_until(&tab, "row is back", &row_exists("acme"));
-        tab.find_element("tr[data-slug='acme'] button")
+        tab.find_element("tr[data-testid=grid-row]:has([data-slug='acme']) [data-testid=tenant-toggle]")
             .unwrap()
             .click()
             .unwrap();
@@ -161,7 +163,7 @@ async fn platform_admin_manages_organizations() {
         );
         eval(
             &tab,
-            "(() => { const s = document.querySelector('[data-testid=status-filter]');              s.value = ''; s.dispatchEvent(new Event('change', {bubbles: true})); })()",
+            "(() => { const s = document.querySelector('[data-testid=grid-filter-status]');              s.value = ''; s.dispatchEvent(new Event('change', {bubbles: true})); })()",
         );
         wait_until(
             &tab,

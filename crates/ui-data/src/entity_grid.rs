@@ -4,7 +4,7 @@ use std::future::Future;
 use grid_contracts::{GridPage, GridQuery};
 use leptos::prelude::*;
 use serde::{Serialize, de::DeserializeOwned};
-use ui::{Column, Grid, RowRemove};
+use ui::{Column, Grid, RowExtra, RowRemove};
 use ui_core::Reply;
 
 /// Удаление записи из строки: название для вопроса, правило «можно ли» и серверная функция.
@@ -57,6 +57,8 @@ pub fn EntityGrid<T, F, Fut>(
     load: F,
     #[prop(default = None)] row_href: Option<fn(&T) -> String>,
     #[prop(default = None)] remove: Option<EntityRemove<T>>,
+    #[prop(default = None)] extra_actions: Option<RowExtra<T>>,
+    #[prop(default = None)] refresh: Option<Signal<u32>>,
     #[prop(optional)] search_fields: Vec<&'static str>,
     #[prop(default = "Поиск")] search_placeholder: &'static str,
     #[prop(default = "Пока ничего нет")] empty_title: &'static str,
@@ -78,6 +80,8 @@ where
             load=adapted
             row_href=row_href
             remove=remove.map(|r| r.inner)
+            extra_actions=extra_actions
+            refresh=refresh
             search_fields=search_fields
             search_placeholder=search_placeholder
             empty_title=empty_title

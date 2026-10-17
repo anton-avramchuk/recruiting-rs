@@ -5,6 +5,6 @@ mod indicators;
 mod pager;
 
 pub use dialog::{ConfirmDialog, Dialog, Drawer};
-pub use grid::{Column, ColumnFilter, DebouncedText, Grid, RowRemove};
+pub use grid::{Column, ColumnFilter, DebouncedText, Grid, RowExtra, RowRemove};
 pub use indicators::{EmptyState, Notice, NoticeKind};
 pub use pager::Pager;

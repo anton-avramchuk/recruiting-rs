@@ -4517,6 +4517,7 @@ dependencies = [
  "admin-contracts",
  "axum",
  "console_error_panic_hook",
+ "grid-contracts",
  "leptos",
  "leptos_axum",
  "leptos_meta",
@@ -4524,6 +4525,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "ui-data",
  "ui-kit",
  "wasm-bindgen",
 ]

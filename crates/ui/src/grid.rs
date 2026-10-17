@@ -139,6 +139,9 @@ pub fn DebouncedText(
     }
 }
 
+/// Свои действия строки: рисует содержимое ячейки действий для записи.
+pub type RowExtra<T> = Arc<dyn Fn(&T) -> AnyView + Send + Sync>;
+
 /// Удаление записи из строки грида: название для диалога подтверждения, разрешение на запись и
 /// асинхронное удаление; текст ошибки показывается в диалоге.
 pub struct RowRemove<T> {
@@ -194,6 +197,12 @@ pub fn Grid<T, F, Fut>(
     /// Удаление записи из строки (с подтверждением); без него действия «Удалить» нет.
     #[prop(default = None)]
     remove: Option<RowRemove<T>>,
+    /// Свои действия строки: показываются в столбце действий рядом со стандартными.
+    #[prop(default = None)]
+    extra_actions: Option<RowExtra<T>>,
+    /// Внешний счётчик перезагрузок: при изменении страница читается заново.
+    #[prop(default = None)]
+    refresh: Option<Signal<u32>>,
     /// Поля, по которым работает общий поиск; пусто - поиска нет.
     #[prop(optional)]
     search_fields: Vec<&'static str>,
@@ -217,7 +226,8 @@ where
     let specs: Vec<FilterSpec> = columns.iter().filter_map(|c| c.filter_spec()).collect();
     let searchable = !search_fields.is_empty();
     let has_filters = !filter_fields.is_empty();
-    let has_actions = row_href.is_some() || remove.is_some();
+    let has_actions = row_href.is_some() || remove.is_some() || extra_actions.is_some();
+    let extra_actions = StoredValue::new(extra_actions);
     let width = columns.len() + usize::from(has_actions);
     let remove = StoredValue::new(remove);
     let columns = StoredValue::new(columns);
@@ -302,9 +312,9 @@ where
             let q = specs.with_value(|specs| {
                 search_fields.with_value(|fields| current.to_grid_query(specs, fields))
             });
-            (q, version.get())
+            (q, version.get(), refresh.map_or(0, |r| r.get()))
         },
-        move |(q, _)| load(q),
+        move |(q, _, _)| load(q),
     );
 
     let search = view! {
@@ -502,7 +512,8 @@ where
                                         </button>
                                     }
                                 });
-                                view! { <td class="grid__actions-cell"><span class="grid__actions">{edit}{removal}</span></td> }
+                                let extra = extra_actions.with_value(|e| e.as_ref().map(|f| f(&item)));
+                                view! { <td class="grid__actions-cell"><span class="grid__actions">{extra}{edit}{removal}</span></td> }
                             });
                             view! {
                                 <tr

@@ -15,6 +15,7 @@ required-features = ["ssr"]
 [features]
 ssr = [
     "ui-kit/ssr",
+    "ui-data/ssr",
     "leptos/ssr",
     "leptos_meta/ssr",
     "leptos_router/ssr",
@@ -24,6 +25,7 @@ ssr = [
 ]
 hydrate = [
     "ui-kit/hydrate",
+    "ui-data/hydrate",
     "leptos/hydrate",
     "dep:wasm-bindgen",
     "dep:console_error_panic_hook",
@@ -31,6 +33,8 @@ hydrate = [
 
 [dependencies]
 ui-kit = { path = "../../crates/ui-kit" }
+ui-data = { path = "../../crates/ui-data" }
+grid-contracts = { path = "../../crates/grid-contracts" }
 admin-contracts = { path = "../../crates/admin-contracts" }
 serde.workspace = true
 serde_json.workspace = true

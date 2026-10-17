@@ -1,44 +1,22 @@
-//! Экран «Организации»: список, создание, приостановка и активация.
-use admin_contracts::TenantPage;
+//! Экран «Организации»: список на гриде, создание, приостановка и активация.
+use std::sync::Arc;
+
+use admin_contracts::TenantDto;
+use grid_contracts::{GridPage, GridQuery, Operator};
 use leptos::prelude::*;
-use serde::{Deserialize, Serialize};
+use ui_data::{EntityGrid, Mutation, MutationConfig};
 use ui_kit::{
-    EmptyState, FormFields, Notice, NoticeKind, PageHeader, StatusBadge, api::Method, form_fields,
+    FormFields, Notice, NoticeKind, PageHeader, Reply, StatusBadge, api::Method, classify,
+    form_fields, grid::Column, typed,
 };
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CreateOutcome {
-    Created,
-    SlugTaken,
-    Invalid(String),
-    Unavailable,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum StatusOutcome {
-    Done,
-    /// Состояние уже изменилось (например, организация уже приостановлена).
-    Conflict,
-    Unavailable,
-}
-
-pub async fn list_tenants(
-    status: String,
-    q: String,
-    page: i64,
-) -> Result<Option<TenantPage>, ServerFnError> {
-    let mut path = format!("/api/tenants?page={}", page.max(1));
-    if !status.is_empty() {
-        path.push_str(&format!("&status={status}"));
-    }
-    if !q.trim().is_empty() {
-        path.push_str(&format!("&q={}", ui_kit::encode_query_value(q.trim())));
-    }
+/// Страница организаций по запросу грида.
+pub async fn list_tenants_grid(
+    query: GridQuery,
+) -> Result<Reply<GridPage<TenantDto>>, ServerFnError> {
+    let path = ui_kit::grid::grid_path("/api/tenants", &query);
     let reply = ui_kit::api::call(Method::Get, &path, None).await?;
-    if reply.status != 200 {
-        return Ok(None);
-    }
-    Ok(serde_json::from_value(reply.body).ok())
+    Ok(classify(reply.status, &reply.body, typed))
 }
 
 pub async fn create_tenant(
@@ -47,7 +25,7 @@ pub async fn create_tenant(
     owner_email: String,
     owner_password: String,
     owner_name: String,
-) -> Result<CreateOutcome, ServerFnError> {
+) -> Result<Reply<TenantDto>, ServerFnError> {
     let body = serde_json::json!({
         "slug": slug.trim(),
         "name": name.trim(),
@@ -58,20 +36,10 @@ pub async fn create_tenant(
         },
     });
     let reply = ui_kit::api::call(Method::Post, "/api/tenants", Some(body)).await?;
-    Ok(match reply.status {
-        201 => CreateOutcome::Created,
-        409 => CreateOutcome::SlugTaken,
-        400 => CreateOutcome::Invalid(
-            reply.body["detail"]
-                .as_str()
-                .unwrap_or("Проверьте введённые данные")
-                .to_string(),
-        ),
-        _ => CreateOutcome::Unavailable,
-    })
+    Ok(classify(reply.status, &reply.body, typed))
 }
 
-pub async fn set_tenant_status(id: String, action: String) -> Result<StatusOutcome, ServerFnError> {
+pub async fn set_tenant_status(id: String, action: String) -> Result<Reply<()>, ServerFnError> {
     if action != "suspend" && action != "activate" {
         return Err(ServerFnError::new("unknown action"));
     }
@@ -80,11 +48,7 @@ pub async fn set_tenant_status(id: String, action: String) -> Result<StatusOutco
     }
     let reply =
         ui_kit::api::call(Method::Post, &format!("/api/tenants/{id}/{action}"), None).await?;
-    Ok(match reply.status {
-        200 => StatusOutcome::Done,
-        409 | 404 => StatusOutcome::Conflict,
-        _ => StatusOutcome::Unavailable,
-    })
+    Ok(classify(reply.status, &reply.body, typed::<TenantDto>).map(|_| ()))
 }
 
 /// Значение поля формы или пустая строка.
@@ -112,7 +76,7 @@ impl CreateTenant {
         }
     }
 
-    async fn run(self) -> Result<CreateOutcome, ServerFnError> {
+    async fn run(self) -> Result<Reply<TenantDto>, ServerFnError> {
         create_tenant(
             self.slug,
             self.name,
@@ -121,18 +85,6 @@ impl CreateTenant {
             self.owner_name,
         )
         .await
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SetTenantStatus {
-    pub id: String,
-    pub action: String,
-}
-
-impl SetTenantStatus {
-    async fn run(self) -> Result<StatusOutcome, ServerFnError> {
-        set_tenant_status(self.id, self.action).await
     }
 }
 
@@ -156,198 +108,111 @@ mod uuid_like {
     }
 }
 
+fn status_options() -> Signal<Vec<(String, String)>> {
+    Signal::stored(vec![
+        ("active".to_string(), "Активные".to_string()),
+        ("suspended".to_string(), "Приостановленные".to_string()),
+        ("provisioning".to_string(), "Создаются".to_string()),
+    ])
+}
+
+fn tenant_columns() -> Vec<Column<TenantDto>> {
+    vec![
+        Column::new("slug", "Адрес", |t: &TenantDto| {
+            view! { <span data-slug=t.slug.clone()>{t.slug.clone()}</span> }.into_any()
+        })
+        .sortable()
+        .filter_text(),
+        Column::new("name", "Название", |t: &TenantDto| {
+            view! { <span>{t.name.clone()}</span> }.into_any()
+        })
+        .sortable()
+        .filter_text(),
+        Column::new("status", "Статус", |t: &TenantDto| {
+            view! { <StatusBadge status=t.status.clone() /> }.into_any()
+        })
+        .sortable()
+        .filter_select(status_options(), Operator::Eq),
+    ]
+}
+
 #[component]
 pub fn TenantsPage() -> impl IntoView {
-    let (status, set_status) = signal(String::new());
-    let (query, set_query) = signal(String::new());
-    let (page, set_page) = signal(1i64);
+    // перечитывание списка после создания и смены состояния
+    let refresh = RwSignal::new(0u32);
+    let toggle_message = RwSignal::new(None::<String>);
+    let create_message = RwSignal::new(None::<String>);
+    let created = RwSignal::new(false);
 
-    let create = Action::new(|input: &CreateTenant| input.clone().run());
-    let toggle = Action::new(|input: &SetTenantStatus| input.clone().run());
-
-    let tenants = Resource::new(
-        move || {
-            (
-                status.get(),
-                query.get(),
-                page.get(),
-                create.version().get(),
-                toggle.version().get(),
-            )
+    let toggle = Mutation::new(
+        |(id, action): (String, String)| set_tenant_status(id, action),
+        move |()| refresh.update(|v| *v += 1),
+        MutationConfig {
+            fallback: "Не удалось изменить состояние. Попробуйте позже.",
+            conflict: |_| "Состояние организации уже изменилось, список обновлён.".into(),
+            message: Some(toggle_message),
         },
-        |(status, query, page, _, _)| list_tenants(status, query, page),
     );
 
-    // после успешного создания форма очищается
     let create_form = NodeRef::<leptos::html::Form>::new();
-    Effect::new(move |_| {
-        if let Some(Ok(CreateOutcome::Created)) = create.value().get()
-            && let Some(form) = create_form.get()
-        {
-            form.reset();
-        }
-    });
+    let create = Mutation::new(
+        |input: CreateTenant| input.run(),
+        move |_| {
+            created.set(true);
+            refresh.update(|v| *v += 1);
+            if let Some(form) = create_form.get_untracked() {
+                form.reset();
+            }
+        },
+        MutationConfig {
+            fallback: "Не удалось создать организацию. Попробуйте позже.",
+            conflict: |_| "Такой адрес уже занят.".into(),
+            message: Some(create_message),
+        },
+    );
 
-    let create_message = move || match create.value().get() {
-        Some(Ok(CreateOutcome::Created)) => {
-            Some((NoticeKind::Info, "Организация создана.".to_string()))
+    let extra: ui_kit::grid::RowExtra<TenantDto> = Arc::new(move |t: &TenantDto| {
+        let (action, label) = if t.status == "suspended" {
+            ("activate", "Активировать")
+        } else {
+            ("suspend", "Приостановить")
+        };
+        if t.status == "provisioning" {
+            return ().into_any();
         }
-        Some(Ok(CreateOutcome::SlugTaken)) => {
-            Some((NoticeKind::Error, "Такой адрес уже занят.".to_string()))
+        let id = t.id.to_string();
+        view! {
+            <button
+                type="button"
+                class="btn"
+                data-testid="tenant-toggle"
+                on:click=move |_| toggle.run((id.clone(), action.to_string()))
+            >
+                {label}
+            </button>
         }
-        Some(Ok(CreateOutcome::Invalid(m))) => Some((NoticeKind::Error, m)),
-        Some(Ok(CreateOutcome::Unavailable)) | Some(Err(_)) => Some((
-            NoticeKind::Error,
-            "Не удалось создать организацию. Попробуйте позже.".to_string(),
-        )),
-        None => None,
-    };
-    let toggle_message = move || match toggle.value().get() {
-        Some(Ok(StatusOutcome::Conflict)) => {
-            Some("Состояние организации уже изменилось, список обновлён.")
-        }
-        Some(Ok(StatusOutcome::Unavailable)) | Some(Err(_)) => {
-            Some("Не удалось изменить состояние. Попробуйте позже.")
-        }
-        _ => None,
-    };
+        .into_any()
+    });
 
     view! {
         <PageHeader title="Организации" />
 
-        <div class="toolbar">
-            <input
-                type="search"
-                placeholder="Поиск по названию или адресу"
-                aria-label="Поиск"
-                data-testid="search"
-                on:input=move |ev| {
-                    set_query.set(event_target_value(&ev));
-                    set_page.set(1);
-                }
-            />
-            <select
-                aria-label="Статус"
-                data-testid="status-filter"
-                on:change=move |ev| {
-                    set_status.set(event_target_value(&ev));
-                    set_page.set(1);
-                }
-            >
-                <option value="">"Все статусы"</option>
-                <option value="active">"Активные"</option>
-                <option value="suspended">"Приостановленные"</option>
-            </select>
-        </div>
-
         {move || {
-            toggle_message()
+            toggle_message
+                .get()
                 .map(|m| view! { <Notice kind=NoticeKind::Error>{m}</Notice> })
         }}
 
-        <Transition fallback=|| view! { <p class="muted">"Загрузка…"</p> }>
-            {move || {
-                tenants
-                    .get()
-                    .map(|result| match result {
-                        Ok(Some(data)) if data.items.is_empty() => {
-                            view! {
-                                <EmptyState
-                                    title="Организаций не найдено"
-                                    hint="Измените фильтр или создайте организацию ниже."
-                                />
-                            }
-                                .into_any()
-                        }
-                        Ok(Some(data)) => {
-                            let total = data.total;
-                            let pages = (data.total + data.page_size - 1) / data.page_size;
-                            let at_end = move || page.get() >= pages;
-                            view! {
-                                <div class="table-wrap">
-                                    <table data-testid="tenants">
-                                        <thead>
-                                            <tr>
-                                                <th>"Адрес"</th>
-                                                <th>"Название"</th>
-                                                <th>"Статус"</th>
-                                                <th></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {data
-                                                .items
-                                                .into_iter()
-                                                .map(|t| {
-                                                    let (action, label) = if t.status == "suspended" {
-                                                        ("activate", "Активировать")
-                                                    } else {
-                                                        ("suspend", "Приостановить")
-                                                    };
-                                                    let can_toggle = t.status != "provisioning";
-                                                    view! {
-                                                        <tr data-slug=t.slug.clone()>
-                                                            <td>{t.slug.clone()}</td>
-                                                            <td>{t.name.clone()}</td>
-                                                            <td>
-                                                                <StatusBadge status=t.status.clone() />
-                                                            </td>
-                                                            <td>
-                                                                <Show when=move || can_toggle>
-                                                                    <form
-                                                                        method="post"
-                                                                        onsubmit="return false"
-                                                                        on:submit={
-                                                                            let id = t.id.to_string();
-                                                                            move |ev: leptos::ev::SubmitEvent| {
-                                                                                ev.prevent_default();
-                                                                                toggle.dispatch(SetTenantStatus {
-                                                                                    id: id.clone(),
-                                                                                    action: action.to_string(),
-                                                                                });
-                                                                            }
-                                                                        }
-                                                                    >
-                                                                        <button type="submit" class="btn">{label}</button>
-                                                                    </form>
-                                                                </Show>
-                                                            </td>
-                                                        </tr>
-                                                    }
-                                                })
-                                                .collect_view()}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <p class="muted">
-                                    {format!("Всего: {total}. Страница {} из {}", data.page, pages.max(1))}
-                                </p>
-                                <div class="toolbar">
-                                    <button
-                                        class="btn"
-                                        disabled=move || page.get() <= 1
-                                        on:click=move |_| set_page.update(|p| *p -= 1)
-                                    >
-                                        "Назад"
-                                    </button>
-                                    <button
-                                        class="btn"
-                                        disabled=at_end
-                                        on:click=move |_| set_page.update(|p| *p += 1)
-                                    >
-                                        "Вперёд"
-                                    </button>
-                                </div>
-                            }
-                                .into_any()
-                        }
-                        _ => {
-                            view! { <Notice kind=NoticeKind::Error>"Не удалось загрузить список организаций."</Notice> }
-                                .into_any()
-                        }
-                    })
-            }}
-        </Transition>
+        <EntityGrid
+            columns=tenant_columns()
+            load=list_tenants_grid
+            search_fields=vec!["slug", "name"]
+            search_placeholder="Поиск по названию или адресу"
+            empty_title="Организаций не найдено"
+            empty_hint="Измените фильтр или создайте организацию ниже."
+            extra_actions=Some(extra)
+            refresh=Some(Signal::from(refresh))
+        />
 
         <h2 style="margin-top: 24px">"Новая организация"</h2>
         <form
@@ -357,7 +222,8 @@ pub fn TenantsPage() -> impl IntoView {
             onsubmit="return false"
             on:submit=move |ev| {
                 ev.prevent_default();
-                create.dispatch(CreateTenant::from_fields(&form_fields(&ev)));
+                created.set(false);
+                create.run(CreateTenant::from_fields(&form_fields(&ev)));
             }
         >
             <div class="form-grid">
@@ -376,8 +242,14 @@ pub fn TenantsPage() -> impl IntoView {
                 <label>"Имя владельца" <input name="owner_name" /></label>
             </div>
             {move || {
-                create_message()
-                    .map(|(kind, msg)| view! { <Notice kind=kind>{msg}</Notice> })
+                create_message
+                    .get()
+                    .map(|m| view! { <Notice kind=NoticeKind::Error>{m}</Notice> })
+            }}
+            {move || {
+                created
+                    .get()
+                    .then(|| view! { <Notice kind=NoticeKind::Info>"Организация создана."</Notice> })
             }}
             <p>
                 <button type="submit" class="btn btn--primary" disabled=move || create.pending().get()>

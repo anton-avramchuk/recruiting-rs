@@ -12,7 +12,7 @@ use ui_kit::{
     AppShell, AuthGate, EmptyState, LoginPage, NavItem, SessionCtx, UiStyles, provide_session,
 };
 
-pub use tenants::{CreateOutcome, StatusOutcome, create_tenant, list_tenants, set_tenant_status};
+pub use tenants::{create_tenant, list_tenants_grid, set_tenant_status};
 
 /// HTML-оболочка документа для SSR.
 pub fn shell(options: LeptosOptions) -> impl IntoView {
