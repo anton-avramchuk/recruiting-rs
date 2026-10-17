@@ -4,7 +4,7 @@ use leptos_router::{
     components::A,
     hooks::{use_navigate, use_params_map},
 };
-use ui_kit::{ConfirmDialog, EmptyState, Notice, NoticeKind};
+use ui_kit::{Card, Chip, ConfirmDialog, EmptyState, Notice, NoticeKind};
 
 use super::{
     permission_label,
@@ -70,7 +70,10 @@ fn RoleLine(role: RoleRow) -> impl IntoView {
     let chips = role
         .permissions
         .iter()
-        .map(|p| view! { <span class="chip">{permission_label(p)}</span> })
+        .map(|p| {
+            let label = permission_label(p);
+            view! { <Chip>{label}</Chip> }
+        })
         .collect_view();
     let users = format!("Пользователей: {}", role.users);
     let name = role.name.clone();
@@ -367,7 +370,7 @@ fn RoleEditor(
                 </button>
             </p>
         </form>
-        <div class="card section">
+        <Card class="section">
             <h2 class="sec-h">"Удаление"</h2>
             <p class="muted">"Роль можно удалить, только если она никому не назначена."</p>
             <p>
@@ -384,7 +387,7 @@ fn RoleEditor(
                     "Удалить роль"
                 </button>
             </p>
-        </div>
+        </Card>
         <ConfirmDialog
             open=confirm
             label=Signal::stored(role_name)

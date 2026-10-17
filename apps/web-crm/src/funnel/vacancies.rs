@@ -3,7 +3,7 @@ use leptos::prelude::*;
 use recruitment_contracts::{ApplicationDto, CreateVacancyRequest, Stage, VacancyDto};
 use serde_json::json;
 use ui_kit::Reply;
-use ui_kit::{Dropdown, EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
+use ui_kit::{Chip, Dropdown, EmptyState, Notice, NoticeKind, PageHeader, SessionCtx, Toolbar};
 use uuid::Uuid;
 
 use super::{
@@ -82,7 +82,7 @@ pub fn VacanciesPage() -> impl IntoView {
             <VacancyForm list_version=list_version selected=selected creating=creating />
         </Show>
 
-        <div class="toolbar">
+        <Toolbar>
             <label>
                 "Заказчик "
                 <Dropdown
@@ -93,7 +93,7 @@ pub fn VacanciesPage() -> impl IntoView {
                     aria_label="Заказчик"
                 />
             </label>
-        </div>
+        </Toolbar>
 
         <Transition fallback=|| view! { <p class="muted">"Загрузка…"</p> }>
             {move || {
@@ -507,7 +507,7 @@ fn Board(
                                                     {a.source.clone().map(|s| view! { <span>{s}</span> })}
                                                     <span class="mono" class:urgent=a.overdue>{time_label(a.hours_on_stage)}</span>
                                                     {(a.person_applications > 1)
-                                                        .then(|| view! { <span class="chip">{format!("{} отклика", a.person_applications)}</span> })}
+                                                        .then(|| view! { <Chip>{format!("{} отклика", a.person_applications)}</Chip> })}
                                                 </span>
                                             </div>
                                         }

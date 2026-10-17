@@ -3,7 +3,7 @@ use leptos::prelude::*;
 use leptos_router::components::A;
 use recruitment_contracts::{AnalyticsDto, ClientStatDto, FunnelStepDto, Stage};
 use ui_kit::Reply;
-use ui_kit::{Dropdown, Notice, NoticeKind, PageHeader};
+use ui_kit::{Card, Chip, Dropdown, Notice, NoticeKind, PageHeader, Toolbar};
 
 use crate::funnel::{format::LONG_OPEN_DAYS, server::get_analytics};
 
@@ -69,7 +69,7 @@ pub fn AnalyticsPage() -> impl IntoView {
 
     view! {
         <PageHeader title="Аналитика">
-            <div class="toolbar" role="group" aria-label="Период">
+            <Toolbar label="Период">
                 {PERIODS
                     .into_iter()
                     .map(|p| {
@@ -86,7 +86,7 @@ pub fn AnalyticsPage() -> impl IntoView {
                         }
                     })
                     .collect_view()}
-            </div>
+            </Toolbar>
         </PageHeader>
         <Transition fallback=|| view! { <p class="muted">"Загрузка…"</p> }>
             {move || {
@@ -175,7 +175,7 @@ fn Report(a: AnalyticsDto, client: RwSignal<String>) -> impl IntoView {
         .collect_view();
 
     view! {
-        <div class="toolbar">
+        <Toolbar>
             <label>
                 "Заказчик "
                 <Dropdown
@@ -186,7 +186,7 @@ fn Report(a: AnalyticsDto, client: RwSignal<String>) -> impl IntoView {
                     aria_label="Заказчик"
                 />
             </label>
-        </div>
+        </Toolbar>
         {empty
             .then(|| {
                 view! {
@@ -222,21 +222,21 @@ fn Report(a: AnalyticsDto, client: RwSignal<String>) -> impl IntoView {
                 <div class="sec-h">
                     <h2>"Отклики по неделям"</h2>
                 </div>
-                <div class="card">
+                <Card>
                     <div class="bars" data-testid="weekly">{weeks}</div>
                     <div class="legend">
                         <span>{a.weekly.first().map(|w| week_label(&w.week_start))}</span>
                         <span class="spacer"></span>
                         <span>{a.weekly.last().map(|w| week_label(&w.week_start))}</span>
                     </div>
-                </div>
+                </Card>
             </section>
             <section>
                 <div class="sec-h">
                     <h2>"Источники"</h2>
                     <span class="muted">"по конверсии в интервью"</span>
                 </div>
-                <div class="card list-card">
+                <Card class="list-card">
                     <table data-testid="sources">
                         <thead>
                             <tr>
@@ -248,7 +248,7 @@ fn Report(a: AnalyticsDto, client: RwSignal<String>) -> impl IntoView {
                         </thead>
                         <tbody>{sources}</tbody>
                     </table>
-                </div>
+                </Card>
                 <div class="sec-h">
                     <h2>"Заказчики"</h2>
                     <span class="muted">"по числу откликов"</span>
@@ -299,7 +299,7 @@ fn client_rows(clients: &[ClientStatDto], selected: RwSignal<String>) -> impl In
                             }
                             None => view! { <span data-testid="client-none">{name.clone()}</span> }.into_any(),
                         }}
-                        {c.archived.then(|| view! { <span class="chip">"архив"</span> })}
+                        {c.archived.then(|| view! { <Chip>"архив"</Chip> })}
                         {id
                             .map(|id| {
                                 view! {
@@ -319,7 +319,7 @@ fn client_rows(clients: &[ClientStatDto], selected: RwSignal<String>) -> impl In
         })
         .collect_view();
     view! {
-        <div class="card list-card">
+        <Card class="list-card">
             <table data-testid="clients-table">
                 <thead>
                     <tr>
@@ -333,7 +333,7 @@ fn client_rows(clients: &[ClientStatDto], selected: RwSignal<String>) -> impl In
                 </thead>
                 <tbody>{rows}</tbody>
             </table>
-        </div>
+        </Card>
     }
     .into_any()
 }
@@ -348,7 +348,7 @@ fn funnel_row(step: &FunnelStepDto, max: i64, worst: bool) -> impl IntoView + us
             <span class="funbar"><i style=format!("width:{width:.0}%")></i></span>
             <span class="mono" data-testid="funnel-count">{step.reached}</span>
             <span class="mono muted">{format!("{}%", step.conversion)}</span>
-            {worst.then(|| view! { <span class="chip" data-testid="worst">"наибольшая потеря"</span> })}
+            {worst.then(|| view! { <Chip testid="worst">"наибольшая потеря"</Chip> })}
         </div>
     }
 }

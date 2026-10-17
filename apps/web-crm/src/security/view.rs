@@ -4,7 +4,7 @@ use leptos::prelude::*;
 use leptos_router::components::A;
 use ui_kit::Reply;
 use ui_kit::{
-    EmptyState, PageHeader, SessionCtx,
+    Badge, BadgeTone, Chip, EmptyState, PageHeader, SessionCtx, Tab, Tabs,
     grid::{Column, Grid},
 };
 
@@ -17,27 +17,15 @@ use crate::candidates::list::is_owner;
 /// Вкладки раздела; новые вкладки добавляются сюда.
 #[component]
 pub fn SecurityTabs() -> impl IntoView {
-    let location = leptos_router::hooks::use_location();
-    let users_tab = move || !location.pathname.get().starts_with("/security/roles");
     view! {
-        <nav class="tabs" aria-label="Вкладки раздела «Безопасность»" data-testid="security-tabs">
-            <a
-                href="/security"
-                class="tab"
-                data-testid="tab-users"
-                aria-current=move || users_tab().then_some("page")
-            >
-                "Пользователи"
-            </a>
-            <a
-                href="/security/roles"
-                class="tab"
-                data-testid="tab-roles"
-                aria-current=move || (!users_tab()).then_some("page")
-            >
-                "Роли"
-            </a>
-        </nav>
+        <Tabs
+            label="Вкладки раздела «Безопасность»"
+            testid="security-tabs"
+            items=vec![
+                Tab { href: "/security", label: "Пользователи", testid: "tab-users" },
+                Tab { href: "/security/roles", label: "Роли", testid: "tab-roles" },
+            ]
+        />
     }
 }
 
@@ -121,15 +109,16 @@ fn user_columns(me: String, role_options: Signal<Vec<(String, String)>>) -> Vec<
         })
         .sortable(),
         Column::new("role", "Роль", |u: &UserRow| {
-            view! { <span class="chip" data-testid="user-role-label">{roles_label(u)}</span> }.into_any()
+            let label = roles_label(u);
+            view! { <Chip testid="user-role-label">{label}</Chip> }.into_any()
         })
         .filter_select(role_options, Operator::Contains),
         Column::new("status", "Статус", |u: &UserRow| {
             let blocked = u.status == "blocked";
             view! {
-                <span class=if blocked { "badge badge--off" } else { "badge" } data-testid="user-status">
+                <Badge tone=if blocked { BadgeTone::Off } else { BadgeTone::Muted } testid="user-status">
                     {if blocked { "Заблокирован" } else { "Активен" }}
-                </span>
+                </Badge>
             }
             .into_any()
         })

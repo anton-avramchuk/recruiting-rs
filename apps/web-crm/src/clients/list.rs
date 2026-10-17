@@ -4,7 +4,7 @@ use grid_contracts::Operator;
 use leptos::prelude::*;
 use leptos_router::{components::A, hooks::use_navigate};
 use ui_data::{EntityGrid, Mutation, MutationConfig};
-use ui_kit::{Notice, NoticeKind, PageHeader, SessionCtx, grid::Column};
+use ui_kit::{Chip, Notice, NoticeKind, PageHeader, SessionCtx, grid::Column};
 
 use super::{
     opt,
@@ -34,9 +34,7 @@ fn client_columns() -> Vec<Column<ClientDto>> {
         // по умолчанию список показывает активных: «с архивными» и «только архивные» выбираются явно
         Column::new("archived", "Архив", |c: &ClientDto| {
             c.archived
-                .then(
-                    || view! { <span class="chip" data-testid="archived-row-chip">"архив"</span> },
-                )
+                .then(|| view! { <Chip testid="archived-row-chip">"архив"</Chip> })
                 .into_any()
         })
         .filter_select(

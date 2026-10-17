@@ -4,7 +4,7 @@ use leptos_router::{
     components::A,
     hooks::{use_navigate, use_params_map},
 };
-use ui_kit::{Dropdown, EmptyState, Notice, NoticeKind};
+use ui_kit::{Badge, BadgeTone, Card, Dropdown, EmptyState, Notice, NoticeKind};
 
 use super::{
     server::{
@@ -248,13 +248,13 @@ fn UserEditor(
             </p>
         </form>
 
-        <div class="card section">
+        <Card class="section">
             <h2 class="sec-h">"Доступ"</h2>
             <p>
                 "Статус: "
-                <span class=if blocked { "badge badge--off" } else { "badge" } data-testid="user-status">
+                <Badge tone=if blocked { BadgeTone::Off } else { BadgeTone::Muted } testid="user-status">
                     {if blocked { "Заблокирован" } else { "Активен" }}
-                </span>
+                </Badge>
             </p>
             <p class="muted">"Заблокированный пользователь не может войти, его сессии завершаются."</p>
             <p>
@@ -273,7 +273,7 @@ fn UserEditor(
                     {if blocked { "Разблокировать" } else { "Заблокировать" }}
                 </button>
             </p>
-        </div>
+        </Card>
 
         <form
             class="card section"

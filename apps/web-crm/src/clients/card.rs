@@ -6,7 +6,7 @@ use client_contracts::{
 use leptos::prelude::*;
 use leptos_router::{components::A, hooks::use_params_map};
 use ui_kit::Reply;
-use ui_kit::{Dropdown, EmptyState, Notice, NoticeKind, SessionCtx};
+use ui_kit::{Chip, Dropdown, EmptyState, Notice, NoticeKind, SessionCtx};
 use uuid::Uuid;
 
 use super::{
@@ -208,7 +208,7 @@ fn Card(
             <A href=format!("/applications?client_id={}", client.id) attr:class="btn" attr:data-testid="client-applications">
                 "Отклики заказчика"
             </A>
-            {archived.then(|| view! { <span class="chip" data-testid="archived-chip">"архив"</span> })}
+            {archived.then(|| view! { <Chip testid="archived-chip">"архив"</Chip> })}
             <Show when=move || writable.get()>
                 <button
                     class="btn"

@@ -6,10 +6,10 @@ use leptos_router::{components::A, hooks::use_navigate};
 use recruitment_contracts::ApplicationDto;
 use serde_json::json;
 use ui_kit::Reply;
-use ui_kit::{Notice, NoticeKind, SessionCtx};
+use ui_kit::{Avatar, Chip, Notice, NoticeKind, SessionCtx};
 
 use super::{
-    format::{initials, now_ms, time_label},
+    format::{now_ms, time_label},
     server::{AppQuery, TriageData, application_action, list_applications, triage_card},
 };
 use crate::candidates::{
@@ -323,7 +323,7 @@ fn CardBody(app: ApplicationDto, card: Signal<Option<TriageData>>) -> impl IntoV
 
     view! {
         <div class="triage__top">
-            <span class="thumb">{initials(&app.full_name)}</span>
+            <Avatar name=app.full_name.to_string() />
             <div>
                 <h2 data-testid="triage-name">{app.full_name.clone()}</h2>
                 <p class="muted">
@@ -342,7 +342,7 @@ fn CardBody(app: ApplicationDto, card: Signal<Option<TriageData>>) -> impl IntoV
                     }}
                 </p>
                 <div class="chips">
-                    {app.source.clone().map(|s| view! { <span class="chip">{s}</span> })}
+                    {app.source.clone().map(|s| view! { <Chip>{s}</Chip> })}
                     <span class="chip" class:urgent=app.overdue>
                         {format!("{} в очереди", time_label(app.hours_on_stage))}
                     </span>
@@ -365,7 +365,7 @@ fn CardBody(app: ApplicationDto, card: Signal<Option<TriageData>>) -> impl IntoV
                                 .map(|o| {
                                     view! {
                                         <p class="sub">
-                                            <span class="chip">{o.stage.label()}</span>
+                                            <Chip>{o.stage.label()}</Chip>
                                             " " {o.vacancy_title.clone()} " · " {time_label(o.hours_on_stage)}
                                         </p>
                                     }
@@ -417,7 +417,14 @@ fn CardBody(app: ApplicationDto, card: Signal<Option<TriageData>>) -> impl IntoV
                         <h4>"Почему подходит"</h4>
                         <p>{p.summary.clone().unwrap_or_else(|| "Краткое описание не заполнено.".into())}</p>
                         <div class="chips">
-                            {p.skills.iter().map(|s| view! { <span class="chip">{s.clone()}</span> }).collect_view()}
+                            {p
+                                .skills
+                                .iter()
+                                .map(|s| {
+                                    let skill = s.clone();
+                                    view! { <Chip>{skill}</Chip> }
+                                })
+                                .collect_view()}
                         </div>
                     </div>
                     {p.note

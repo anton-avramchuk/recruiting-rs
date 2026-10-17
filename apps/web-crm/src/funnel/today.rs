@@ -3,11 +3,11 @@ use leptos::prelude::*;
 use leptos_router::components::A;
 use recruitment_contracts::{ApplicationDto, InterviewItemDto, OverviewDto, Stage, VacancyDto};
 use ui_kit::Reply;
-use ui_kit::{Notice, NoticeKind, PageHeader, SessionCtx};
+use ui_kit::{Avatar, Notice, NoticeKind, PageHeader, SessionCtx};
 
 use super::{
     FunnelCtx,
-    format::{LONG_OPEN_DAYS, initials, local_clock, local_day_range, time_label, triage_minutes},
+    format::{LONG_OPEN_DAYS, local_clock, local_day_range, time_label, triage_minutes},
     panel::PersonPanel,
     server::{AppQuery, get_overview, list_applications, list_interviews, list_vacancies},
 };
@@ -233,7 +233,7 @@ fn QueueRow(a: ApplicationDto, ctx: FunnelCtx) -> impl IntoView {
     .join(" · ");
     view! {
         <button type="button" class="qrow" data-testid="queue-row" on:click=move |_| ctx.open.set(Some(id.clone()))>
-            <span class="thumb">{initials(&a.full_name)}</span>
+            <Avatar name=a.full_name.to_string() />
             <span class="qrow__main">
                 <span class="nm">{a.full_name.clone()}</span>
                 <span class="sub">{meta}</span>

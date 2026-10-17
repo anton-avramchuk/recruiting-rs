@@ -8,6 +8,7 @@ pub mod mutation;
 pub mod paging;
 pub mod policy;
 pub mod reply;
+pub mod tabs;
 
 pub use encode::encode_query_value;
 pub use grid::{

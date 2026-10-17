@@ -1,7 +1,7 @@
 //! Блок «Комментарии»: лента, добавление, правка и удаление на месте.
 use comment_contracts::CommentDto;
 use leptos::{prelude::*, task::spawn_local};
-use ui_kit::{Notice, NoticeKind, Reply, SessionCtx};
+use ui_kit::{Chip, Notice, NoticeKind, Reply, SessionCtx};
 
 use super::{
     reload_limit, rights,
@@ -216,7 +216,7 @@ pub fn Comments(
                                             <header class="comment__head">
                                                 <b data-testid="comment-author">{c.author_name.clone()}</b>
                                                 <time class="muted">{short_moment(&c.created_at)}</time>
-                                                {c.edited_at.as_ref().map(|_| view! { <span class="chip" data-testid="comment-edited">"изменено"</span> })}
+                                                {c.edited_at.as_ref().map(|_| view! { <Chip testid="comment-edited">"изменено"</Chip> })}
                                                 <span class="spacer"></span>
                                                 {r.edit.then(|| {
                                                     view! {

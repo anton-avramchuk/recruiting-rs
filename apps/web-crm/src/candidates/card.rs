@@ -8,7 +8,7 @@ use leptos_router::{
     components::A,
     hooks::{use_navigate, use_params_map},
 };
-use ui_kit::{EmptyState, Notice, NoticeKind, Reply, SessionCtx, TextField};
+use ui_kit::{EmptyState, Notice, NoticeKind, Reply, SessionCtx, TextField, Toolbar};
 
 use super::{
     format::{format_salary, years_label},
@@ -299,7 +299,7 @@ fn ProfileSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> impl In
                     general_error(outcome().as_ref())
                         .map(|m| view! { <Notice kind=NoticeKind::Error>{m}</Notice> })
                 }}
-                <p class="toolbar">
+                <Toolbar>
                     <button type="submit" class="btn btn--primary" data-testid="profile-save">
                         "Сохранить"
                     </button>
@@ -313,7 +313,7 @@ fn ProfileSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> impl In
                     >
                         "Отмена"
                     </button>
-                </p>
+                </Toolbar>
             </form>
         }
     };
@@ -512,7 +512,7 @@ fn EmploymentsSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> imp
                                         }
                                     })
                             }}
-                            <p class="toolbar">
+                            <Toolbar>
                                 <button
                                     type="button"
                                     class="btn btn--primary"
@@ -535,7 +535,7 @@ fn EmploymentsSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> imp
                                 >
                                     "Отмена"
                                 </button>
-                            </p>
+                            </Toolbar>
                         </div>
                     }
                         .into_any()
@@ -736,7 +736,7 @@ fn EducationsSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> impl
                                         }
                                     })
                             }}
-                            <p class="toolbar">
+                            <Toolbar>
                                 <button
                                     type="button"
                                     class="btn btn--primary"
@@ -759,7 +759,7 @@ fn EducationsSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> impl
                                 >
                                     "Отмена"
                                 </button>
-                            </p>
+                            </Toolbar>
                         </div>
                     }
                         .into_any()

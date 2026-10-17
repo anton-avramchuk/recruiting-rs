@@ -11,7 +11,7 @@ use leptos::prelude::*;
 use leptos_router::components::A;
 use recruitment_contracts::{BatchApplicationsRequest, Stage};
 
-use ui_kit::{Dropdown, EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
+use ui_kit::{Chip, Dropdown, EmptyState, Notice, NoticeKind, PageHeader, SessionCtx, Toolbar};
 
 use super::{
     import_file::{Loaded, current_year},
@@ -464,9 +464,9 @@ pub fn ImportPage() -> impl IntoView {
                         />
                     </label>
                     <div class="chips">
-                        <span class="chip">".xlsx — выгрузка из Excel"</span>
-                        <span class="chip">".csv / .tsv — таблица"</span>
-                        <span class="chip">".pdf — резюме одного человека"</span>
+                        <Chip>".xlsx — выгрузка из Excel"</Chip>
+                        <Chip>".csv / .tsv — таблица"</Chip>
+                        <Chip>".pdf — резюме одного человека"</Chip>
                     </div>
                 </div>
                 <p class="muted">
@@ -551,7 +551,7 @@ pub fn ImportPage() -> impl IntoView {
                             }
                         }}
                     </p>
-                    <p class="toolbar">
+                    <Toolbar>
                         <button
                             class="btn btn--primary"
                             data-testid="import-start"
@@ -571,7 +571,7 @@ pub fn ImportPage() -> impl IntoView {
                         <span class="muted">
                             "Совпадения по почте, телефону и имени дополнят существующих людей, дубли не создаются."
                         </span>
-                    </p>
+                    </Toolbar>
                 </section>
             </Show>
 
@@ -663,7 +663,7 @@ pub fn ImportPage() -> impl IntoView {
                         </label>
                         <h2>"Куда добавить"</h2>
                         {destination}
-                        <p class="toolbar">
+                        <Toolbar>
                             <button
                                 class="btn btn--primary"
                                 data-testid="import-start"
@@ -673,7 +673,7 @@ pub fn ImportPage() -> impl IntoView {
                                 {move || if busy.get() { "Импортируем…" } else { "Добавить кандидата" }}
                             </button>
                             <button class="btn" on:click=move |_| reset()>"Другой файл"</button>
-                        </p>
+                        </Toolbar>
                     </Show>
                 </section>
             </Show>
@@ -722,13 +722,13 @@ pub fn ImportPage() -> impl IntoView {
                             }}
                         </ul>
                     </Show>
-                    <p class="toolbar">
+                    <Toolbar>
                         <A href="/candidates" attr:class="btn btn--primary" attr:data-testid="to-candidates">
                             "К списку кандидатов"
                         </A>
                         <A href="/applications" attr:class="btn">"К откликам"</A>
                         <button class="btn" on:click=move |_| reset()>"Импортировать ещё"</button>
-                    </p>
+                    </Toolbar>
                 </section>
             </Show>
         </Show>

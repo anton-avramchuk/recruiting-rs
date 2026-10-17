@@ -3,8 +3,8 @@ use leptos_router::components::{A, Outlet};
 
 use crate::session::{SessionCtx, logout};
 
-/// Стили приложения. Цвет несёт смысл только в статусах и ошибках.
-const CSS: &str = include_str!("../style/ui-kit.css");
+/// Стили общих контролов. Цвет несёт смысл только в статусах и ошибках.
+const CSS: &str = ui::CSS;
 
 #[component]
 pub fn UiStyles() -> impl IntoView {
@@ -45,19 +45,6 @@ pub fn BffMeta() -> impl IntoView {
         .or_else(|| use_context::<crate::BffUrl>().map(|u| u.0))
         .unwrap_or_default();
     view! { <meta name="bff-url" content=url /> }
-}
-
-#[component]
-pub fn PageHeader(
-    title: &'static str,
-    #[prop(optional)] children: Option<Children>,
-) -> impl IntoView {
-    view! {
-        <div class="page-header">
-            <h1>{title}</h1>
-            <div class="page-header__actions">{children.map(|c| c())}</div>
-        </div>
-    }
 }
 
 /// Плашка статуса: цвет означает состояние, а не декор.

@@ -10,15 +10,16 @@ pub mod server;
 mod session;
 pub mod theme;
 
-pub use components::{AppShell, BffMeta, NavItem, PageHeader, StatusBadge, UiStyles};
+pub use components::{AppShell, BffMeta, NavItem, StatusBadge, UiStyles};
 pub use forms::{FormFields, form_fields};
 pub use session::{
     AuthGate, LoginOutcome, LoginPage, SessionCtx, SessionInfo, UserInfo, get_session, login,
     logout, provide_session,
 };
 pub use ui::{
-    Checkbox, ConfirmDialog, DatePicker, Dialog, Drawer, Dropdown, EmptyState, Field, Notice,
-    NoticeKind, NumberBox, Pager, TextBox, TextField, Textarea,
+    Avatar, Badge, BadgeTone, Card, Checkbox, Chip, ConfirmDialog, DatePicker, Dialog, Drawer,
+    Dropdown, EmptyState, Field, Notice, NoticeKind, NumberBox, PageHeader, Pager, Tab, Tabs,
+    TextBox, TextField, Textarea, Toolbar,
 };
 pub use ui_core::format;
 pub use ui_core::{Reply, classify, classify_empty, encode_query_value, typed};

@@ -5,7 +5,7 @@ use leptos::prelude::*;
 use recruitment_contracts::{ApplicationDto, Stage};
 use serde_json::json;
 use ui_kit::Reply;
-use ui_kit::{Dropdown, EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
+use ui_kit::{Chip, Dropdown, EmptyState, Notice, NoticeKind, PageHeader, SessionCtx, Toolbar};
 
 use super::{
     FunnelCtx,
@@ -281,7 +281,7 @@ pub fn ApplicationsPage() -> impl IntoView {
         {move || {
             epoch.get();
             view! {
-                <div class="toolbar">
+                <Toolbar>
                     <DebouncedInput
                         applied=set_q
                         reset_page=set_page
@@ -296,10 +296,10 @@ pub fn ApplicationsPage() -> impl IntoView {
                         label="Источник"
                         testid="filter-source"
                     />
-                </div>
+                </Toolbar>
             }
         }}
-        <div class="toolbar">
+        <Toolbar>
             <Dropdown
                 value=vacancy
                 options=vacancy_choices
@@ -359,7 +359,7 @@ pub fn ApplicationsPage() -> impl IntoView {
                     "Сбросить фильтры"
                 </button>
             </Show>
-        </div>
+        </Toolbar>
 
         {move || {
             notice
@@ -468,7 +468,7 @@ pub fn ApplicationsPage() -> impl IntoView {
                                         </tbody>
                                     </table>
                                 </div>
-                                <div class="toolbar">
+                                <Toolbar>
                                     <span class="muted">{format!("Страница {} из {}", data.page, pages)}</span>
                                     <button class="btn" disabled=move || page.get() <= 1 on:click=move |_| set_page.update(|p| *p -= 1)>
                                         "Назад"
@@ -476,7 +476,7 @@ pub fn ApplicationsPage() -> impl IntoView {
                                     <button class="btn" disabled=move || page.get() >= pages on:click=move |_| set_page.update(|p| *p += 1)>
                                         "Вперёд"
                                     </button>
-                                </div>
+                                </Toolbar>
                             }
                                 .into_any()
                         }
@@ -569,7 +569,7 @@ fn row(
                     {a.full_name.clone()}
                 </button>
                 {(a.person_applications > 1)
-                    .then(|| view! { <span class="chip">{format!("{} отклика", a.person_applications)}</span> })}
+                    .then(|| view! { <Chip>{format!("{} отклика", a.person_applications)}</Chip> })}
             </td>
             <td data-testid="row-stage">{a.stage.label()}</td>
             <td>{a.vacancy_title.clone()}</td>

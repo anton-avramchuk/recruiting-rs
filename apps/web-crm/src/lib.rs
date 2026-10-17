@@ -21,6 +21,9 @@ use ui_kit::{
     AppShell, AuthGate, EmptyState, LoginPage, NavItem, SessionCtx, UiStyles, provide_session,
 };
 
+/// Стили экранов CRM: воронка, «Сегодня», разбор, импорт, аналитика, палитра и комментарии.
+const CRM_CSS: &str = include_str!("../style/crm.css");
+
 /// HTML-оболочка документа для SSR.
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -49,6 +52,7 @@ pub fn App() -> impl IntoView {
     view! {
         <Title text="Ритм" />
         <UiStyles />
+        <style>{CRM_CSS}</style>
         <Router>
             <Routes fallback=|| view! { <EmptyState title="Страница не найдена" hint="Проверьте адрес." /> }>
                 <Route
