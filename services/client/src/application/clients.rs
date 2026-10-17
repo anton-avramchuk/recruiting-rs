@@ -1,3 +1,4 @@
+use grid_contracts::{GridPage, GridQuery, SortKey};
 use platform_core::tenant::TenantId;
 use platform_db::TenantTx;
 use sqlx::{PgConnection, PgPool};
@@ -102,6 +103,22 @@ impl ClientService {
         let rows = clients::list(&mut tx, query, include_archived).await?;
         tx.rollback().await?;
         Ok(rows)
+    }
+
+    /// Страница заказчиков; без сортировки - активные по названию, архивные в конце.
+    pub async fn page(
+        &self,
+        tenant: TenantId,
+        mut query: GridQuery,
+    ) -> Result<GridPage<ClientRow>, ClientError> {
+        if query.sort.is_empty() {
+            query.sort.push(SortKey::asc("archived"));
+            query.sort.push(SortKey::asc("name"));
+        }
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        let page = clients::page(&mut tx, &query).await;
+        tx.rollback().await?;
+        Ok(page?)
     }
 
     pub async fn get(&self, tenant: TenantId, id: Uuid) -> Result<ClientDetail, ClientError> {

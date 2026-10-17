@@ -24,6 +24,7 @@ impl From<ClientError> for ApiError {
                 ApiError::conflict(format!("position is assigned to {n} contact(s)"))
                     .with_extension("field", "position".into())
             }
+            ClientError::Grid(e) => e.into(),
             ClientError::Db(e) => ApiError::internal(&e),
         }
     }

@@ -10,6 +10,7 @@ use platform_core::{
     error::{ApiError, ProblemDetails},
     tenant::TenantId,
 };
+use platform_grid::contracts::GridQuery;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -73,6 +74,10 @@ pub(super) struct ListParams {
     q: Option<String>,
     page: Option<i64>,
     page_size: Option<i64>,
+    /// Сортировка грида: `поле:asc,поле:desc`. Вместе с `filter` включает режим грида.
+    sort: Option<String>,
+    /// Фильтр грида (JSON). В режиме грида `status` и `q` не применяются.
+    filter: Option<String>,
 }
 
 #[utoipa::path(get, path = "/tenants", security(("bearer" = [])), params(ListParams), responses(
@@ -85,6 +90,9 @@ pub(super) async fn list(
     Query(params): Query<ListParams>,
 ) -> Result<Json<TenantPage>, ApiError> {
     user.require(Permission::ManageTenants)?;
+    if params.sort.is_some() || params.filter.is_some() {
+        return list_grid(&state, &params).await;
+    }
     let status = params
         .status
         .map(|s| TenantStatus::parse(&s).ok_or_else(|| ApiError::bad_request("unknown status")))
@@ -103,6 +111,32 @@ pub(super) async fn list(
         total: page.total,
         page: page.page,
         page_size: page.page_size,
+    }))
+}
+
+/// Режим грида: страница, сортировка и фильтр по схеме `platform-grid`.
+async fn list_grid(state: &AppState, params: &ListParams) -> Result<Json<TenantPage>, ApiError> {
+    let mut pairs: Vec<(&str, String)> = Vec::new();
+    if let Some(page) = params.page {
+        pairs.push(("page", page.to_string()));
+    }
+    if let Some(size) = params.page_size {
+        pairs.push(("page_size", size.to_string()));
+    }
+    if let Some(sort) = &params.sort {
+        pairs.push(("sort", sort.clone()));
+    }
+    if let Some(filter) = &params.filter {
+        pairs.push(("filter", filter.clone()));
+    }
+    let query = GridQuery::from_pairs(pairs.iter().map(|(k, v)| (*k, v.as_str())))
+        .map_err(platform_grid::GridError::from)?;
+    let page = state.tenants.list_grid(query).await?;
+    Ok(Json(TenantPage {
+        items: page.items.into_iter().map(to_dto).collect(),
+        total: i64::try_from(page.total).unwrap_or(i64::MAX),
+        page: i64::from(page.page),
+        page_size: i64::from(page.page_size),
     }))
 }
 
@@ -158,6 +192,7 @@ impl From<TenantError> for ApiError {
             }
             TenantError::Domain(d) => ApiError::bad_request(d.to_string()),
             TenantError::Invalid(m) => ApiError::bad_request(m),
+            TenantError::Grid(e) => e.into(),
             TenantError::SlugTaken => ApiError::conflict("slug already taken"),
             TenantError::NotFound => ApiError::not_found(),
             TenantError::Provisioning(m) => {

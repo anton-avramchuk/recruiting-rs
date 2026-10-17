@@ -1,4 +1,6 @@
 use chrono::{DateTime, Utc};
+use grid_contracts::{GridPage, GridQuery};
+use platform_grid::{ColumnType, FetchError, GridColumn, GridSchema, fetch_page};
 use sqlx::{FromRow, PgConnection};
 use uuid::Uuid;
 
@@ -31,6 +33,39 @@ fn like_pattern(q: &str) -> String {
 const SELECT: &str = "SELECT c.id, c.tenant_id, c.name, c.note, c.archived, c.created_at,
         (SELECT count(*) FROM contacts k WHERE k.client_id = c.id) AS contacts_count
     FROM clients c";
+
+/// Поля списка заказчиков, доступные клиенту (белый список грида).
+const GRID_COLUMNS: &[GridColumn] = &[
+    GridColumn::new("id", "id", ColumnType::Uuid),
+    // сортировка и поиск по нормализованному названию: без учёта регистра и лишних пробелов
+    GridColumn::new("name", "name_key", ColumnType::Text),
+    GridColumn::new("note", "note", ColumnType::Text),
+    GridColumn::new("archived", "archived", ColumnType::Bool),
+    GridColumn::new(
+        "contacts_count",
+        "(SELECT count(*) FROM contacts k WHERE k.client_id = clients.id)",
+        ColumnType::Int,
+    ),
+    GridColumn::new("created_at", "created_at", ColumnType::Timestamp),
+];
+
+const GRID: GridSchema = GridSchema {
+    source: "clients",
+    key: "id",
+    columns: GRID_COLUMNS,
+    max_page_size: 100,
+};
+
+const GRID_SELECT: &str = "id, tenant_id, name, note, archived, created_at,
+    (SELECT count(*) FROM contacts k WHERE k.client_id = clients.id) AS contacts_count";
+
+/// Страница заказчиков по запросу грида (изоляция - за RLS соединения).
+pub async fn page(
+    conn: &mut PgConnection,
+    query: &GridQuery,
+) -> Result<GridPage<ClientRow>, FetchError> {
+    fetch_page(conn, &GRID, GRID_SELECT, query).await
+}
 
 pub async fn list(
     conn: &mut PgConnection,

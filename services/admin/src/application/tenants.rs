@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use platform_core::tenant::TenantId;
+use platform_grid::contracts::{GridPage, GridQuery, SortKey};
 use sqlx::PgPool;
 
 use super::provisioning::{OwnerSpec, Provisioner};
@@ -22,7 +23,18 @@ pub enum TenantError {
     #[error("could not provision the tenant owner: {0}")]
     Provisioning(String),
     #[error(transparent)]
+    Grid(#[from] platform_grid::GridError),
+    #[error(transparent)]
     Db(#[from] sqlx::Error),
+}
+
+impl From<platform_grid::FetchError> for TenantError {
+    fn from(e: platform_grid::FetchError) -> Self {
+        match e {
+            platform_grid::FetchError::Grid(e) => TenantError::Grid(e),
+            platform_grid::FetchError::Db(e) => TenantError::Db(e),
+        }
+    }
 }
 
 pub struct NewTenant {
@@ -98,6 +110,14 @@ impl TenantService {
         tenant.activate()?;
         repo::update_status(&self.pool, &tenant).await?;
         Ok(tenant)
+    }
+
+    /// Страница организаций по запросу грида; без сортировки - по slug.
+    pub async fn list_grid(&self, mut query: GridQuery) -> Result<GridPage<Tenant>, TenantError> {
+        if query.sort.is_empty() {
+            query.sort.push(SortKey::asc("slug"));
+        }
+        Ok(repo::page(&self.pool, &query).await?)
     }
 
     pub async fn list(&self, query: ListQuery) -> Result<Page<Tenant>, TenantError> {

@@ -1,4 +1,9 @@
 use platform_core::tenant::TenantId;
+use platform_grid::{
+    ColumnType, FetchError, GridColumn, GridSchema,
+    contracts::{GridPage, GridQuery},
+    fetch_page,
+};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
@@ -75,6 +80,37 @@ pub fn is_unique_violation(e: &sqlx::Error) -> bool {
     e.as_database_error()
         .and_then(|d| d.code())
         .is_some_and(|c| c == "23505")
+}
+
+/// Поля списка организаций, доступные клиенту (белый список грида).
+const GRID_COLUMNS: &[GridColumn] = &[
+    GridColumn::new("id", "id", ColumnType::Uuid),
+    GridColumn::new("slug", "slug", ColumnType::Text),
+    GridColumn::new("name", "name", ColumnType::Text),
+    GridColumn::new("status", "status", ColumnType::Text),
+];
+
+const GRID: GridSchema = GridSchema {
+    source: "tenants",
+    key: "id",
+    columns: GRID_COLUMNS,
+    max_page_size: 100,
+};
+
+/// Страница организаций по запросу грида. Таблица платформенная, без RLS: доступ проверяет API.
+pub async fn page(pool: &PgPool, query: &GridQuery) -> Result<GridPage<Tenant>, FetchError> {
+    let mut conn = pool.acquire().await.map_err(FetchError::Db)?;
+    let page: GridPage<TenantRow> = fetch_page(&mut conn, &GRID, COLUMNS, query).await?;
+    Ok(GridPage {
+        items: page
+            .items
+            .into_iter()
+            .filter_map(TenantRow::into_domain)
+            .collect(),
+        total: page.total,
+        page: page.page,
+        page_size: page.page_size,
+    })
 }
 
 const FILTER: &str = r"($1::text IS NULL OR status = $1)

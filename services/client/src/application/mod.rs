@@ -27,5 +27,16 @@ pub enum ClientError {
     #[error("position is used by {0} contact(s)")]
     PositionInUse(i64),
     #[error(transparent)]
+    Grid(#[from] platform_grid::GridError),
+    #[error(transparent)]
     Db(#[from] sqlx::Error),
+}
+
+impl From<platform_grid::FetchError> for ClientError {
+    fn from(e: platform_grid::FetchError) -> Self {
+        match e {
+            platform_grid::FetchError::Grid(e) => ClientError::Grid(e),
+            platform_grid::FetchError::Db(e) => ClientError::Db(e),
+        }
+    }
 }

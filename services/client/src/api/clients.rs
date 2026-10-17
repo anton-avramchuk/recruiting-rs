@@ -8,6 +8,7 @@ use client_contracts::{
     ClientDetailDto, ClientDto, ContactDto, CreateClientRequest, CreateContactRequest,
     UpdateClientRequest,
 };
+use grid_contracts::{GridPage, GridQuery};
 use platform_auth::{AuthUser, Permission};
 use platform_core::error::{ApiError, ProblemDetails};
 use serde::Deserialize;
@@ -23,6 +24,7 @@ use crate::domain::{ClientPatch, NewClient, NewContact};
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/clients", post(create).get(list))
+        .route("/clients/grid", get(grid))
         .route("/clients/{id}", get(get_one).patch(update))
         .route("/clients/{id}/contacts", post(add_contact))
 }
@@ -79,6 +81,35 @@ pub(super) async fn list(
         .list(tenant_of(&user)?, params.q.as_deref(), params.archived)
         .await?;
     Ok(Json(rows.iter().map(client_to_dto).collect()))
+}
+
+/// Параметры списка: `page`, `page_size`, `sort` (`поле:asc,поле:desc`), `filter` (JSON).
+#[utoipa::path(get, path = "/clients/grid", security(("bearer" = [])), params(
+    ("page" = Option<u32>, Query, description = "Страница, с 1"),
+    ("page_size" = Option<u32>, Query, description = "Размер страницы, до 100"),
+    ("sort" = Option<String>, Query, description = "Сортировка: поле:asc,поле:desc"),
+    ("filter" = Option<String>, Query, description = "Фильтр грида (JSON)"),
+), responses(
+    (status = 200, body = GridPage<ClientDto>),
+    (status = 400, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 401, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn grid(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Query(params): Query<Vec<(String, String)>>,
+) -> Result<Json<GridPage<ClientDto>>, ApiError> {
+    user.require(Permission::ReadData)?;
+    let query = GridQuery::from_pairs(params.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+        .map_err(platform_grid::GridError::from)?;
+    let page = state.clients.page(tenant_of(&user)?, query).await?;
+    Ok(Json(GridPage {
+        items: page.items.iter().map(client_to_dto).collect(),
+        total: page.total,
+        page: page.page,
+        page_size: page.page_size,
+    }))
 }
 
 #[utoipa::path(get, path = "/clients/{id}", security(("bearer" = [])),

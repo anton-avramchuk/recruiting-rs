@@ -9,6 +9,7 @@ admin-contracts = { path = "../../crates/admin-contracts" }
 platform-core = { path = "../../crates/platform-core" }
 platform-db = { path = "../../crates/platform-db" }
 platform-auth = { path = "../../crates/platform-auth" }
+platform-grid = { path = "../../crates/platform-grid" }
 async-trait.workspace = true
 axum.workspace = true
 reqwest.workspace = true

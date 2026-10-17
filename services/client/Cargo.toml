@@ -9,6 +9,8 @@ client-contracts = { path = "../../crates/client-contracts" }
 platform-core = { path = "../../crates/platform-core" }
 platform-db = { path = "../../crates/platform-db" }
 platform-auth = { path = "../../crates/platform-auth" }
+platform-grid = { path = "../../crates/platform-grid" }
+grid-contracts = { path = "../../crates/grid-contracts", features = ["openapi"] }
 platform-values = { path = "../../crates/platform-values" }
 axum.workspace = true
 chrono.workspace = true
