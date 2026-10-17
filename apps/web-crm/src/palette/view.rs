@@ -10,7 +10,7 @@ use super::{
     },
     keys::{CHEATSHEET, Press, Sequence, Shortcut},
 };
-use ui_kit::SessionCtx;
+use ui_kit::{Dialog, SessionCtx};
 
 use crate::{
     candidates::{
@@ -439,14 +439,15 @@ fn PaletteDialog(palette: PaletteCtx, writable: Signal<bool>) -> impl IntoView {
     };
 
     view! {
-        <div class="scrim" data-testid="palette-scrim" on:click=move |_| palette.open.set(false)></div>
-        <div
+        <Dialog
+            open=Signal::stored(true)
+            on_close=Callback::new(move |()| palette.open.set(false))
+            label="Палитра команд"
             class="palette"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Палитра команд"
-            data-testid="palette"
-            on:keydown=on_keydown
+            testid="palette"
+            scrim_testid="palette-scrim"
+            close_on_esc=false
+            on_keydown=Callback::new(on_keydown)
         >
             <input
                 node_ref=input
@@ -464,15 +465,22 @@ fn PaletteDialog(palette: PaletteCtx, writable: Signal<bool>) -> impl IntoView {
                 <span><kbd>"Enter"</kbd>" открыть"</span>
                 <span><kbd>"Esc"</kbd>" закрыть"</span>
             </div>
-        </div>
+        </Dialog>
     }
 }
 
 #[component]
 fn Cheatsheet(palette: PaletteCtx) -> impl IntoView {
     view! {
-        <div class="scrim" data-testid="cheat-scrim" on:click=move |_| palette.cheat.set(false)></div>
-        <div class="palette cheat" role="dialog" aria-modal="true" aria-label="Горячие клавиши" data-testid="cheatsheet">
+        <Dialog
+            open=Signal::stored(true)
+            on_close=Callback::new(move |()| palette.cheat.set(false))
+            label="Горячие клавиши"
+            class="palette cheat"
+            testid="cheatsheet"
+            scrim_testid="cheat-scrim"
+            close_on_esc=false
+        >
             <div class="sec-h">
                 <h2>"Горячие клавиши"</h2>
                 <span class="spacer"></span>
@@ -496,6 +504,6 @@ fn Cheatsheet(palette: PaletteCtx) -> impl IntoView {
                     })
                     .collect_view()}
             </div>
-        </div>
+        </Dialog>
     }
 }

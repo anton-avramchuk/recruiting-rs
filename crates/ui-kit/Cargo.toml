@@ -6,6 +6,7 @@ publish.workspace = true
 
 [features]
 ssr = [
+    "ui/ssr",
     "leptos/ssr",
     "leptos_meta/ssr",
     "leptos_router/ssr",
@@ -14,6 +15,7 @@ ssr = [
     "dep:reqwest",
 ]
 hydrate = [
+    "ui/hydrate",
     "leptos/hydrate",
     "dep:reqwest",
     "dep:web-sys",
@@ -25,6 +27,7 @@ hydrate = [
 [dependencies]
 grid-contracts = { path = "../grid-contracts" }
 ui-core = { path = "../ui-core" }
+ui = { path = "../ui" }
 leptos.workspace = true
 leptos_meta.workspace = true
 leptos_router.workspace = true

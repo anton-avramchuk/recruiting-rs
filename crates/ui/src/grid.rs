@@ -10,7 +10,7 @@ use leptos_router::{
 };
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::{ConfirmDialog, EmptyState, Notice, NoticeKind};
+use crate::{ConfirmDialog, EmptyState, Notice, NoticeKind, Pager};
 use ui_core::grid::{FilterSpec, GridUrl, PAGE_SIZES, RowActions, is_interactive, page_info};
 
 /// Пауза в наборе перед запросом, мс.
@@ -533,47 +533,25 @@ where
     let pager = move || {
         rows.get().map(|result| {
             let (info, pages, page, size) = match &result {
-                Ok(p) => (page_info(p.page, p.page_size, p.items.len(), p.total), p.pages(), p.page, p.page_size),
+                Ok(p) => (
+                    page_info(p.page, p.page_size, p.items.len(), p.total),
+                    p.pages(),
+                    p.page,
+                    p.page_size,
+                ),
                 Err(_) => (String::new(), 1, 1, url.get_untracked().page_size),
             };
             view! {
-                <div class="grid__pager" data-testid="grid-pager">
-                    <span class="muted" data-testid="grid-page-info">{info}</span>
-                    <span class="spacer"></span>
-                    <label class="grid__size">
-                        "Строк"
-                        <select
-                            data-testid="grid-page-size"
-                            on:change=move |ev| {
-                                let size: u32 = event_target_value(&ev).parse().unwrap_or(20);
-                                change(&|u| u.with_page_size(size));
-                            }
-                        >
-                            {PAGE_SIZES
-                                .into_iter()
-                                .map(|s| view! { <option value=s.to_string() selected=move || s == size>{s.to_string()}</option> })
-                                .collect_view()}
-                        </select>
-                    </label>
-                    <button
-                        type="button"
-                        class="btn"
-                        data-testid="grid-prev"
-                        disabled={page <= 1}
-                        on:click=move |_| change(&|u| { let p = u.page.saturating_sub(1); u.with_page(p) })
-                    >
-                        "Назад"
-                    </button>
-                    <button
-                        type="button"
-                        class="btn"
-                        data-testid="grid-next"
-                        disabled={page >= pages}
-                        on:click=move |_| change(&|u| { let p = u.page + 1; u.with_page(p) })
-                    >
-                        "Вперёд"
-                    </button>
-                </div>
+                <Pager
+                    page=page
+                    pages=pages
+                    caption=info
+                    on_page=Callback::new(move |p: u32| change(&|u| u.with_page(p)))
+                    size=size
+                    on_size=Callback::new(move |s: u32| change(&|u| u.with_page_size(s)))
+                    sizes=&PAGE_SIZES
+                    testid="grid"
+                />
             }
         })
     };

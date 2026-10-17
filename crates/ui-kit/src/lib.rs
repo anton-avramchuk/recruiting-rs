@@ -10,15 +10,13 @@ pub mod server;
 mod session;
 pub mod theme;
 
-pub use components::{
-    AppShell, BffMeta, ConfirmDialog, EmptyState, NavItem, Notice, NoticeKind, PageHeader,
-    StatusBadge, UiStyles,
-};
+pub use components::{AppShell, BffMeta, NavItem, PageHeader, StatusBadge, UiStyles};
 pub use forms::{FormFields, form_fields};
 pub use session::{
     AuthGate, LoginOutcome, LoginPage, SessionCtx, SessionInfo, UserInfo, get_session, login,
     logout, provide_session,
 };
+pub use ui::{ConfirmDialog, Dialog, Drawer, EmptyState, Notice, NoticeKind, Pager};
 pub use ui_core::{Reply, classify, classify_empty, encode_query_value, typed};
 
 /// Базовый URL BFF для запросов сервера фронтенда (внутренний адрес); кладётся в контекст Leptos.

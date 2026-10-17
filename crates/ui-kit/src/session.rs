@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     api::{self, Method},
-    components::{Notice, NoticeKind},
     forms::form_fields,
 };
+use ui::{Notice, NoticeKind};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct UserInfo {

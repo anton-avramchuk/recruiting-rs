@@ -2,7 +2,7 @@
 use leptos::prelude::*;
 use recruitment_contracts::{ApplicationDetailDto, ApplicationDto, HR_SYSTEMS, Stage, VacancyDto};
 use serde_json::{Value, json};
-use ui_kit::Reply;
+use ui_kit::{Drawer, Reply};
 
 use super::{
     FunnelCtx,
@@ -84,10 +84,13 @@ pub fn PersonPanel(ctx: FunnelCtx, #[prop(into)] writable: Signal<bool>) -> impl
     });
 
     view! {
-        <Show when=move || ctx.open.get().is_some()>
-            <div class="backdrop" on:click=move |_| ctx.open.set(None)></div>
-            <aside class="drawer" role="dialog" aria-label="Человек" data-testid="panel">
-                <Transition fallback=|| {
+        <Drawer
+            open=Signal::derive(move || ctx.open.get().is_some())
+            on_close=Callback::new(move |()| ctx.open.set(None))
+            label="Человек"
+            testid="panel"
+        >
+            <Transition fallback=|| {
                     view! { <p class="drawer__body muted">"Загрузка…"</p> }
                 }>
                     {move || {
@@ -121,9 +124,8 @@ pub fn PersonPanel(ctx: FunnelCtx, #[prop(into)] writable: Signal<bool>) -> impl
                                 }
                             })
                     }}
-                </Transition>
-            </aside>
-        </Show>
+            </Transition>
+        </Drawer>
     }
 }
 
