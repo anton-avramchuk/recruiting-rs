@@ -4,7 +4,7 @@ use leptos_router::{
     components::A,
     hooks::{use_navigate, use_params_map},
 };
-use ui_kit::{EmptyState, Notice, NoticeKind};
+use ui_kit::{Dropdown, EmptyState, Notice, NoticeKind};
 
 use super::{
     server::{
@@ -315,22 +315,20 @@ fn RoleSelect(
     unset: bool,
 ) -> impl IntoView {
     let roles = LocalResource::new(list_roles);
-    view! {
-        <select data-testid=testid on:change=move |ev| value.set(event_target_value(&ev))>
-            {unset.then(|| view! { <option value="" selected disabled>"Несколько ролей"</option> })}
-            {move || {
-                let list = roles
-                    .get()
-                    .and_then(Result::ok)
-                    .and_then(Reply::ok)
-                    .unwrap_or_else(built_in_roles);
-                list.into_iter()
-                    .map(|r| {
-                        let id = r.id.clone();
-                        view! { <option value=r.id prop:selected=move || value.get() == id>{r.name}</option> }
-                    })
-                    .collect_view()
-            }}
-        </select>
+    let options = Signal::derive(move || {
+        roles
+            .get()
+            .and_then(Result::ok)
+            .and_then(Reply::ok)
+            .unwrap_or_else(built_in_roles)
+            .into_iter()
+            .map(|r| (r.id, r.name))
+            .collect::<Vec<_>>()
+    });
+    if unset {
+        view! { <Dropdown value=value options=options empty="Несколько ролей" testid=testid /> }
+            .into_any()
+    } else {
+        view! { <Dropdown value=value options=options testid=testid /> }.into_any()
     }
 }

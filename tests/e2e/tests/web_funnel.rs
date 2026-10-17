@@ -428,11 +428,11 @@ async fn new_vacancy_and_candidate_with_a_vacancy_from_the_forms() {
         );
         eval(
             &tab,
-            "(() => { const el = document.querySelector('[data-testid=vacancy]'); el.selectedIndex = 1; })()",
+            "(() => { const el = document.querySelector('[data-testid=vacancy]'); el.selectedIndex = 1; el.dispatchEvent(new Event('change', {bubbles: true})); })()",
         );
         eval(
             &tab,
-            "(() => { const el = document.querySelector('[data-testid=stage]'); el.value = 'screening'; })()",
+            "(() => { const el = document.querySelector('[data-testid=stage]'); el.value = 'screening'; el.dispatchEvent(new Event('change', {bubbles: true})); })()",
         );
         click(&tab, "[data-testid=submit]");
         wait_until(&tab, "applications page", "location.pathname === '/applications'");

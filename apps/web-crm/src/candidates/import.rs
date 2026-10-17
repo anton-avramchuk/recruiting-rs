@@ -11,7 +11,7 @@ use leptos::prelude::*;
 use leptos_router::components::A;
 use recruitment_contracts::{BatchApplicationsRequest, Stage};
 
-use ui_kit::{EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
+use ui_kit::{Dropdown, EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
 
 use super::{
     import_file::{Loaded, current_year},
@@ -244,7 +244,32 @@ pub fn ImportPage() -> impl IntoView {
     let summary = RwSignal::new(Summary::default());
     let over = RwSignal::new(false);
 
-    let vacancies = Resource::new(|| (), |_| list_vacancies());
+    let vacancies = LocalResource::new(list_vacancies);
+    let vacancy_options = Signal::derive(move || {
+        vacancies
+            .get()
+            .and_then(Result::ok)
+            .and_then(Reply::ok)
+            .map(|list| {
+                list.into_iter()
+                    .map(|v| (v.id.to_string(), v.title))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    });
+    let stage_options = Signal::stored(
+        Stage::ALL
+            .into_iter()
+            .filter(|s| s.is_active() || *s == Stage::Hired)
+            .map(|s| (s.key().to_string(), s.label().to_string()))
+            .collect::<Vec<_>>(),
+    );
+    let field_options = Signal::stored(
+        Field::ALL
+            .into_iter()
+            .map(|f| (f.key().to_string(), f.label().to_string()))
+            .collect::<Vec<_>>(),
+    );
 
     let reset = move || {
         step.set(Step::Pick);
@@ -334,33 +359,17 @@ pub fn ImportPage() -> impl IntoView {
             <div class="form-grid">
                 <label>
                     "Вакансия"
-                    <select data-testid="import-vacancy" on:change=move |ev| vacancy.set(event_target_value(&ev))>
-                        <option value="">"— только в базу, без вакансии —"</option>
-                        <Transition fallback=|| ()>
-                            {move || {
-                                vacancies
-                                    .get()
-                                    .and_then(Result::ok)
-                                    .and_then(Reply::ok)
-                                    .map(|list| {
-                                        list.into_iter()
-                                            .map(|v| view! { <option value=v.id.to_string()>{v.title}</option> })
-                                            .collect_view()
-                                    })
-                            }}
-                        </Transition>
-                    </select>
+                    <Dropdown
+                        value=vacancy
+                        options=vacancy_options
+                        empty="— только в базу, без вакансии —"
+                        testid="import-vacancy"
+                    />
                 </label>
                 <Show when=move || step.get() == Step::Resume>
                     <label>
                         "Этап"
-                        <select data-testid="import-stage" on:change=move |ev| stage.set(event_target_value(&ev))>
-                            {Stage::ALL
-                                .into_iter()
-                                .filter(|s| s.is_active() || *s == Stage::Hired)
-                                .map(|s| view! { <option value=s.key()>{s.label()}</option> })
-                                .collect_view()}
-                        </select>
+                        <Dropdown value=stage options=stage_options testid="import-stage" />
                     </label>
                 </Show>
                 <label>
@@ -494,36 +503,29 @@ pub fn ImportPage() -> impl IntoView {
                                             } else {
                                                 header.clone()
                                             };
+                                            // значение выбора следует за картой столбцов
+                                            let slot = RwSignal::new(String::new());
+                                            Effect::new(move |_| {
+                                                if let Some(f) = map.with(|m| m.get(i).copied()) {
+                                                    slot.set(f.key().to_string());
+                                                }
+                                            });
                                             view! {
                                                 <tr data-testid="map-row">
                                                     <td><b>{title}</b></td>
                                                     <td class="muted">{sample}</td>
                                                     <td>
-                                                        <select
-                                                            data-col=i.to_string()
-                                                            on:change=move |ev| {
-                                                                let key = event_target_value(&ev);
+                                                        <Dropdown
+                                                            value=slot
+                                                            options=field_options
+                                                            on_change=Callback::new(move |key: String| {
                                                                 map.update(|m| {
-                                                                    if let Some(slot) = m.get_mut(i) {
-                                                                        *slot = Field::from_key(&key).unwrap_or(Field::Skip);
+                                                                    if let Some(entry) = m.get_mut(i) {
+                                                                        *entry = Field::from_key(&key).unwrap_or(Field::Skip);
                                                                     }
                                                                 });
-                                                            }
-                                                        >
-                                                            {Field::ALL
-                                                                .into_iter()
-                                                                .map(|f| {
-                                                                    view! {
-                                                                        <option
-                                                                            value=f.key()
-                                                                            selected=move || map.with(|m| m.get(i) == Some(&f))
-                                                                        >
-                                                                            {f.label()}
-                                                                        </option>
-                                                                    }
-                                                                })
-                                                                .collect_view()}
-                                                        </select>
+                                                            })
+                                                        />
                                                     </td>
                                                 </tr>
                                             }

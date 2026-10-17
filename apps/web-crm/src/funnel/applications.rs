@@ -5,24 +5,21 @@ use leptos::prelude::*;
 use recruitment_contracts::{ApplicationDto, Stage};
 use serde_json::json;
 use ui_kit::Reply;
-use ui_kit::{EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
+use ui_kit::{Dropdown, EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
 
 use super::{
     FunnelCtx,
     format::time_label,
     keys::{ListKey, clamp_cursor, list_key, move_cursor},
     panel::PersonPanel,
-    server::{AppQuery, application_action, bulk_applications, list_applications, list_vacancies},
+    server::{AppQuery, application_action, bulk_applications, list_applications},
+};
+use crate::candidates::{
+    format::format_salary,
+    list::{DebouncedInput, can_write},
+    server::uuid_like,
 };
 use crate::palette::view::{overlay_check, typing_in_a_field, with_press};
-use crate::{
-    candidates::{
-        format::format_salary,
-        list::{DebouncedInput, can_write},
-        server::uuid_like,
-    },
-    clients::server::list_clients,
-};
 
 const PAGE_SIZE: i64 = 50;
 
@@ -59,8 +56,8 @@ pub fn ApplicationsPage() -> impl IntoView {
     let selected = RwSignal::new(Vec::<String>::new());
     let notice = RwSignal::new(None::<(bool, String)>);
 
-    let vacancies = Resource::new(|| (), |_| list_vacancies());
-    let clients = Resource::new(|| (), |_| list_clients(String::new(), true));
+    let vacancy_choices = crate::options::vacancy_options();
+    let client_choices = crate::options::client_options(true);
     let results = Resource::new(
         move || {
             (
@@ -303,73 +300,35 @@ pub fn ApplicationsPage() -> impl IntoView {
             }
         }}
         <div class="toolbar">
-            <select
-                aria-label="Вакансия"
-                data-testid="filter-vacancy"
-                prop:value=move || vacancy.get()
-                on:change=move |ev| {
-                    vacancy.set(event_target_value(&ev));
-                    set_page.set(1);
-                }
-            >
-                <option value="">"Все вакансии"</option>
-                <Transition fallback=|| ()>
-                    {move || {
-                        vacancies
-                            .get()
-                            .and_then(Result::ok)
-                            .and_then(Reply::ok)
-                            .map(|list| {
-                                list.into_iter()
-                                    .map(|v| view! { <option value=v.id.to_string()>{v.title}</option> })
-                                    .collect_view()
-                            })
-                    }}
-                </Transition>
-            </select>
-            <select
-                aria-label="Заказчик"
-                data-testid="filter-client"
-                prop:value=move || client.get()
-                on:change=move |ev| {
-                    client.set(event_target_value(&ev));
-                    set_page.set(1);
-                }
-            >
-                <option value="">"Все заказчики"</option>
-                <Transition fallback=|| ()>
-                    {move || {
-                        clients
-                            .get()
-                            .and_then(Result::ok)
-                            .and_then(Reply::ok)
-                            .map(|list| {
-                                list.into_iter()
-                                    .map(|c| {
-                                        let label = if c.archived { format!("{} (архив)", c.name) } else { c.name.clone() };
-                                        let id = c.id.to_string();
-                                        view! { <option value=id.clone() selected=move || client.get() == id>{label}</option> }
-                                    })
-                                    .collect_view()
-                            })
-                    }}
-                </Transition>
-            </select>
-            <select
-                aria-label="Этап"
-                data-testid="filter-stage"
-                prop:value=move || stage.get()
-                on:change=move |ev| {
-                    stage.set(event_target_value(&ev));
-                    set_page.set(1);
-                }
-            >
-                <option value="">"Все этапы"</option>
-                {Stage::ALL
-                    .into_iter()
-                    .map(|s| view! { <option value=s.key()>{s.label()}</option> })
-                    .collect_view()}
-            </select>
+            <Dropdown
+                value=vacancy
+                options=vacancy_choices
+                empty="Все вакансии"
+                testid="filter-vacancy"
+                aria_label="Вакансия"
+                on_change=Callback::new(move |_| set_page.set(1))
+            />
+            <Dropdown
+                value=client
+                options=client_choices
+                empty="Все заказчики"
+                testid="filter-client"
+                aria_label="Заказчик"
+                on_change=Callback::new(move |_| set_page.set(1))
+            />
+            <Dropdown
+                value=stage
+                options=Signal::stored(
+                    Stage::ALL
+                        .into_iter()
+                        .map(|s| (s.key().to_string(), s.label().to_string()))
+                        .collect::<Vec<_>>(),
+                )
+                empty="Все этапы"
+                testid="filter-stage"
+                aria_label="Этап"
+                on_change=Callback::new(move |_| set_page.set(1))
+            />
             <label class="check">
                 <input
                     type="checkbox"

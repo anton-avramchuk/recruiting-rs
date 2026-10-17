@@ -8,10 +8,9 @@ use leptos_router::{
     components::A,
     hooks::{use_navigate, use_params_map},
 };
-use ui_kit::{EmptyState, Notice, NoticeKind, Reply, SessionCtx};
+use ui_kit::{EmptyState, Notice, NoticeKind, Reply, SessionCtx, TextField};
 
 use super::{
-    fields::Field,
     format::{format_salary, years_label},
     list::{can_delete, can_write},
     server::{
@@ -249,41 +248,41 @@ fn ProfileSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> impl In
             >
                 <input type="hidden" name="id" value=p.id.to_string() />
                 <div class="form-grid">
-                    <Field
+                    <TextField
                         label="ФИО"
                         name="full_name"
                         value=p.full_name.clone()
                         required=true
                         error=error("full_name")
                     />
-                    <Field label="Телефон" name="phone" value=p.phone.clone().unwrap_or_default() error=error("phone") />
-                    <Field label="Email" name="email" value=p.email.clone().unwrap_or_default() error=error("email") />
-                    <Field
+                    <TextField label="Телефон" name="phone" value=p.phone.clone().unwrap_or_default() error=error("phone") />
+                    <TextField label="Email" name="email" value=p.email.clone().unwrap_or_default() error=error("email") />
+                    <TextField
                         label="Telegram"
                         name="telegram"
                         value=p.telegram.clone().unwrap_or_default()
                         error=error("telegram")
                     />
-                    <Field
+                    <TextField
                         label="WhatsApp"
                         name="whatsapp"
                         value=p.whatsapp.clone().unwrap_or_default()
                         error=error("whatsapp")
                     />
-                    <Field
+                    <TextField
                         label="Источник"
                         name="source"
                         value=p.source.clone().unwrap_or_default()
                         error=error("source")
                     />
-                    <Field label="Город" name="city" value=p.city.clone().unwrap_or_default() error=error("city") />
-                    <Field
+                    <TextField label="Город" name="city" value=p.city.clone().unwrap_or_default() error=error("city") />
+                    <TextField
                         label="Ожидаемая зарплата, ₽"
                         name="expected_salary"
                         value=p.expected_salary.map(|s| s.to_string()).unwrap_or_default()
                         error=error("expected_salary")
                     />
-                    <Field
+                    <TextField
                         label="Навыки через запятую"
                         name="skills"
                         value=p.skills.join(", ")

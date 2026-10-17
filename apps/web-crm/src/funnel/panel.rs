@@ -1,14 +1,14 @@
 //! Боковая панель человека: все его отклики, профиль, заметка, история и действия.
 use leptos::prelude::*;
-use recruitment_contracts::{ApplicationDetailDto, ApplicationDto, HR_SYSTEMS, Stage, VacancyDto};
+use recruitment_contracts::{ApplicationDetailDto, ApplicationDto, HR_SYSTEMS, Stage};
 use serde_json::{Value, json};
-use ui_kit::{Drawer, Reply};
+use ui_kit::{Drawer, Dropdown, Reply};
 
 use super::{
     FunnelCtx,
     format::{browser_timezone_offset, client_line, local_to_rfc3339, short_moment, time_label},
     keys::{PanelKey, panel_key},
-    server::{application_action, create_application, get_application, list_vacancies, save_note},
+    server::{application_action, create_application, get_application, save_note},
 };
 use crate::{
     candidates::{
@@ -335,15 +335,13 @@ fn PanelBody(
                 .into_any(),
                 Mode::Handoff => view! {
                     <div class="inline-form">
-                        <select
-                            data-testid="handoff-system"
-                            on:change=move |ev| system.set(event_target_value(&ev))
-                        >
-                            {HR_SYSTEMS
-                                .iter()
-                                .map(|s| view! { <option value=*s>{*s}</option> })
-                                .collect_view()}
-                        </select>
+                        <Dropdown
+                            value=system
+                            options=Signal::stored(
+                                HR_SYSTEMS.iter().map(|s| ((*s).to_string(), (*s).to_string())).collect::<Vec<_>>(),
+                            )
+                            testid="handoff-system"
+                        />
                         <button
                             class="btn btn--primary"
                             data-testid="handoff-confirm"
@@ -439,7 +437,7 @@ fn PanelBody(
 /// Добавляет человека на ещё одну вакансию.
 #[component]
 fn AddToVacancy(person_id: String, ctx: FunnelCtx) -> impl IntoView {
-    let vacancies = Resource::new(|| (), |_| list_vacancies());
+    let vacancy_choices = crate::options::vacancy_options();
     let chosen = RwSignal::new(String::new());
     let error = RwSignal::new(None::<String>);
     let action = Action::new(move |(person, vacancy): &(String, String)| {
@@ -461,30 +459,12 @@ fn AddToVacancy(person_id: String, ctx: FunnelCtx) -> impl IntoView {
     });
     view! {
         <div class="inline-form">
-            <Transition fallback=|| view! { <span class="muted">"Загрузка…"</span> }>
-                {move || {
-                    vacancies
-                        .get()
-                        .and_then(Result::ok)
-                        .and_then(Reply::ok)
-                        .map(|list: Vec<VacancyDto>| {
-                            view! {
-                                <select
-                                    data-testid="add-vacancy-select"
-                                    on:change=move |ev| chosen.set(event_target_value(&ev))
-                                >
-                                    <option value="">"Выберите вакансию"</option>
-                                    {list
-                                        .into_iter()
-                                        .map(|v| {
-                                            view! { <option value=v.id.to_string()>{v.title}</option> }
-                                        })
-                                        .collect_view()}
-                                </select>
-                            }
-                        })
-                }}
-            </Transition>
+            <Dropdown
+                value=chosen
+                options=vacancy_choices
+                empty="Выберите вакансию"
+                testid="add-vacancy-select"
+            />
             <button
                 class="btn btn--primary"
                 data-testid="add-vacancy-confirm"

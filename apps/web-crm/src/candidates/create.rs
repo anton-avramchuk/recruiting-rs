@@ -3,15 +3,12 @@ use candidate_contracts::{DuplicateInfo, PersonDto};
 use leptos::prelude::*;
 use leptos_router::{components::A, hooks::use_navigate};
 use recruitment_contracts::Stage;
-use ui_kit::{Notice, NoticeKind, PageHeader};
+use ui_kit::{Dropdown, Notice, NoticeKind, PageHeader, TextField};
 
 use crate::funnel::server::{create_application, list_vacancies};
 use ui_kit::Reply;
 
-use super::{
-    fields::Field,
-    server::{CreatePerson, person_action},
-};
+use super::server::{CreatePerson, person_action};
 
 /// Сообщение об ошибке у конкретного поля.
 fn field_error(
@@ -40,19 +37,46 @@ pub fn CreateCandidatePage() -> impl IntoView {
     let form = NodeRef::<leptos::html::Form>::new();
     let navigate = use_navigate();
     // вакансия и этап необязательны: если вакансия выбрана, после создания кандидата создаётся отклик
-    let vacancy_select = NodeRef::<leptos::html::Select>::new();
-    let stage_select = NodeRef::<leptos::html::Select>::new();
-    let vacancies = Resource::new(|| (), |_| list_vacancies());
+    let stages: Vec<Stage> = Stage::ALL
+        .into_iter()
+        .filter(|s| s.is_active() || *s == Stage::Hired)
+        .collect();
+    let vacancy = RwSignal::new(String::new());
+    let stage = RwSignal::new(
+        stages
+            .first()
+            .map(|s| s.key().to_string())
+            .unwrap_or_default(),
+    );
+    let stage_options = Signal::stored(
+        stages
+            .iter()
+            .map(|s| (s.key().to_string(), s.label().to_string()))
+            .collect::<Vec<_>>(),
+    );
+    let vacancies = LocalResource::new(list_vacancies);
+    let vacancy_options = Signal::derive(move || {
+        vacancies
+            .get()
+            .and_then(Result::ok)
+            .and_then(Reply::ok)
+            .map(|list| {
+                list.into_iter()
+                    .map(|v| (v.id.to_string(), v.title))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    });
     let link_error = RwSignal::new(None::<(String, String)>);
 
     // подтверждение действует на одну отправку
     Effect::new(move |_| match action.value().get() {
         Some(Ok(Reply::Ok(person))) => {
-            let vacancy = vacancy_select.get().map(|s| s.value()).unwrap_or_default();
+            let vacancy = vacancy.get_untracked();
             if vacancy.is_empty() {
                 navigate("/candidates", Default::default());
             } else {
-                let stage = stage_select.get().map(|s| s.value()).unwrap_or_default();
+                let stage = stage.get_untracked();
                 let id = person.id.to_string();
                 let navigate = navigate.clone();
                 leptos::task::spawn_local(async move {
@@ -112,24 +136,24 @@ pub fn CreateCandidatePage() -> impl IntoView {
             }
         >
             <div class="form-grid">
-                <Field label="ФИО" name="full_name" required=true error=error("full_name") />
-                <Field label="Телефон" name="phone" placeholder="+7 916 123-45-67" error=error("phone") />
-                <Field label="Email" name="email" error=error("email") />
-                <Field label="Telegram" name="telegram" placeholder="@ник" error=error("telegram") />
-                <Field label="WhatsApp" name="whatsapp" error=error("whatsapp") />
-                <Field label="Источник" name="source" placeholder="hh.ru, реферал…" error=error("source") />
-                <Field label="Город" name="city" error=error("city") />
-                <Field
+                <TextField label="ФИО" name="full_name" required=true error=error("full_name") />
+                <TextField label="Телефон" name="phone" placeholder="+7 916 123-45-67" error=error("phone") />
+                <TextField label="Email" name="email" error=error("email") />
+                <TextField label="Telegram" name="telegram" placeholder="@ник" error=error("telegram") />
+                <TextField label="WhatsApp" name="whatsapp" error=error("whatsapp") />
+                <TextField label="Источник" name="source" placeholder="hh.ru, реферал…" error=error("source") />
+                <TextField label="Город" name="city" error=error("city") />
+                <TextField
                     label="Ожидаемая зарплата, ₽"
                     name="expected_salary"
                     error=error("expected_salary")
                 />
-                <Field
+                <TextField
                     label="Стаж, лет (если нет истории работы)"
                     name="declared_experience_years"
                     error=error("declared_experience_years")
                 />
-                <Field label="Навыки через запятую" name="skills" error=error("skills") />
+                <TextField label="Навыки через запятую" name="skills" error=error("skills") />
             </div>
             <label>
                 "Кратко о кандидате" <textarea name="summary" rows="3"></textarea>
@@ -137,32 +161,11 @@ pub fn CreateCandidatePage() -> impl IntoView {
             <div class="form-grid">
                 <label>
                     "Вакансия"
-                    <select node_ref=vacancy_select data-testid="vacancy">
-                        <option value="">"Без вакансии"</option>
-                        <Transition fallback=|| ()>
-                            {move || {
-                                vacancies
-                                    .get()
-                                    .and_then(Result::ok)
-                                    .and_then(Reply::ok)
-                                    .map(|list| {
-                                        list.into_iter()
-                                            .map(|v| view! { <option value=v.id.to_string()>{v.title}</option> })
-                                            .collect_view()
-                                    })
-                            }}
-                        </Transition>
-                    </select>
+                    <Dropdown value=vacancy options=vacancy_options empty="Без вакансии" testid="vacancy" />
                 </label>
                 <label>
                     "Этап"
-                    <select node_ref=stage_select data-testid="stage">
-                        {Stage::ALL
-                            .into_iter()
-                            .filter(|s| s.is_active() || *s == Stage::Hired)
-                            .map(|s| view! { <option value=s.key()>{s.label()}</option> })
-                            .collect_view()}
-                    </select>
+                    <Dropdown value=stage options=stage_options testid="stage" />
                 </label>
             </div>
             {move || {

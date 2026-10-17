@@ -3,7 +3,7 @@ use leptos::prelude::*;
 use recruitment_contracts::{ApplicationDto, CreateVacancyRequest, Stage, VacancyDto};
 use serde_json::json;
 use ui_kit::Reply;
-use ui_kit::{EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
+use ui_kit::{Dropdown, EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
 use uuid::Uuid;
 
 use super::{
@@ -12,10 +12,7 @@ use super::{
     panel::PersonPanel,
     server::{AppQuery, application_action, create_vacancy, list_applications, list_vacancies_of},
 };
-use crate::{
-    candidates::list::can_write,
-    clients::server::{get_client, list_clients},
-};
+use crate::{candidates::list::can_write, clients::server::get_client};
 
 /// Одна страница на всю доску вакансии (предел API).
 const BOARD_LIMIT: i64 = 200;
@@ -53,7 +50,7 @@ pub fn VacanciesPage() -> impl IntoView {
     let list_version = RwSignal::new(0u32);
     // заказчик в фильтре: пусто - все; смена заказчика пересоздаёт доску, смена вакансии - нет
     let client = RwSignal::new(String::new());
-    let clients = Resource::new(|| (), |_| list_clients(String::new(), true));
+    let client_choices = crate::options::client_options(true);
     let vacancies = Resource::new(
         move || (list_version.get(), client.get()),
         |(_, client)| list_vacancies_of(client),
@@ -88,31 +85,13 @@ pub fn VacanciesPage() -> impl IntoView {
         <div class="toolbar">
             <label>
                 "Заказчик "
-                <select
-                    aria-label="Заказчик"
-                    data-testid="vacancy-client-filter"
-                    prop:value=move || client.get()
-                    on:change=move |ev| client.set(event_target_value(&ev))
-                >
-                    <option value="">"Все заказчики"</option>
-                    <Transition fallback=|| ()>
-                        {move || {
-                            clients
-                                .get()
-                                .and_then(Result::ok)
-                                .and_then(Reply::ok)
-                                .map(|list| {
-                                    list.into_iter()
-                                        .map(|c| {
-                                            let label = if c.archived { format!("{} (архив)", c.name) } else { c.name.clone() };
-                                            let id = c.id.to_string();
-                                            view! { <option value=id.clone() selected=move || client.get() == id>{label}</option> }
-                                        })
-                                        .collect_view()
-                                })
-                        }}
-                    </Transition>
-                </select>
+                <Dropdown
+                    value=client
+                    options=client_choices
+                    empty="Все заказчики"
+                    testid="vacancy-client-filter"
+                    aria_label="Заказчик"
+                />
             </label>
         </div>
 
@@ -178,7 +157,12 @@ fn VacancyForm(
     let error = RwSignal::new(None::<String>);
 
     // заказчики (активные) и контакты выбранного заказчика
-    let clients = Resource::new(|| (), |_| list_clients(String::new(), false));
+    let client_choices = crate::options::client_options(false);
+    let priority_choices = Signal::stored(vec![
+        ("normal".to_string(), "Обычный".to_string()),
+        ("high".to_string(), "Высокий".to_string()),
+        ("low".to_string(), "Низкий".to_string()),
+    ]);
     let contacts = Resource::new(
         move || client.get(),
         |id| async move {
@@ -192,6 +176,23 @@ fn VacancyForm(
         },
     );
 
+    let contact_choices = Signal::derive(move || {
+        contacts
+            .get()
+            .and_then(Result::ok)
+            .map(|list| {
+                list.into_iter()
+                    .map(|c| {
+                        let label = match c.position {
+                            Some(p) => format!("{} — {}", c.full_name, p.name),
+                            None => c.full_name,
+                        };
+                        (c.id.to_string(), label)
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    });
     let create = Action::new(move |request: &CreateVacancyRequest| {
         let request = request.clone();
         async move { create_vacancy(request).await }
@@ -245,30 +246,14 @@ fn VacancyForm(
                 </label>
                 <label>
                     "Заказчик"
-                    <select
-                        required
-                        data-testid="vf-client"
-                        prop:value=move || client.get()
-                        on:change=move |ev| {
-                            client.set(event_target_value(&ev));
-                            contact.set(String::new());
-                        }
-                    >
-                        <option value="">"Выберите заказчика"</option>
-                        <Transition fallback=|| ()>
-                            {move || {
-                                clients
-                                    .get()
-                                    .and_then(Result::ok)
-                                    .and_then(Reply::ok)
-                                    .map(|list| {
-                                        list.into_iter()
-                                            .map(|c| view! { <option value=c.id.to_string()>{c.name}</option> })
-                                            .collect_view()
-                                    })
-                            }}
-                        </Transition>
-                    </select>
+                    <Dropdown
+                        value=client
+                        options=client_choices
+                        empty="Выберите заказчика"
+                        testid="vf-client"
+                        required=true
+                        on_change=Callback::new(move |_| contact.set(String::new()))
+                    />
                 </label>
                 <label>
                     "Город" <input type="text" on:input=move |ev| city.set(event_target_value(&ev)) />
@@ -279,39 +264,16 @@ fn VacancyForm(
                 </label>
                 <label>
                     "Приоритет"
-                    <select on:change=move |ev| priority.set(event_target_value(&ev))>
-                        <option value="normal" selected>"Обычный"</option>
-                        <option value="high">"Высокий"</option>
-                        <option value="low">"Низкий"</option>
-                    </select>
+                    <Dropdown value=priority options=priority_choices />
                 </label>
                 <label>
                     "Контактное лицо заказчика"
-                    <select
-                        data-testid="vf-contact"
-                        prop:value=move || contact.get()
-                        on:change=move |ev| contact.set(event_target_value(&ev))
-                    >
-                        <option value="">"Не выбрано"</option>
-                        <Transition fallback=|| ()>
-                            {move || {
-                                contacts
-                                    .get()
-                                    .and_then(Result::ok)
-                                    .map(|list| {
-                                        list.into_iter()
-                                            .map(|c| {
-                                                let label = match c.position {
-                                                    Some(p) => format!("{} — {}", c.full_name, p.name),
-                                                    None => c.full_name,
-                                                };
-                                                view! { <option value=c.id.to_string()>{label}</option> }
-                                            })
-                                            .collect_view()
-                                    })
-                            }}
-                        </Transition>
-                    </select>
+                    <Dropdown
+                        value=contact
+                        options=contact_choices
+                        empty="Не выбрано"
+                        testid="vf-contact"
+                    />
                 </label>
                 <label>
                     "Рекрутер"
@@ -422,20 +384,14 @@ fn Board(
 
     view! {
         <div class="vacancy-bar">
-            <select
-                aria-label="Вакансия"
-                data-testid="vacancy-select"
-                on:change=move |ev| selected.set(event_target_value(&ev))
-                prop:value=move || selected.get()
-            >
-                {options
-                    .into_iter()
-                    .map(|v| {
-                        let id = v.id.to_string();
-                        view! { <option value=id.clone() selected=move || selected.get() == id>{v.title}</option> }
-                    })
-                    .collect_view()}
-            </select>
+            <Dropdown
+                value=selected
+                options=Signal::stored(
+                    options.into_iter().map(|v| (v.id.to_string(), v.title)).collect::<Vec<_>>(),
+                )
+                testid="vacancy-select"
+                aria_label="Вакансия"
+            />
             {move || {
                 info()
                     .map(|v| {

@@ -6,7 +6,7 @@ use client_contracts::{
 use leptos::prelude::*;
 use leptos_router::{components::A, hooks::use_params_map};
 use ui_kit::Reply;
-use ui_kit::{EmptyState, Notice, NoticeKind, SessionCtx};
+use ui_kit::{Dropdown, EmptyState, Notice, NoticeKind, SessionCtx};
 use uuid::Uuid;
 
 use super::{
@@ -416,17 +416,14 @@ fn ContactForm(
                 </label>
                 <label>
                     "Должность"
-                    <select data-testid="contact-position-select" prop:value=move || position.get() on:change=move |ev| position.set(event_target_value(&ev))>
-                        <option value="">"Не указана"</option>
-                        {positions
-                            .iter()
-                            .map(|p| {
-                                let id = p.id.to_string();
-                                let selected = id == position.get_untracked();
-                                view! { <option value=id selected=selected>{p.name.clone()}</option> }
-                            })
-                            .collect_view()}
-                    </select>
+                    <Dropdown
+                        value=position
+                        options=Signal::stored(
+                            positions.iter().map(|p| (p.id.to_string(), p.name.clone())).collect::<Vec<_>>(),
+                        )
+                        empty="Не указана"
+                        testid="contact-position-select"
+                    />
                 </label>
                 <label>
                     "Email"

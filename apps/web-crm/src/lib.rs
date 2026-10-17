@@ -6,6 +6,7 @@ pub mod candidates;
 pub mod clients;
 pub mod comments;
 pub mod funnel;
+pub mod options;
 pub mod palette;
 pub mod security;
 

@@ -3,7 +3,7 @@ use leptos::prelude::*;
 use leptos_router::components::A;
 use recruitment_contracts::{AnalyticsDto, ClientStatDto, FunnelStepDto, Stage};
 use ui_kit::Reply;
-use ui_kit::{Notice, NoticeKind, PageHeader};
+use ui_kit::{Dropdown, Notice, NoticeKind, PageHeader};
 
 use crate::funnel::{format::LONG_OPEN_DAYS, server::get_analytics};
 
@@ -178,18 +178,13 @@ fn Report(a: AnalyticsDto, client: RwSignal<String>) -> impl IntoView {
         <div class="toolbar">
             <label>
                 "Заказчик "
-                <select
-                    data-testid="client-filter"
-                    aria-label="Заказчик"
-                    prop:value=move || client.get()
-                    on:change=move |ev| client.set(event_target_value(&ev))
-                >
-                    <option value="">"Все заказчики"</option>
-                    {options
-                        .into_iter()
-                        .map(|(id, name)| view! { <option value=id>{name}</option> })
-                        .collect_view()}
-                </select>
+                <Dropdown
+                    value=client
+                    options=Signal::stored(options)
+                    empty="Все заказчики"
+                    testid="client-filter"
+                    aria_label="Заказчик"
+                />
             </label>
         </div>
         {empty
