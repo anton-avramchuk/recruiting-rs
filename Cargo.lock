@@ -396,6 +396,7 @@ dependencies = [
  "platform-auth",
  "platform-core",
  "platform-db",
+ "platform-grid",
  "platform-values",
  "serde",
  "serde_json",

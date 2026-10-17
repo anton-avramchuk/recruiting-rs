@@ -251,6 +251,34 @@ async fn grid_parameters_reach_identity_unchanged() {
 }
 
 #[tokio::test]
+async fn grid_parameters_reach_every_list_service_unchanged() {
+    let w = world(None).await;
+    let login = w
+        .client
+        .send(
+            "POST",
+            "/bff/login",
+            &[("x-csrf-token", "x")],
+            Some(creds(Some("acme"))),
+        )
+        .await;
+    assert_eq!(login.status, 200);
+    let query = "page=1&page_size=20&sort=full_name%3Aasc&filter=%7B%22field%22%3A%22source%22%2C%22operator%22%3A%22eq%22%2C%22value%22%3A%22hh.ru%22%7D";
+    for path in ["/api/persons", "/api/clients", "/api/applications"] {
+        let res = w
+            .client
+            .send("GET", &format!("{path}?{query}"), &[], None)
+            .await;
+        assert_eq!(res.status, 200, "{path}");
+        assert_eq!(
+            w.upstream.last_query.lock().unwrap().as_deref(),
+            Some(query),
+            "{path}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn role_management_goes_to_identity_and_writes_need_the_csrf_token() {
     let w = world(None).await;
     let login = w

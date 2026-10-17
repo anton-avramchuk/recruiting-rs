@@ -2,6 +2,11 @@
 //! поэтому фильтр по `tenant_id` в запросах не нужен.
 use chrono::{DateTime, NaiveDate, Utc};
 use platform_core::tenant::TenantId;
+use platform_grid::{
+    ColumnType, FetchError, GridColumn, GridSchema,
+    contracts::{GridPage, GridQuery},
+    fetch_page,
+};
 use sqlx::{FromRow, PgConnection};
 use uuid::Uuid;
 
@@ -220,6 +225,38 @@ pub struct PersonSummary {
     pub skills: Vec<String>,
     pub experience_years: i32,
     pub created_at: DateTime<Utc>,
+}
+
+/// Поля списка людей, доступные клиенту (белый список грида).
+const GRID_COLUMNS: &[GridColumn] = &[
+    GridColumn::new("id", "id", ColumnType::Uuid),
+    GridColumn::new("full_name", "full_name", ColumnType::Text),
+    GridColumn::new("source", "source", ColumnType::Text),
+    GridColumn::new("phone", "phone", ColumnType::Text),
+    GridColumn::new("email", "email", ColumnType::Text),
+    GridColumn::new("city", "city", ColumnType::Text),
+    GridColumn::new("expected_salary", "expected_salary", ColumnType::Int),
+    GridColumn::new("experience_years", "experience_years", ColumnType::Int),
+    // навыки ищутся как текст через пробел
+    GridColumn::new("skills", "array_to_string(skills, ' ')", ColumnType::Text).no_sort(),
+    GridColumn::new("created_at", "created_at", ColumnType::Timestamp),
+];
+
+const GRID: GridSchema = GridSchema {
+    source: "persons",
+    key: "id",
+    columns: GRID_COLUMNS,
+    max_page_size: 100,
+};
+
+const GRID_SELECT: &str = "id, full_name, source, phone, email, city, expected_salary, skills, experience_years, created_at";
+
+/// Страница людей по запросу грида (изоляция - за RLS соединения).
+pub async fn page(
+    conn: &mut PgConnection,
+    query: &GridQuery,
+) -> Result<GridPage<PersonSummary>, FetchError> {
+    fetch_page(conn, &GRID, GRID_SELECT, query).await
 }
 
 const LIST_FILTER: &str = r"

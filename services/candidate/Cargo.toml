@@ -9,6 +9,7 @@ candidate-contracts = { path = "../../crates/candidate-contracts" }
 platform-core = { path = "../../crates/platform-core" }
 platform-db = { path = "../../crates/platform-db" }
 platform-auth = { path = "../../crates/platform-auth" }
+platform-grid = { path = "../../crates/platform-grid" }
 platform-values = { path = "../../crates/platform-values" }
 axum.workspace = true
 chrono.workspace = true

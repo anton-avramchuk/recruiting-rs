@@ -1,6 +1,7 @@
 use chrono::NaiveDate;
 use platform_core::tenant::TenantId;
 use platform_db::TenantTx;
+use platform_grid::contracts::{GridPage, GridQuery, SortKey};
 use sqlx::PgPool;
 
 use uuid::Uuid;
@@ -81,9 +82,20 @@ pub enum PersonError {
     #[error("{0}")]
     BadQuery(String),
     #[error(transparent)]
+    Grid(#[from] platform_grid::GridError),
+    #[error(transparent)]
     Db(#[from] sqlx::Error),
     #[error(transparent)]
     Store(#[from] StoreError),
+}
+
+impl From<platform_grid::FetchError> for PersonError {
+    fn from(e: platform_grid::FetchError) -> Self {
+        match e {
+            platform_grid::FetchError::Grid(e) => PersonError::Grid(e),
+            platform_grid::FetchError::Db(e) => PersonError::Db(e),
+        }
+    }
 }
 
 /// Источник «сегодня»: фиксируется в тестах, чтобы стаж по текущему месту был предсказуем.
@@ -150,6 +162,21 @@ impl PersonService {
         let person = store::get(&mut tx, id).await?;
         tx.rollback().await?;
         person.ok_or(PersonError::NotFound)
+    }
+
+    /// Страница людей по запросу грида; без сортировки - новые первыми.
+    pub async fn list_grid(
+        &self,
+        tenant: TenantId,
+        mut query: GridQuery,
+    ) -> Result<GridPage<PersonSummary>, PersonError> {
+        if query.sort.is_empty() {
+            query.sort.push(SortKey::desc("created_at"));
+        }
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        let page = store::page(&mut tx, &query).await;
+        tx.rollback().await?;
+        Ok(page?)
     }
 
     pub async fn list(&self, tenant: TenantId, query: ListQuery) -> Result<Page, PersonError> {

@@ -13,6 +13,7 @@ use platform_core::{
     error::{ApiError, ProblemDetails},
     tenant::TenantId,
 };
+use platform_grid::contracts::GridQuery;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -173,6 +174,10 @@ pub(super) struct ListParams {
     ids: Option<String>,
     page: Option<i64>,
     page_size: Option<i64>,
+    /// Сортировка грида: `поле:asc,поле:desc`. Вместе с `filter` включает режим грида.
+    sort: Option<String>,
+    /// Фильтр грида (JSON). В режиме грида прочие условия (`q`, `source`, ...) не применяются.
+    filter: Option<String>,
 }
 
 /// Предел перечня `ids` (длина адреса запроса).
@@ -219,6 +224,9 @@ pub(super) async fn list(
     Query(params): Query<ListParams>,
 ) -> Result<Json<PersonPage>, ApiError> {
     user.require(Permission::ReadData)?;
+    if params.sort.is_some() || params.filter.is_some() {
+        return list_grid(&state, &user, &params).await;
+    }
     let page = state
         .persons
         .list(
@@ -244,6 +252,36 @@ pub(super) async fn list(
         total: page.total,
         page: page.page,
         page_size: page.page_size,
+    }))
+}
+
+/// Режим грида: страница, сортировка и фильтр по схеме `platform-grid`.
+async fn list_grid(
+    state: &AppState,
+    user: &AuthUser,
+    params: &ListParams,
+) -> Result<Json<PersonPage>, ApiError> {
+    let mut pairs: Vec<(&str, String)> = Vec::new();
+    if let Some(page) = params.page {
+        pairs.push(("page", page.to_string()));
+    }
+    if let Some(size) = params.page_size {
+        pairs.push(("page_size", size.to_string()));
+    }
+    if let Some(sort) = &params.sort {
+        pairs.push(("sort", sort.clone()));
+    }
+    if let Some(filter) = &params.filter {
+        pairs.push(("filter", filter.clone()));
+    }
+    let query = GridQuery::from_pairs(pairs.iter().map(|(k, v)| (*k, v.as_str())))
+        .map_err(platform_grid::GridError::from)?;
+    let page = state.persons.list_grid(tenant_of(user)?, query).await?;
+    Ok(Json(PersonPage {
+        items: page.items.into_iter().map(summary_to_dto).collect(),
+        total: i64::try_from(page.total).unwrap_or(i64::MAX),
+        page: i64::from(page.page),
+        page_size: i64::from(page.page_size),
     }))
 }
 
@@ -381,6 +419,7 @@ impl From<PersonError> for ApiError {
             }
             PersonError::NotFound => ApiError::not_found(),
             PersonError::BadQuery(m) => ApiError::bad_request(m),
+            PersonError::Grid(e) => e.into(),
             PersonError::Db(e) => ApiError::internal(&e),
             PersonError::Store(e) => ApiError::internal(&e),
         }
