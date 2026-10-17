@@ -1,28 +1,60 @@
-//! Список заказчиков: поиск, архивные и создание.
-use client_contracts::CreateClientRequest;
+//! Список заказчиков на гриде: поиск, сортировка, фильтры, архив и создание.
+use client_contracts::{ClientDto, CreateClientRequest};
+use grid_contracts::Operator;
 use leptos::prelude::*;
 use leptos_router::{components::A, hooks::use_navigate};
-use ui_kit::Reply;
-use ui_kit::{EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
+use ui_data::EntityGrid;
+use ui_kit::{Notice, NoticeKind, PageHeader, Reply, SessionCtx, grid::Column};
 
 use super::{
     opt,
-    server::{create_client, list_clients},
+    server::{create_client, list_clients_grid},
 };
-use crate::candidates::list::{DebouncedInput, can_write};
+use crate::candidates::list::can_write;
+
+fn client_href(client: &ClientDto) -> String {
+    format!("/clients/{}", client.id)
+}
+
+fn client_columns() -> Vec<Column<ClientDto>> {
+    vec![
+        Column::new("name", "Заказчик", |c: &ClientDto| {
+            view! { <span data-testid="client-name-cell">{c.name.clone()}</span> }.into_any()
+        })
+        .sortable()
+        .filter_text(),
+        Column::new("contacts_count", "Контактов", |c: &ClientDto| {
+            view! { <span class="mono">{c.contacts_count}</span> }.into_any()
+        })
+        .sortable(),
+        Column::new("note", "Примечание", |c: &ClientDto| {
+            view! { <span class="muted">{c.note.clone().unwrap_or_default()}</span> }.into_any()
+        })
+        .filter_text(),
+        // по умолчанию список показывает активных: «с архивными» и «только архивные» выбираются явно
+        Column::new("archived", "Архив", |c: &ClientDto| {
+            c.archived
+                .then(
+                    || view! { <span class="chip" data-testid="archived-row-chip">"архив"</span> },
+                )
+                .into_any()
+        })
+        .filter_select(
+            Signal::stored(vec![
+                ("all".to_string(), "С архивными".to_string()),
+                ("true".to_string(), "Только архивные".to_string()),
+            ]),
+            Operator::Eq,
+        )
+        .empty_label("Активные"),
+    ]
+}
 
 #[component]
 pub fn ClientsPage() -> impl IntoView {
     let session = expect_context::<SessionCtx>();
     let writable = Signal::derive(move || can_write(session));
-    let (query, set_query) = signal(String::new());
-    let (_page, set_page) = signal(1i64);
-    let archived = RwSignal::new(false);
     let creating = RwSignal::new(false);
-    let results = Resource::new(
-        move || (query.get(), archived.get()),
-        |(q, archived)| list_clients(q, archived),
-    );
 
     view! {
         <PageHeader title="Заказчики">
@@ -40,81 +72,15 @@ pub fn ClientsPage() -> impl IntoView {
             <NewClientForm />
         </Show>
 
-        <div class="toolbar">
-            <DebouncedInput
-                applied=set_query
-                reset_page=set_page
-                placeholder="Поиск по названию"
-                label="Поиск"
-                testid="clients-search"
-            />
-            <label class="check">
-                <input
-                    type="checkbox"
-                    data-testid="show-archived"
-                    prop:checked=move || archived.get()
-                    on:change=move |ev| archived.set(event_target_checked(&ev))
-                />
-                "С архивными"
-            </label>
-        </div>
-
-        <Transition fallback=|| view! { <p class="muted">"Загрузка…"</p> }>
-            {move || {
-                results
-                    .get()
-                    .map(|result| match result {
-                        Ok(Reply::Ok(list)) if list.is_empty() => {
-                            view! {
-                                <EmptyState
-                                    title="Заказчиков пока нет"
-                                    hint="Добавьте заказчика, и к нему можно будет привязывать вакансии."
-                                />
-                            }
-                                .into_any()
-                        }
-                        Ok(Reply::Ok(list)) => {
-                            view! {
-                                <div class="card list-card">
-                                    <table data-testid="clients">
-                                        <thead>
-                                            <tr>
-                                                <th>"Заказчик"</th>
-                                                <th>"Контактов"</th>
-                                                <th>"Примечание"</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {list
-                                                .into_iter()
-                                                .map(|c| {
-                                                    view! {
-                                                        <tr data-testid="client-row">
-                                                            <td>
-                                                                <A href=format!("/clients/{}", c.id)>{c.name.clone()}</A>
-                                                                {c.archived.then(|| view! { <span class="chip">"архив"</span> })}
-                                                            </td>
-                                                            <td class="mono">{c.contacts_count}</td>
-                                                            <td class="muted">{c.note.clone().unwrap_or_default()}</td>
-                                                        </tr>
-                                                    }
-                                                })
-                                                .collect_view()}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            }
-                                .into_any()
-                        }
-                        _ => {
-                            view! {
-                                <Notice kind=NoticeKind::Error>"Не удалось загрузить заказчиков. Попробуйте позже."</Notice>
-                            }
-                                .into_any()
-                        }
-                    })
-            }}
-        </Transition>
+        <EntityGrid
+            columns=client_columns()
+            load=list_clients_grid
+            row_href=Some(client_href as fn(&ClientDto) -> String)
+            search_fields=vec!["name"]
+            search_placeholder="Поиск по названию"
+            empty_title="Заказчиков пока нет"
+            empty_hint="Добавьте заказчика, и к нему можно будет привязывать вакансии."
+        />
     }
 }
 

@@ -33,6 +33,15 @@ pub async fn list_clients(
     Ok(classify(reply.status, &reply.body, typed))
 }
 
+/// Страница заказчиков по запросу грида (по умолчанию только активные).
+pub async fn list_clients_grid(
+    query: grid_contracts::GridQuery,
+) -> Result<Reply<grid_contracts::GridPage<ClientDto>>, ServerFnError> {
+    let path = ui_kit::grid::grid_path("/api/clients/grid", &query);
+    let reply = ui_kit::api::call(Method::Get, &path, None).await?;
+    Ok(classify(reply.status, &reply.body, typed))
+}
+
 pub async fn get_client(id: String) -> Result<Reply<ClientDetailDto>, ServerFnError> {
     if !valid(&id) {
         return Ok(Reply::NotFound);

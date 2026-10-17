@@ -328,8 +328,8 @@ async fn an_unavailable_comment_service_leaves_the_page_working() {
                ? Promise.reject(new Error('down')) : window.__fetch(u, ...a); })()",
         );
         click(&tab, "nav a[href='/clients']");
-        wait_until(&tab, "clients", &exists_js("[data-testid=client-row]"));
-        click(&tab, "[data-testid=client-row] a");
+        wait_until(&tab, "clients", &exists_js("[data-testid=grid-row]"));
+        click(&tab, "[data-testid=grid-row] [data-testid=row-edit]");
         wait_until(
             &tab,
             "failed block",

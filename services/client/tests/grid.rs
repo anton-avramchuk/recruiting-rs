@@ -72,14 +72,36 @@ async fn fixture() -> (App, String) {
 }
 
 #[tokio::test]
-async fn by_default_active_clients_come_first_by_name_and_archived_last() {
+async fn by_default_only_active_clients_come_by_name() {
     let (app, token) = fixture().await;
     let (s, page) = get(&app, &token, "").await;
     assert_eq!(s, 200, "{page}");
-    assert_eq!(names(&page), ["Альфа", "Гамма", "Бета"]);
-    assert_eq!(page["total"], 3);
+    assert_eq!(names(&page), ["Альфа", "Гамма"]);
+    assert_eq!(page["total"], 2);
     assert_eq!(page["page"], 1);
     assert_eq!(page["items"][0]["contacts_count"], 2);
+}
+
+#[tokio::test]
+async fn the_value_all_includes_archived_clients_after_the_active_ones() {
+    let (app, token) = fixture().await;
+    let all = filter(json!({"field": "archived", "operator": "eq", "value": "all"}));
+    let (s, page) = get(&app, &token, &all).await;
+    assert_eq!(s, 200, "{page}");
+    assert_eq!(names(&page), ["Альфа", "Гамма", "Бета"]);
+    assert_eq!(page["total"], 3);
+}
+
+#[tokio::test]
+async fn all_can_be_combined_with_other_conditions() {
+    let (app, token) = fixture().await;
+    let f = filter(json!({"logic": "and", "filters": [
+        {"field": "archived", "operator": "eq", "value": "all"},
+        {"field": "name", "operator": "contains", "value": "бет"}
+    ]}));
+    let (s, page) = get(&app, &token, &f).await;
+    assert_eq!(s, 200, "{page}");
+    assert_eq!(names(&page), ["Бета"]);
 }
 
 #[tokio::test]
@@ -106,10 +128,10 @@ async fn the_archive_flag_and_the_name_filter_work() {
 #[tokio::test]
 async fn pages_are_cut_by_the_requested_size() {
     let (app, token) = fixture().await;
-    let (_, page) = get(&app, &token, "page=2&page_size=2").await;
-    assert_eq!(names(&page), ["Бета"]);
-    assert_eq!(page["total"], 3);
-    assert_eq!(page["page_size"], 2);
+    let (_, page) = get(&app, &token, "page=2&page_size=1").await;
+    assert_eq!(names(&page), ["Гамма"]);
+    assert_eq!(page["total"], 2);
+    assert_eq!(page["page_size"], 1);
 }
 
 #[tokio::test]

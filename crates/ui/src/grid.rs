@@ -33,6 +33,8 @@ pub struct Column<T> {
     pub header: &'static str,
     pub sortable: bool,
     pub filter: ColumnFilter,
+    /// Подпись варианта «фильтр не задан» в списке выбора.
+    pub empty_label: &'static str,
     pub cell: Arc<dyn Fn(&T) -> AnyView + Send + Sync>,
 }
 
@@ -43,6 +45,7 @@ impl<T> Clone for Column<T> {
             header: self.header,
             sortable: self.sortable,
             filter: self.filter.clone(),
+            empty_label: self.empty_label,
             cell: self.cell.clone(),
         }
     }
@@ -59,12 +62,19 @@ impl<T> Column<T> {
             header,
             sortable: false,
             filter: ColumnFilter::None,
+            empty_label: "Все",
             cell: Arc::new(cell),
         }
     }
 
     pub fn sortable(mut self) -> Self {
         self.sortable = true;
+        self
+    }
+
+    /// Как назвать вариант «фильтр не задан» (если по умолчанию список уже ограничен, например, «Активные»).
+    pub fn empty_label(mut self, label: &'static str) -> Self {
+        self.empty_label = label;
         self
     }
 
@@ -402,6 +412,7 @@ where
                         .into_any(),
                         ColumnFilter::Select(options, _) => {
                             let options = *options;
+                            let empty_label = col.empty_label;
                             view! {
                                 <select
                                     aria-label=format!("Фильтр: {}", col.header)
@@ -411,7 +422,7 @@ where
                                         change(&|u| u.with_filter(field, &value));
                                     }
                                 >
-                                    <option value="" selected=move || !url.get().filters.contains_key(field)>"Все"</option>
+                                    <option value="" selected=move || !url.get().filters.contains_key(field)>{empty_label}</option>
                                     {move || {
                                         options
                                             .get()

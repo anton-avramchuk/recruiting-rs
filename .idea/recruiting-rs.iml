@@ -47,6 +47,7 @@
       <sourceFolder url="file://$MODULE_DIR$/services/comment/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/services/comment/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/ui-core/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/ui-data/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/ui/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>

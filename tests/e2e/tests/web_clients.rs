@@ -194,7 +194,7 @@ async fn a_duplicate_name_and_archiving() {
         sign_in(&tab, &base, OWNER);
 
         click(&tab, "nav a[href='/clients']");
-        wait_until(&tab, "list", &exists_js("[data-testid=client-row]"));
+        wait_until(&tab, "list", &exists_js("[data-testid=grid-row]"));
         click(&tab, "[data-testid=new-client]");
         type_into(&tab, "[data-testid=client-name]", "  acme   CORP ");
         click(&tab, "[data-testid=client-submit]");
@@ -209,13 +209,9 @@ async fn a_duplicate_name_and_archiving() {
         wait_until(&tab, "archived", &exists_js("[data-testid=archived-chip]"));
         click(&tab, "nav a[href='/clients']");
         wait_until(&tab, "empty list", &exists_js(".empty"));
-        click(&tab, "[data-testid=show-archived]");
-        wait_until(
-            &tab,
-            "with archived",
-            &exists_js("[data-testid=client-row]"),
-        );
-        assert!(text(&tab, "[data-testid=client-row]").contains("архив"));
+        choose(&tab, "[data-testid=grid-filter-archived]", "С архивными");
+        wait_until(&tab, "with archived", &exists_js("[data-testid=grid-row]"));
+        assert!(text(&tab, "[data-testid=grid-row]").contains("архив"));
     })
     .await
     .unwrap();
@@ -308,7 +304,7 @@ async fn a_viewer_reads_clients_but_cannot_change_them() {
         sign_in(&tab, &base, VIEWER);
 
         click(&tab, "nav a[href='/clients']");
-        wait_until(&tab, "list", &exists_js("[data-testid=client-row]"));
+        wait_until(&tab, "list", &exists_js("[data-testid=grid-row]"));
         assert_eq!(eval(&tab, &count_js("[data-testid=new-client]")), 0);
 
         tab.navigate_to(&format!("{base}/clients/{acme}")).unwrap();

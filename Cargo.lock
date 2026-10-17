@@ -4550,6 +4550,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "ui-data",
  "ui-kit",
  "uuid",
  "wasm-bindgen",

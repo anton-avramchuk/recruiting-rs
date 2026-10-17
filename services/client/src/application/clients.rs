@@ -1,4 +1,4 @@
-use grid_contracts::{GridPage, GridQuery, SortKey};
+use grid_contracts::{Filter, GridPage, GridQuery, Operator, SortKey};
 use platform_core::tenant::TenantId;
 use platform_db::TenantTx;
 use sqlx::{PgConnection, PgPool};
@@ -36,6 +36,54 @@ fn domain_client(row: &ClientRow) -> Client {
         note: row.note.clone(),
         archived: row.archived,
     }
+}
+
+/// Условие по архиву в фильтре грида: что в нём сказано про поле `archived`.
+#[derive(Default)]
+struct ArchiveMention {
+    /// Поле `archived` упомянуто хотя бы раз.
+    mentioned: bool,
+}
+
+/// Убирает из фильтра условия `archived = "all"` («с архивными»); остальные условия по `archived` остаются.
+fn strip_archive_all(filter: Filter, seen: &mut ArchiveMention) -> Option<Filter> {
+    match filter {
+        Filter::Leaf {
+            ref field,
+            ref value,
+            ..
+        } if field == "archived" => {
+            seen.mentioned = true;
+            let all = value.as_ref().and_then(|v| v.as_str()) == Some("all");
+            (!all).then_some(filter)
+        }
+        Filter::Leaf { .. } => Some(filter),
+        Filter::Group { logic, filters } => {
+            let kept: Vec<Filter> = filters
+                .into_iter()
+                .filter_map(|f| strip_archive_all(f, seen))
+                .collect();
+            (!kept.is_empty()).then_some(Filter::Group {
+                logic,
+                filters: kept,
+            })
+        }
+    }
+}
+
+/// По умолчанию список показывает только активных заказчиков. Любое условие по `archived`
+/// снимает это правило: `all` - с архивными, `true`/`false` - как указано.
+fn with_archive_rule(filter: Option<Filter>) -> Option<Filter> {
+    let mut seen = ArchiveMention::default();
+    let rest = filter.and_then(|f| strip_archive_all(f, &mut seen));
+    if seen.mentioned {
+        return rest;
+    }
+    let active = Filter::leaf("archived", Operator::Eq, false);
+    Some(match rest {
+        Some(other) => Filter::and(vec![active, other]),
+        None => active,
+    })
 }
 
 /// Должность контакта должна существовать в справочнике организации.
@@ -111,6 +159,7 @@ impl ClientService {
         tenant: TenantId,
         mut query: GridQuery,
     ) -> Result<GridPage<ClientRow>, ClientError> {
+        query.filter = with_archive_rule(query.filter.take());
         if query.sort.is_empty() {
             query.sort.push(SortKey::asc("archived"));
             query.sort.push(SortKey::asc("name"));
