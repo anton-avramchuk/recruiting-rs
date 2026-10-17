@@ -1,7 +1,6 @@
 //! Клиентское приложение рекрутеров (Leptos, SSR + hydrate). Общается только с bff-crm.
 // глубокие вложенные представления доски превышают лимит по умолчанию при сборке wasm в release
 #![recursion_limit = "1024"]
-pub mod access;
 pub mod analytics;
 pub mod candidates;
 pub mod clients;

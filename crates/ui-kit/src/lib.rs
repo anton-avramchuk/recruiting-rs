@@ -17,6 +17,7 @@ pub use session::{
     logout, provide_session,
 };
 pub use ui::{ConfirmDialog, Dialog, Drawer, EmptyState, Notice, NoticeKind, Pager};
+pub use ui_core::format;
 pub use ui_core::{Reply, classify, classify_empty, encode_query_value, typed};
 
 /// Базовый URL BFF для запросов сервера фронтенда (внутренний адрес); кладётся в контекст Leptos.

@@ -31,7 +31,7 @@ pub fn Comments(
             .and_then(Result::ok)
             .and_then(|s| s.user)
             .map(|u| {
-                let remove_any = crate::access::can_delete(&u);
+                let remove_any = u.policy().can_delete();
                 (u.id, remove_any)
             })
             .unwrap_or_default()

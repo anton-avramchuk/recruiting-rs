@@ -1,9 +1,12 @@
 //! ui-core: логика интерфейса без Leptos и без браузера. Проверяется нативными юнит-тестами;
 //! крейты `ui`, `ui-data`, `ui-shell` и приложения строятся на ней.
 mod encode;
+pub mod form;
+pub mod format;
 pub mod grid;
 pub mod mutation;
 pub mod paging;
+pub mod policy;
 pub mod reply;
 
 pub use encode::encode_query_value;

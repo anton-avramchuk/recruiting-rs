@@ -17,17 +17,17 @@ const DEBOUNCE_MS: u64 = 250;
 
 /// Может ли пользователь создавать и менять данные (по сессии).
 pub fn can_write(ctx: SessionCtx) -> bool {
-    session_user(ctx).is_some_and(|u| crate::access::can_write(&u))
+    session_user(ctx).is_some_and(|u| u.policy().can_write())
 }
 
 /// Может ли пользователь удалять данные организации (владелец или роль с правом удаления).
 pub fn can_delete(ctx: SessionCtx) -> bool {
-    session_user(ctx).is_some_and(|u| crate::access::can_delete(&u))
+    session_user(ctx).is_some_and(|u| u.policy().can_delete())
 }
 
 /// Владелец организации: ему доступен раздел «Безопасность».
 pub fn is_owner(ctx: SessionCtx) -> bool {
-    session_user(ctx).is_some_and(|u| crate::access::is_owner(&u))
+    session_user(ctx).is_some_and(|u| u.policy().is_owner())
 }
 
 fn session_user(ctx: SessionCtx) -> Option<ui_kit::UserInfo> {

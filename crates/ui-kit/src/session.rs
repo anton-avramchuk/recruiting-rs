@@ -11,6 +11,13 @@ use crate::{
 };
 use ui::{Notice, NoticeKind};
 
+impl UserInfo {
+    /// Что пользователю можно в интерфейсе.
+    pub fn policy(&self) -> ui_core::policy::Policy {
+        ui_core::policy::Policy::new(&self.roles, self.perms.as_deref())
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct UserInfo {
     #[serde(default)]
