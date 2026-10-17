@@ -74,6 +74,8 @@ pub const MAX_DEPTH: usize = 4;
 pub const MAX_CONDITIONS: usize = 32;
 /// Наибольшее число ключей сортировки.
 pub const MAX_SORT_KEYS: usize = 3;
+/// Наибольшее число значений в перечне оператора `in`.
+pub const MAX_IN_VALUES: usize = 200;
 /// Наибольшая длина значения условия, символов.
 pub const MAX_VALUE_LEN: usize = 200;
 

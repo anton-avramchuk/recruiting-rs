@@ -15,7 +15,7 @@
 - [x] 1.11 То же для `clients` (client): тесты, схема, BFF
 - [ ] 1.12 То же для `applications` (recruitment): тесты, схема, BFF
 - [x] 1.13 То же для `tenants` (admin): тесты, схема (доступ только администратору платформы), bff-admin
-- [ ] 1.14 Экран кандидатов на `EntityGrid`; удалить `candidates/outcome.rs` и ручной пейджер; красный e2e: сортировка, фильтр, адрес, перезагрузка (`web_candidates`)
+- [x] 1.14 Экран кандидатов на `EntityGrid`; удалить `candidates/outcome.rs` и ручной пейджер; красный e2e: сортировка, фильтр, адрес, перезагрузка (`web_candidates`)
 - [x] 1.15 Экран заказчиков на `EntityGrid`; e2e
 - [ ] 1.16 Экран откликов на `EntityGrid`; e2e
 - [x] 1.17 Экран тенантов (`web-admin`) на `EntityGrid`; удалить `CreateOutcome`/`StatusOutcome` и ручной пейджер; e2e `web_admin`

@@ -314,3 +314,40 @@ async fn an_organization_sees_only_its_own_rows() {
     assert_eq!(db.page(b, GridQuery::default()).await.unwrap().total, 1);
     db.close().await;
 }
+
+#[tokio::test]
+async fn in_selects_listed_values_and_stays_inside_the_organization() {
+    let db = db().await;
+    let (mine, other) = (TenantId::new(), TenantId::new());
+    db.add(mine, "a@a.io", None, Some(20), true).await;
+    db.add(mine, "b@a.io", None, Some(30), true).await;
+    db.add(mine, "c@a.io", None, Some(40), true).await;
+    db.add(other, "d@b.io", None, Some(30), true).await;
+
+    let ages = filter(Filter::leaf(
+        "age",
+        Operator::In,
+        serde_json::json!([20, 40, 99]),
+    ));
+    assert_eq!(db.emails(mine, ages).await, ["a@a.io", "c@a.io"]);
+
+    let emails = filter(Filter::leaf(
+        "email",
+        Operator::In,
+        serde_json::json!(["B@A.io", "d@b.io"]),
+    ));
+    // чужая запись не видна даже по прямому совпадению
+    assert_eq!(db.emails(mine, emails).await, ["b@a.io"]);
+
+    let none = filter(Filter::leaf("age", Operator::In, serde_json::json!([])));
+    assert!(db.emails(mine, none).await.is_empty());
+
+    let ids: Vec<Uuid> =
+        sqlx::query_scalar("SELECT id FROM people WHERE email IN ('a@a.io','d@b.io')")
+            .fetch_all(&db.owner)
+            .await
+            .unwrap();
+    let by_id = filter(Filter::leaf("id", Operator::In, serde_json::json!(ids)));
+    assert_eq!(db.emails(mine, by_id).await, ["a@a.io"]);
+    db.close().await;
+}

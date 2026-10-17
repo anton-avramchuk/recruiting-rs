@@ -473,12 +473,12 @@ async fn candidates_and_vacancies_can_be_filtered_by_client() {
 
         // кандидаты заказчика
         click(&tab, "nav a[href='/candidates']");
-        wait_count(&tab, "all people", "[data-testid=persons] tbody tr", 4);
+        wait_count(&tab, "all people", "tbody tr[data-testid=grid-row]", 4);
         std::thread::sleep(Duration::from_millis(1200));
         set_marker(&tab);
-        choose(&tab, "[data-testid=filter-client]", "Acme Corp");
-        wait_count(&tab, "people of acme", "[data-testid=persons] tbody tr", 2);
-        let rows = text(&tab, "[data-testid=persons]");
+        choose(&tab, "[data-testid=grid-filter-client]", "Acme Corp");
+        wait_count(&tab, "people of acme", "tbody tr[data-testid=grid-row]", 2);
+        let rows = text(&tab, "[data-testid=grid]");
         assert!(
             rows.contains("Анна Смирнова") && rows.contains("Борис Иванов"),
             "{rows}"
@@ -488,36 +488,36 @@ async fn candidates_and_vacancies_can_be_filtered_by_client() {
             "{rows}"
         );
         assert!(
-            text(&tab, "main").contains("Найдено: 2"),
+            text(&tab, "main").contains("1–2 из 2"),
             "different people, not applications"
         );
 
         // вместе с поиском
-        type_into(&tab, "[data-testid=search]", "борис");
+        type_into(&tab, "[data-testid=grid-search]", "борис");
         wait_count(
             &tab,
             "search within the client",
-            "[data-testid=persons] tbody tr",
+            "tbody tr[data-testid=grid-row]",
             1,
         );
 
         // сброс возвращает всех
-        click(&tab, "[data-testid=reset-filters]");
-        wait_count(&tab, "everyone again", "[data-testid=persons] tbody tr", 4);
+        click(&tab, "[data-testid=grid-reset]");
+        wait_count(&tab, "everyone again", "tbody tr[data-testid=grid-row]", 4);
         assert_eq!(
             eval_str(
                 &tab,
-                "document.querySelector('[data-testid=filter-client]').value"
+                "document.querySelector('[data-testid=grid-filter-client]').value"
             ),
             ""
         );
 
         // заказчик, на чьи вакансии никто не откликался
-        choose(&tab, "[data-testid=filter-client]", "Пустой заказчик");
+        choose(&tab, "[data-testid=grid-filter-client]", "Пустой заказчик");
         wait_until(
             &tab,
             "empty note",
-            "document.querySelector('main').innerText.includes('Кандидатов заказчика пока нет')",
+            "document.querySelector('main').innerText.includes('Ничего не найдено')",
         );
         assert!(marker_alive(&tab), "no reload");
 

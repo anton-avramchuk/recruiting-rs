@@ -15,7 +15,6 @@ use super::{
 use crate::candidates::{
     format::{format_salary, years_label},
     list::can_write,
-    outcome::LoadOutcome,
 };
 
 /// Не больше стольких откликов за один сеанс.
@@ -317,7 +316,7 @@ fn CardBody(app: ApplicationDto, card: Signal<Option<TriageData>>) -> impl IntoV
             .unwrap_or_default()
     };
     let person = move || match card.get().map(|c| c.person) {
-        Some(LoadOutcome::Found(p)) => Some(*p),
+        Some(Reply::Ok(p)) => Some(p),
         _ => None,
     };
     let app_for_header = app.clone();

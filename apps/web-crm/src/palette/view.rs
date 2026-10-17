@@ -15,7 +15,6 @@ use ui_kit::{Dialog, SessionCtx};
 use crate::{
     candidates::{
         list::is_owner,
-        outcome::ListOutcome,
         server::{PersonQuery, search_persons},
     },
     funnel::{format::now_ms, server::list_vacancies},
@@ -181,7 +180,7 @@ pub fn install_keys(palette: PaletteCtx, writable: Signal<bool>) {
                 Shortcut::Go(path) => go(path),
                 Shortcut::Search => {
                     go("/candidates");
-                    focus_when_ready("[data-testid=search]", 10);
+                    focus_when_ready("[data-testid=grid-search]", 10);
                 }
                 Shortcut::Import => go("/candidates/import"),
                 Shortcut::Triage => go("/triage"),
@@ -247,7 +246,7 @@ async fn find_people(q: String) -> Vec<Hit> {
         ..Default::default()
     };
     match search_persons(query).await {
-        Ok(ListOutcome::Page(page)) => page
+        Ok(ui_kit::Reply::Ok(page)) => page
             .items
             .into_iter()
             .take(MAX_PEOPLE)

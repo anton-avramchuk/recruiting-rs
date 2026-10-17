@@ -140,23 +140,23 @@ pub async fn get_application(id: String) -> Result<Reply<ApplicationDetailDto>, 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TriageData {
     pub detail: Reply<ApplicationDetailDto>,
-    pub person: crate::candidates::outcome::LoadOutcome,
+    pub person: Reply<candidate_contracts::PersonDto>,
 }
 
 pub async fn triage_card(id: String, person_id: String) -> Result<TriageData, ServerFnError> {
-    use crate::candidates::{outcome::LoadOutcome, server::uuid_like::Id};
+    use crate::candidates::server::uuid_like::Id;
 
     if id.parse::<Id>().is_err() || person_id.parse::<Id>().is_err() {
         return Ok(TriageData {
             detail: Reply::NotFound,
-            person: LoadOutcome::NotFound,
+            person: Reply::NotFound,
         });
     }
     let detail = ui_kit::api::call(Method::Get, &format!("/api/applications/{id}"), None).await?;
     let person = ui_kit::api::call(Method::Get, &format!("/api/persons/{person_id}"), None).await?;
     Ok(TriageData {
         detail: classify(detail.status, &detail.body, typed),
-        person: crate::candidates::outcome::classify_load(person.status, &person.body),
+        person: classify(person.status, &person.body, typed),
     })
 }
 

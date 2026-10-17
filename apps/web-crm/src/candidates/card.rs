@@ -8,34 +8,35 @@ use leptos_router::{
     components::A,
     hooks::{use_navigate, use_params_map},
 };
-use ui_kit::{EmptyState, Notice, NoticeKind, SessionCtx};
+use ui_kit::{EmptyState, Notice, NoticeKind, Reply, SessionCtx};
 
 use super::{
     fields::Field,
     format::{format_salary, years_label},
     list::{can_delete, can_write},
-    outcome::{DeleteOutcome, LoadOutcome, SaveOutcome},
     server::{
         DeletePerson, SaveEducations, SaveEmployments, UpdatePerson, get_person, person_action,
     },
 };
 
 fn field_error(
-    outcome: Option<&Result<SaveOutcome, ServerFnError>>,
+    outcome: Option<&Result<Reply<PersonDto>, ServerFnError>>,
     field: &str,
 ) -> Option<String> {
     match outcome {
-        Some(Ok(SaveOutcome::Invalid { field: f, message })) if f == field => Some(message.clone()),
+        Some(Ok(Reply::Invalid { field: f, message })) if f == field => Some(message.clone()),
         _ => None,
     }
 }
 
 /// Сообщение о неудаче сохранения, не привязанное к полю.
-fn general_error(outcome: Option<&Result<SaveOutcome, ServerFnError>>) -> Option<&'static str> {
+fn general_error(
+    outcome: Option<&Result<Reply<PersonDto>, ServerFnError>>,
+) -> Option<&'static str> {
     match outcome {
-        Some(Ok(SaveOutcome::Forbidden)) => Some("Недостаточно прав для изменения."),
-        Some(Ok(SaveOutcome::NotFound)) => Some("Кандидат уже удалён."),
-        Some(Ok(SaveOutcome::Unavailable)) | Some(Err(_)) => {
+        Some(Ok(Reply::Forbidden)) => Some("Недостаточно прав для изменения."),
+        Some(Ok(Reply::NotFound)) => Some("Кандидат уже удалён."),
+        Some(Ok(Reply::Unavailable)) | Some(Err(_)) => {
             Some("Не удалось сохранить. Попробуйте позже.")
         }
         _ => None,
@@ -43,9 +44,9 @@ fn general_error(outcome: Option<&Result<SaveOutcome, ServerFnError>>) -> Option
 }
 
 /// Любая ошибка редактора списка (с привязкой к полю или без) одной строкой.
-fn list_error(outcome: Option<&Result<SaveOutcome, ServerFnError>>) -> Option<String> {
+fn list_error(outcome: Option<&Result<Reply<PersonDto>, ServerFnError>>) -> Option<String> {
     match outcome {
-        Some(Ok(SaveOutcome::Invalid { message, .. })) => Some(message.clone()),
+        Some(Ok(Reply::Invalid { message, .. })) => Some(message.clone()),
         other => general_error(other).map(str::to_string),
     }
 }
@@ -68,8 +69,8 @@ pub fn CandidateCardPage() -> impl IntoView {
                 person
                     .get()
                     .map(|result| match result {
-                        Ok(LoadOutcome::Found(p)) => view! { <PersonCard person=*p /> }.into_any(),
-                        Ok(LoadOutcome::NotFound) => {
+                        Ok(Reply::Ok(p)) => view! { <PersonCard person=p /> }.into_any(),
+                        Ok(Reply::NotFound) => {
                             view! {
                                 <EmptyState
                                     title="Кандидат не найден"
@@ -134,13 +135,13 @@ fn DeleteControl(id: String) -> impl IntoView {
     let navigate = use_navigate();
 
     Effect::new(move |_| {
-        if let Some(Ok(DeleteOutcome::Deleted | DeleteOutcome::NotFound)) = action.value().get() {
+        if let Some(Ok(Reply::Ok(()) | Reply::NotFound)) = action.value().get() {
             navigate("/candidates", Default::default());
         }
     });
     let failed = move || match action.value().get() {
-        Some(Ok(DeleteOutcome::Forbidden)) => Some("Недостаточно прав для удаления."),
-        Some(Ok(DeleteOutcome::Unavailable)) | Some(Err(_)) => {
+        Some(Ok(Reply::Forbidden)) => Some("Недостаточно прав для удаления."),
+        Some(Ok(Reply::Unavailable)) | Some(Err(_)) => {
             Some("Не удалось удалить. Попробуйте позже.")
         }
         _ => None,
@@ -197,8 +198,8 @@ fn ProfileSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> impl In
     let action = person_action(UpdatePerson::run);
 
     Effect::new(move |_| {
-        if let Some(Ok(SaveOutcome::Saved(saved))) = action.value().get() {
-            state.set(*saved);
+        if let Some(Ok(Reply::Ok(saved))) = action.value().get() {
+            state.set(saved);
             editing.set(false);
         }
     });
@@ -406,8 +407,8 @@ fn EmploymentsSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> imp
     };
 
     Effect::new(move |_| {
-        if let Some(Ok(SaveOutcome::Saved(saved))) = action.value().get() {
-            state.set(*saved);
+        if let Some(Ok(Reply::Ok(saved))) = action.value().get() {
+            state.set(saved);
             editing.set(false);
         }
     });
@@ -640,8 +641,8 @@ fn EducationsSection(state: RwSignal<PersonDto>, writable: Signal<bool>) -> impl
     };
 
     Effect::new(move |_| {
-        if let Some(Ok(SaveOutcome::Saved(saved))) = action.value().get() {
-            state.set(*saved);
+        if let Some(Ok(Reply::Ok(saved))) = action.value().get() {
+            state.set(saved);
             editing.set(false);
         }
     });

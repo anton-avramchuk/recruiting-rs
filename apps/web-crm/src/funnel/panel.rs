@@ -13,7 +13,6 @@ use super::{
 use crate::{
     candidates::{
         format::{format_salary, years_label},
-        outcome::LoadOutcome,
         server::get_person,
     },
     palette::view::{focus_when_ready, overlay_check, typing_in_a_field, with_press},
@@ -520,7 +519,7 @@ fn PersonInfo(person_id: String, writable: Signal<bool>) -> impl IntoView {
                 person
                     .get()
                     .map(|result| match result {
-                        Ok(LoadOutcome::Found(p)) => {
+                        Ok(Reply::Ok(p)) => {
                             let note = RwSignal::new(p.note.clone().unwrap_or_default());
                             let saved = RwSignal::new(false);
                             let note_error = RwSignal::new(None::<String>);

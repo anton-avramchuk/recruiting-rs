@@ -20,8 +20,8 @@ const DEBOUNCE_MS: u64 = 300;
 #[derive(Clone)]
 pub enum ColumnFilter {
     None,
-    /// Текст: условие «содержит».
-    Text,
+    /// Текст; `Operator` - как сравнивать с полем (по умолчанию «содержит»).
+    Text(Operator),
     /// Выбор значения из списка (значение, подпись); `Operator` - как сравнивать с полем.
     Select(Signal<Vec<(String, String)>>, Operator),
 }
@@ -33,6 +33,8 @@ pub struct Column<T> {
     pub header: &'static str,
     pub sortable: bool,
     pub filter: ColumnFilter,
+    /// Столбец без ячеек в таблице: только фильтр, он показывается рядом с поиском.
+    pub hidden: bool,
     /// Подпись варианта «фильтр не задан» в списке выбора.
     pub empty_label: &'static str,
     pub cell: Arc<dyn Fn(&T) -> AnyView + Send + Sync>,
@@ -45,6 +47,7 @@ impl<T> Clone for Column<T> {
             header: self.header,
             sortable: self.sortable,
             filter: self.filter.clone(),
+            hidden: self.hidden,
             empty_label: self.empty_label,
             cell: self.cell.clone(),
         }
@@ -62,6 +65,7 @@ impl<T> Column<T> {
             header,
             sortable: false,
             filter: ColumnFilter::None,
+            hidden: false,
             empty_label: "Все",
             cell: Arc::new(cell),
         }
@@ -79,8 +83,21 @@ impl<T> Column<T> {
     }
 
     pub fn filter_text(mut self) -> Self {
-        self.filter = ColumnFilter::Text;
+        self.filter = ColumnFilter::Text(Operator::Contains);
         self
+    }
+
+    /// Текстовый фильтр с другим сравнением (например, «не меньше» для чисел).
+    pub fn filter_text_op(mut self, op: Operator) -> Self {
+        self.filter = ColumnFilter::Text(op);
+        self
+    }
+
+    /// Столбец только для фильтра: в таблице его нет, фильтр стоит рядом с поиском.
+    pub fn filter_only(field: &'static str, header: &'static str) -> Self {
+        let mut column = Self::new(field, header, |_| ().into_any());
+        column.hidden = true;
+        column
     }
 
     pub fn filter_select(mut self, options: Signal<Vec<(String, String)>>, op: Operator) -> Self {
@@ -91,9 +108,9 @@ impl<T> Column<T> {
     fn filter_spec(&self) -> Option<FilterSpec> {
         match &self.filter {
             ColumnFilter::None => None,
-            ColumnFilter::Text => Some(FilterSpec {
+            ColumnFilter::Text(op) => Some(FilterSpec {
                 field: self.field,
-                op: Operator::Contains,
+                op: *op,
             }),
             ColumnFilter::Select(_, op) => Some(FilterSpec {
                 field: self.field,
@@ -235,10 +252,12 @@ where
         .collect();
     let specs: Vec<FilterSpec> = columns.iter().filter_map(|c| c.filter_spec()).collect();
     let searchable = !search_fields.is_empty();
-    let has_filters = !filter_fields.is_empty();
+    let has_filters = columns
+        .iter()
+        .any(|c| !c.hidden && c.filter_spec().is_some());
     let has_actions = row_href.is_some() || remove.is_some() || extra_actions.is_some();
     let extra_actions = StoredValue::new(extra_actions);
-    let width = columns.len() + usize::from(has_actions);
+    let width = columns.iter().filter(|c| !c.hidden).count() + usize::from(has_actions);
     let remove = StoredValue::new(remove);
     let columns = StoredValue::new(columns);
     let specs = StoredValue::new(specs);
@@ -349,6 +368,7 @@ where
     let head = move || {
         columns.with_value(|cols| {
             cols.iter()
+                .filter(|c| !c.hidden)
                 .map(|col| {
                     let field = col.field;
                     let header = col.header;
@@ -393,57 +413,69 @@ where
     let actions_head = has_actions
         .then(|| view! { <th scope="col" class="grid__actions-head"><span class="muted">"Действия"</span></th> });
 
+    // управление фильтром столбца: в строке под заголовком либо рядом с поиском (скрытые столбцы)
+    let filter_control = move |col: &Column<T>| -> AnyView {
+        let field = col.field;
+        let header = col.header;
+        match &col.filter {
+            ColumnFilter::None => ().into_any(),
+            ColumnFilter::Text(_) => view! {
+                <DebouncedText
+                    value=Signal::derive(move || url.get().filters.get(field).cloned().unwrap_or_default())
+                    on_apply=Callback::new(move |v: String| change(&|u| u.with_filter(field, &v)))
+                    placeholder=if col.hidden { header } else { "Фильтр" }
+                    label=format!("Фильтр: {header}")
+                    testid=format!("grid-filter-{field}")
+                />
+            }
+            .into_any(),
+            ColumnFilter::Select(options, _) => {
+                let options = *options;
+                let empty_label = col.empty_label;
+                view! {
+                    <select
+                        aria-label=format!("Фильтр: {header}")
+                        data-testid=format!("grid-filter-{field}")
+                        on:change=move |ev| {
+                            let value = event_target_value(&ev);
+                            change(&|u| u.with_filter(field, &value));
+                        }
+                    >
+                        <option value="" selected=move || !url.get().filters.contains_key(field)>{empty_label}</option>
+                        {move || {
+                            options
+                                .get()
+                                .into_iter()
+                                .map(|(value, label)| {
+                                    let current = value.clone();
+                                    view! {
+                                        <option value=value selected=move || url.get().filters.get(field).is_some_and(|v| *v == current)>
+                                            {label}
+                                        </option>
+                                    }
+                                })
+                                .collect_view()
+                        }}
+                    </select>
+                }
+                .into_any()
+            }
+        }
+    };
+
     let filter_row = move || {
         columns.with_value(|cols| {
             cols.iter()
-                .map(|col| {
-                    let field = col.field;
-                    let control = match &col.filter {
-                        ColumnFilter::None => ().into_any(),
-                        ColumnFilter::Text => view! {
-                            <DebouncedText
-                                value=Signal::derive(move || url.get().filters.get(field).cloned().unwrap_or_default())
-                                on_apply=Callback::new(move |v: String| change(&|u| u.with_filter(field, &v)))
-                                placeholder="Фильтр"
-                                label=format!("Фильтр: {}", col.header)
-                                testid=format!("grid-filter-{field}")
-                            />
-                        }
-                        .into_any(),
-                        ColumnFilter::Select(options, _) => {
-                            let options = *options;
-                            let empty_label = col.empty_label;
-                            view! {
-                                <select
-                                    aria-label=format!("Фильтр: {}", col.header)
-                                    data-testid=format!("grid-filter-{field}")
-                                    on:change=move |ev| {
-                                        let value = event_target_value(&ev);
-                                        change(&|u| u.with_filter(field, &value));
-                                    }
-                                >
-                                    <option value="" selected=move || !url.get().filters.contains_key(field)>{empty_label}</option>
-                                    {move || {
-                                        options
-                                            .get()
-                                            .into_iter()
-                                            .map(|(value, label)| {
-                                                let current = value.clone();
-                                                view! {
-                                                    <option value=value selected=move || url.get().filters.get(field).is_some_and(|v| *v == current)>
-                                                        {label}
-                                                    </option>
-                                                }
-                                            })
-                                            .collect_view()
-                                    }}
-                                </select>
-                            }
-                            .into_any()
-                        }
-                    };
-                    view! { <td>{control}</td> }
-                })
+                .filter(|c| !c.hidden)
+                .map(|col| view! { <td>{filter_control(col)}</td> })
+                .collect_view()
+        })
+    };
+    let toolbar_filters = move || {
+        columns.with_value(|cols| {
+            cols.iter()
+                .filter(|c| c.hidden)
+                .map(filter_control)
                 .collect_view()
         })
     };
@@ -486,6 +518,7 @@ where
                         .map(|item| {
                             let cells = columns.with_value(|cols| {
                                 cols.iter()
+                                    .filter(|c| !c.hidden)
                                     .map(|col| view! { <td>{(col.cell)(&item)}</td> })
                                     .collect_view()
                             });
@@ -582,6 +615,7 @@ where
         <div class="grid" data-testid="grid">
             <div class="toolbar">
                 {searchable.then_some(search)}
+                {toolbar_filters}
                 {toolbar.map(|t| t.run())}
                 {reset}
             </div>

@@ -6,11 +6,11 @@ use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 use ui_kit::api::Method;
 
-use candidate_contracts::{EducationDto, EmploymentDto, ImportRequest, ImportResponse};
+use candidate_contracts::{
+    EducationDto, EmploymentDto, ImportRequest, ImportResponse, PersonDto, PersonPage,
+};
 
-use ui_kit::{Reply, classify, typed};
-
-use super::outcome::{CreateOutcome, DeleteOutcome, ListOutcome, LoadOutcome, SaveOutcome};
+use ui_kit::{Reply, classify, classify_empty, typed};
 
 /// Поиск и фильтры списка. Пустые строки не ограничивают выборку.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -24,7 +24,7 @@ pub struct PersonQuery {
     pub page: i64,
 }
 
-pub async fn search_persons(query: PersonQuery) -> Result<ListOutcome, ServerFnError> {
+pub async fn search_persons(query: PersonQuery) -> Result<Reply<PersonPage>, ServerFnError> {
     use ui_kit::encode_query_value as enc;
 
     let mut path = format!("/api/persons?page={}", query.page.max(1));
@@ -42,51 +42,46 @@ pub async fn search_persons(query: PersonQuery) -> Result<ListOutcome, ServerFnE
         path.push_str(&format!("&min_experience={min}"));
     }
     let reply = ui_kit::api::call(Method::Get, &path, None).await?;
-    Ok(super::outcome::classify_list(reply.status, &reply.body))
+    Ok(classify(reply.status, &reply.body, typed))
 }
 
-/// Кандидаты заказчика: сначала люди с откликами на его вакансии (`recruitment`), затем список
-/// `candidate` с этим перечнем. Возвращает и признак «людей больше, чем показано».
-pub async fn search_persons_of_client(
-    query: PersonQuery,
-    client_id: String,
-) -> Result<(ListOutcome, bool), ServerFnError> {
-    let client_id = client_id.trim().to_string();
-    if client_id.is_empty() {
-        return Ok((search_persons(query).await?, false));
-    }
-    if client_id.parse::<uuid_like::Id>().is_err() {
-        return Ok((ListOutcome::Unavailable, false));
-    }
-    let reply = ui_kit::api::call(
-        Method::Get,
-        &format!("/api/applications/people?client_id={client_id}"),
-        None,
-    )
-    .await?;
-    let Reply::Ok(people) =
-        classify::<recruitment_contracts::ClientPeopleDto>(reply.status, &reply.body, typed)
-    else {
-        return Ok((ListOutcome::Unavailable, false));
-    };
-    if people.person_ids.is_empty() {
-        // пустой перечень в `candidate` значил бы «без ограничения», поэтому запрос не отправляется
-        let empty = candidate_contracts::PersonPage {
-            items: Vec::new(),
-            total: 0,
-            page: 1,
-            page_size: 20,
+/// Страница кандидатов по запросу грида. Условие `client = <id>` (фильтр «заказчик») превращается в
+/// перечень людей с откликами на вакансии заказчика (`recruitment`): `id in (...)`. Второе значение -
+/// признак «людей у заказчика больше, чем показано».
+pub async fn list_persons_grid(
+    mut query: grid_contracts::GridQuery,
+) -> Result<
+    (
+        Reply<grid_contracts::GridPage<candidate_contracts::PersonSummaryDto>>,
+        bool,
+    ),
+    ServerFnError,
+> {
+    use grid_contracts::{Filter, Operator};
+
+    let mut truncated = false;
+    if let Some(client_id) = ui_kit::grid::take_eq(&mut query, "client") {
+        if client_id.parse::<uuid_like::Id>().is_err() {
+            return Ok((Reply::NotFound, false));
+        }
+        let reply = ui_kit::api::call(
+            Method::Get,
+            &format!("/api/applications/people?client_id={client_id}"),
+            None,
+        )
+        .await?;
+        let Reply::Ok(people) =
+            classify::<recruitment_contracts::ClientPeopleDto>(reply.status, &reply.body, typed)
+        else {
+            return Ok((Reply::Unavailable, false));
         };
-        return Ok((ListOutcome::Page(empty), false));
+        truncated = people.truncated;
+        let ids: Vec<String> = people.person_ids.iter().map(ToString::to_string).collect();
+        ui_kit::grid::and_condition(&mut query, Filter::leaf("id", Operator::In, ids));
     }
-    let ids = people
-        .person_ids
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join(",");
-    let outcome = search_persons(PersonQuery { ids, ..query }).await?;
-    Ok((outcome, people.truncated))
+    let path = ui_kit::grid::grid_path("/api/persons", &query);
+    let reply = ui_kit::api::call(Method::Get, &path, None).await?;
+    Ok((classify(reply.status, &reply.body, typed), truncated))
 }
 
 /// Пакет разобранных строк импорта (файл остаётся в браузере).
@@ -98,12 +93,12 @@ pub async fn import_persons(
     Ok(classify(reply.status, &reply.body, typed))
 }
 
-pub async fn get_person(id: String) -> Result<LoadOutcome, ServerFnError> {
+pub async fn get_person(id: String) -> Result<Reply<PersonDto>, ServerFnError> {
     if id.parse::<uuid_like::Id>().is_err() {
-        return Ok(LoadOutcome::NotFound);
+        return Ok(Reply::NotFound);
     }
     let reply = ui_kit::api::call(Method::Get, &format!("/api/persons/{id}"), None).await?;
-    Ok(super::outcome::classify_load(reply.status, &reply.body))
+    Ok(classify(reply.status, &reply.body, typed))
 }
 
 pub async fn create_person(
@@ -119,7 +114,7 @@ pub async fn create_person(
     city: String,
     declared_experience_years: String,
     confirm_duplicate: String,
-) -> Result<CreateOutcome, ServerFnError> {
+) -> Result<Reply<PersonDto>, ServerFnError> {
     use serde_json::{Map, Value, json};
 
     use super::format::{parse_optional_number, split_skills};
@@ -151,7 +146,7 @@ pub async fn create_person(
                 body.insert(key.into(), json!(n));
             }
             None => {
-                return Ok(CreateOutcome::Invalid {
+                return Ok(Reply::Invalid {
                     field: key.into(),
                     message: "Введите число".into(),
                 });
@@ -165,7 +160,7 @@ pub async fn create_person(
     );
 
     let reply = ui_kit::api::call(Method::Post, "/api/persons", Some(Value::Object(body))).await?;
-    Ok(super::outcome::classify_create(reply.status, &reply.body))
+    Ok(classify(reply.status, &reply.body, typed))
 }
 
 pub async fn update_person(
@@ -180,13 +175,13 @@ pub async fn update_person(
     skills: String,
     summary: String,
     city: String,
-) -> Result<SaveOutcome, ServerFnError> {
+) -> Result<Reply<PersonDto>, ServerFnError> {
     use serde_json::{Map, Value, json};
 
     use super::format::{parse_optional_number, split_skills};
 
     if id.parse::<uuid_like::Id>().is_err() {
-        return Ok(SaveOutcome::NotFound);
+        return Ok(Reply::NotFound);
     }
     // пустая строка очищает необязательное поле: на сервер уходит null
     let nullable = |s: &str| {
@@ -202,7 +197,7 @@ pub async fn update_person(
         match parse_optional_number(&expected_salary) {
             Some(n) => json!(n),
             None => {
-                return Ok(SaveOutcome::Invalid {
+                return Ok(Reply::Invalid {
                     field: "expected_salary".into(),
                     message: "Введите число".into(),
                 });
@@ -228,15 +223,15 @@ pub async fn update_person(
         Some(Value::Object(body)),
     )
     .await?;
-    Ok(super::outcome::classify_save(reply.status, &reply.body))
+    Ok(classify(reply.status, &reply.body, typed))
 }
 
 pub async fn save_employments(
     id: String,
     items: Vec<EmploymentDto>,
-) -> Result<SaveOutcome, ServerFnError> {
+) -> Result<Reply<PersonDto>, ServerFnError> {
     if id.parse::<uuid_like::Id>().is_err() {
-        return Ok(SaveOutcome::NotFound);
+        return Ok(Reply::NotFound);
     }
     let body = serde_json::to_value(&items).map_err(|e| ServerFnError::new(e.to_string()))?;
     let reply = ui_kit::api::call(
@@ -245,15 +240,15 @@ pub async fn save_employments(
         Some(body),
     )
     .await?;
-    Ok(super::outcome::classify_save(reply.status, &reply.body))
+    Ok(classify(reply.status, &reply.body, typed))
 }
 
 pub async fn save_educations(
     id: String,
     items: Vec<EducationDto>,
-) -> Result<SaveOutcome, ServerFnError> {
+) -> Result<Reply<PersonDto>, ServerFnError> {
     if id.parse::<uuid_like::Id>().is_err() {
-        return Ok(SaveOutcome::NotFound);
+        return Ok(Reply::NotFound);
     }
     let body = serde_json::to_value(&items).map_err(|e| ServerFnError::new(e.to_string()))?;
     let reply = ui_kit::api::call(
@@ -262,15 +257,15 @@ pub async fn save_educations(
         Some(body),
     )
     .await?;
-    Ok(super::outcome::classify_save(reply.status, &reply.body))
+    Ok(classify(reply.status, &reply.body, typed))
 }
 
-pub async fn delete_person(id: String) -> Result<DeleteOutcome, ServerFnError> {
+pub async fn delete_person(id: String) -> Result<Reply<()>, ServerFnError> {
     if id.parse::<uuid_like::Id>().is_err() {
-        return Ok(DeleteOutcome::NotFound);
+        return Ok(Reply::NotFound);
     }
     let reply = ui_kit::api::call(Method::Delete, &format!("/api/persons/{id}"), None).await?;
-    Ok(super::outcome::classify_delete(reply.status))
+    Ok(classify_empty(reply.status, &reply.body))
 }
 
 /// Проверка формата идентификатора без лишней зависимости: в путь запроса попадает только UUID.
@@ -334,7 +329,7 @@ impl CreatePerson {
         }
     }
 
-    pub async fn run(self) -> Result<CreateOutcome, ServerFnError> {
+    pub async fn run(self) -> Result<Reply<PersonDto>, ServerFnError> {
         create_person(
             self.full_name,
             self.phone,
@@ -385,7 +380,7 @@ impl UpdatePerson {
         }
     }
 
-    pub async fn run(self) -> Result<SaveOutcome, ServerFnError> {
+    pub async fn run(self) -> Result<Reply<PersonDto>, ServerFnError> {
         update_person(
             self.id,
             self.full_name,
@@ -410,7 +405,7 @@ pub struct SaveEmployments {
 }
 
 impl SaveEmployments {
-    pub async fn run(self) -> Result<SaveOutcome, ServerFnError> {
+    pub async fn run(self) -> Result<Reply<PersonDto>, ServerFnError> {
         save_employments(self.id, self.items).await
     }
 }
@@ -422,7 +417,7 @@ pub struct SaveEducations {
 }
 
 impl SaveEducations {
-    pub async fn run(self) -> Result<SaveOutcome, ServerFnError> {
+    pub async fn run(self) -> Result<Reply<PersonDto>, ServerFnError> {
         save_educations(self.id, self.items).await
     }
 }
@@ -433,7 +428,7 @@ pub struct DeletePerson {
 }
 
 impl DeletePerson {
-    pub async fn run(self) -> Result<DeleteOutcome, ServerFnError> {
+    pub async fn run(self) -> Result<Reply<()>, ServerFnError> {
         delete_person(self.id).await
     }
 }

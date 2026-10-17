@@ -10,7 +10,7 @@ use serde_json::json;
 const OWNER: (&str, &str) = ("boss@acme.io", "boss-password-1");
 const VIEWER: (&str, &str) = ("viewer@acme.io", "viewer-password-1");
 
-const ROWS: &str = "[data-testid=persons] tbody tr";
+const ROWS: &str = "tbody tr[data-testid=grid-row]";
 
 async fn stack_with_people() -> Stack {
     let stack = Stack::start_with_web().await;
@@ -44,27 +44,27 @@ async fn list_searches_filters_and_respects_roles() {
         tab.navigate_to(&format!("{base}/candidates")).unwrap();
         wait_count(&tab, "three rows", ROWS, 3);
         assert_eq!(
-            text_of(&tab, "[data-testid=persons] tbody tr:first-child td:first-child"),
+            text_of(&tab, "tr[data-testid=grid-row]:first-child td:first-child"),
             "Виктор Петров",
             "newest first"
         );
-        assert!(eval_str(&tab, "document.querySelector('main').innerText").contains("Найдено: 3"));
+        assert!(eval_str(&tab, "document.querySelector('main').innerText").contains("1–3 из 3"));
         assert!(eval_str(&tab, "document.querySelector('main').innerText").contains("4 года"));
         wait_until(&tab, "add button for the owner", &exists_js("a[href='/candidates/new']"));
         std::thread::sleep(Duration::from_millis(1500)); // гидратация
         set_marker(&tab);
 
         // 2. поиск обновляет список на месте
-        type_into(&tab, "[data-testid=search]", "смирн");
+        type_into(&tab, "[data-testid=grid-search]", "смирн");
         wait_count(&tab, "search narrows the list", ROWS, 1);
         assert_eq!(
-            text_of(&tab, "[data-testid=persons] tbody tr td:first-child"),
+            text_of(&tab, "tr[data-testid=grid-row] td:first-child"),
             "Анна Смирнова"
         );
         assert!(marker_alive(&tab), "search must not reload the page");
 
         // 3. ничего не найдено - пустое состояние с подсказкой
-        replace_text(&tab, "[data-testid=search]", "zzz-nothing");
+        replace_text(&tab, "[data-testid=grid-search]", "zzz-nothing");
         wait_until(
             &tab,
             "nothing found",
@@ -73,22 +73,22 @@ async fn list_searches_filters_and_respects_roles() {
         assert_eq!(eval(&tab, &count_js(ROWS)), 0);
 
         // 4. фильтр по навыку (поиск очищен)
-        replace_text(&tab, "[data-testid=search]", "");
+        replace_text(&tab, "[data-testid=grid-search]", "");
         wait_count(&tab, "all again", ROWS, 3);
-        type_into(&tab, "[data-testid=filter-skill]", "go");
+        type_into(&tab, "[data-testid=grid-filter-skills]", "go");
         wait_count(&tab, "skill filter", ROWS, 1);
         assert_eq!(
-            text_of(&tab, "[data-testid=persons] tbody tr td:first-child"),
+            text_of(&tab, "tr[data-testid=grid-row] td:first-child"),
             "Борис Иванов"
         );
 
         // 5. фильтры комбинируются: навык rust и стаж от 5 лет -> только Анна
-        replace_text(&tab, "[data-testid=filter-skill]", "rust");
+        replace_text(&tab, "[data-testid=grid-filter-skills]", "rust");
         wait_count(&tab, "rust", ROWS, 2);
-        type_into(&tab, "[data-testid=filter-min-experience]", "5");
+        type_into(&tab, "[data-testid=grid-filter-experience_years]", "5");
         wait_count(&tab, "rust and 5+ years", ROWS, 1);
         assert_eq!(
-            text_of(&tab, "[data-testid=persons] tbody tr td:first-child"),
+            text_of(&tab, "tr[data-testid=grid-row] td:first-child"),
             "Анна Смирнова"
         );
         assert!(marker_alive(&tab));
@@ -97,7 +97,7 @@ async fn list_searches_filters_and_respects_roles() {
         wait_until(
             &tab,
             "row links to the card",
-            "document.querySelector('[data-testid=persons] tbody tr td a').getAttribute('href').startsWith('/candidates/')",
+            "document.querySelector('[data-testid=grid-row] [data-testid=row-edit]').getAttribute('href').startsWith('/candidates/')",
         );
     })
     .await
@@ -195,11 +195,11 @@ async fn recruiter_creates_a_candidate_and_confirms_a_duplicate() {
         wait_until(&tab, "redirect to the list", "location.pathname === '/candidates'");
         wait_count(&tab, "new candidate in the list", ROWS, 1);
         assert_eq!(
-            text_of(&tab, "[data-testid=persons] tbody tr td:first-child"),
+            text_of(&tab, "tr[data-testid=grid-row] td:first-child"),
             "Иван Петров"
         );
         assert!(
-            eval_str(&tab, "document.querySelector('[data-testid=persons] tbody tr').innerText")
+            eval_str(&tab, "document.querySelector('[data-testid=grid-row]').innerText")
                 .contains("+79161234567"),
             "phone is normalized"
         );
@@ -280,7 +280,7 @@ async fn card_sections_are_edited_independently() {
         // 1. из списка открывается карточка
         tab.navigate_to(&format!("{base}/candidates")).unwrap();
         wait_count(&tab, "row", ROWS, 1);
-        click(&tab, "[data-testid=persons] tbody tr td a");
+        click(&tab, "[data-testid=grid-row] [data-testid=row-edit]");
         wait_until(&tab, "card", &exists_js("[data-testid=profile-view]"));
         assert_eq!(path_of(&tab), format!("/candidates/{card_id}"));
         let text = main_text(&tab);
@@ -517,7 +517,7 @@ async fn only_the_owner_deletes_and_only_after_confirmation() {
         wait_count(&tab, "candidate is still there", ROWS, 1);
 
         // подтверждённое удаление убирает кандидата и возвращает к списку
-        click(&tab, "[data-testid=persons] tbody tr td a");
+        click(&tab, "[data-testid=grid-row] [data-testid=row-edit]");
         wait_until(&tab, "card again", &exists_js("[data-testid=delete]"));
         std::thread::sleep(Duration::from_millis(1500));
         set_marker(&tab);

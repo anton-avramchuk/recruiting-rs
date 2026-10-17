@@ -6,8 +6,16 @@ use serde_json::Value;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Reply<T> {
     Ok(T),
-    Invalid { field: String, message: String },
+    Invalid {
+        field: String,
+        message: String,
+    },
     Conflict(String),
+    /// Конфликт с уже существующей записью; `existing` - её описание из ответа сервера.
+    Duplicate {
+        message: String,
+        existing: Value,
+    },
     Forbidden,
     NotFound,
     Unavailable,
@@ -45,7 +53,7 @@ impl<T> Reply<T> {
         Some(match self {
             Reply::Ok(_) => return None,
             Reply::Invalid { message, .. } => invalid(message),
-            Reply::Conflict(m) => conflict(m),
+            Reply::Conflict(m) | Reply::Duplicate { message: m, .. } => conflict(m),
             Reply::Forbidden => "Недостаточно прав для этого действия.".into(),
             Reply::NotFound => "Не найдено: возможно, запись уже удалена.".into(),
             Reply::Unavailable => "Сервис временно недоступен. Попробуйте позже.".into(),
@@ -58,6 +66,7 @@ impl<T> Reply<T> {
             Reply::Ok(v) => Reply::Ok(f(v)),
             Reply::Invalid { field, message } => Reply::Invalid { field, message },
             Reply::Conflict(m) => Reply::Conflict(m),
+            Reply::Duplicate { message, existing } => Reply::Duplicate { message, existing },
             Reply::Forbidden => Reply::Forbidden,
             Reply::NotFound => Reply::NotFound,
             Reply::Unavailable => Reply::Unavailable,
@@ -79,10 +88,19 @@ pub fn classify<T>(status: u16, body: &Value, parse: impl Fn(&Value) -> Option<T
         },
         401 | 403 => Reply::Forbidden,
         404 => Reply::NotFound,
-        409 => Reply::Conflict(match text("detail") {
-            d if d.is_empty() => "Действие сейчас недоступно".into(),
-            d => d,
-        }),
+        409 => {
+            let message = match text("detail") {
+                d if d.is_empty() => "Действие сейчас недоступно".to_string(),
+                d => d,
+            };
+            match body.get("duplicate").filter(|d| !d.is_null()) {
+                Some(existing) => Reply::Duplicate {
+                    message,
+                    existing: existing.clone(),
+                },
+                None => Reply::Conflict(message),
+            }
+        }
         _ => Reply::Unavailable,
     }
 }
@@ -218,6 +236,31 @@ mod tests {
             reply.failure_with(|_| "x".into()).as_deref(),
             Some("too long")
         );
+    }
+
+    #[test]
+    fn a_conflict_with_an_existing_record_carries_it_as_data() {
+        let body =
+            json!({"detail": "possible duplicate", "duplicate": {"id": "p1", "full_name": "Анна"}});
+        let reply = classify::<u8>(409, &body, |_| None);
+        assert_eq!(
+            reply,
+            Reply::Duplicate {
+                message: "possible duplicate".into(),
+                existing: json!({"id": "p1", "full_name": "Анна"})
+            }
+        );
+        // для пользователя это конфликт: текст проходит через перевод
+        assert_eq!(
+            reply.failure_with(|_| "Такой уже есть.".into()).as_deref(),
+            Some("Такой уже есть.")
+        );
+        assert!(!reply.is_ok());
+        // без данных о записи - обычный конфликт
+        assert!(matches!(
+            classify::<u8>(409, &json!({"detail": "x"}), |_| None),
+            Reply::Conflict(_)
+        ));
     }
 
     #[test]

@@ -1,4 +1,5 @@
 //! Форма создания кандидата с предупреждением о дубле.
+use candidate_contracts::{DuplicateInfo, PersonDto};
 use leptos::prelude::*;
 use leptos_router::{components::A, hooks::use_navigate};
 use recruitment_contracts::Stage;
@@ -9,19 +10,16 @@ use ui_kit::Reply;
 
 use super::{
     fields::Field,
-    outcome::CreateOutcome,
     server::{CreatePerson, person_action},
 };
 
 /// Сообщение об ошибке у конкретного поля.
 fn field_error(
-    outcome: Option<&Result<CreateOutcome, ServerFnError>>,
+    outcome: Option<&Result<Reply<PersonDto>, ServerFnError>>,
     field: &str,
 ) -> Option<String> {
     match outcome {
-        Some(Ok(CreateOutcome::Invalid { field: f, message })) if f == field => {
-            Some(message.clone())
-        }
+        Some(Ok(Reply::Invalid { field: f, message })) if f == field => Some(message.clone()),
         _ => None,
     }
 }
@@ -49,7 +47,7 @@ pub fn CreateCandidatePage() -> impl IntoView {
 
     // подтверждение действует на одну отправку
     Effect::new(move |_| match action.value().get() {
-        Some(Ok(CreateOutcome::Created(person))) => {
+        Some(Ok(Reply::Ok(person))) => {
             let vacancy = vacancy_select.get().map(|s| s.value()).unwrap_or_default();
             if vacancy.is_empty() {
                 navigate("/candidates", Default::default());
@@ -80,15 +78,17 @@ pub fn CreateCandidatePage() -> impl IntoView {
     let error =
         move |field: &'static str| Signal::derive(move || field_error(outcome().as_ref(), field));
     let duplicate = move || match outcome() {
-        Some(Ok(CreateOutcome::Duplicate(d))) => Some(d),
+        Some(Ok(Reply::Duplicate { existing, .. })) => {
+            serde_json::from_value::<DuplicateInfo>(existing).ok()
+        }
         _ => None,
     };
     let general_error = move || match outcome() {
-        Some(Ok(CreateOutcome::Invalid { field, message })) if field.is_empty() => Some(message),
-        Some(Ok(CreateOutcome::Forbidden)) => {
+        Some(Ok(Reply::Invalid { field, message })) if field.is_empty() => Some(message),
+        Some(Ok(Reply::Forbidden)) => {
             Some("Недостаточно прав для создания кандидатов.".to_string())
         }
-        Some(Ok(CreateOutcome::Unavailable)) | Some(Err(_)) => {
+        Some(Ok(Reply::Unavailable | Reply::Conflict(_) | Reply::NotFound)) | Some(Err(_)) => {
             Some("Не удалось создать кандидата. Попробуйте позже.".to_string())
         }
         _ => None,

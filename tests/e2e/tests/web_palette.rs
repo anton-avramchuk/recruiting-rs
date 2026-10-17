@@ -266,15 +266,16 @@ async fn shortcuts_move_around_and_stay_out_of_text_fields() {
         wait_until(
             &tab,
             "search focused",
-            "document.activeElement && document.activeElement.dataset.testid === 'search'",
+            "document.activeElement && document.activeElement.dataset.testid === 'grid-search'",
         );
 
         // в поле ввода клавиши — просто текст
         tab.type_str("gai").unwrap();
         std::thread::sleep(Duration::from_millis(500));
-        assert_eq!(path_of(&tab), "/candidates");
+        // поиск грида хранится в адресе, но раздел остаётся тем же
+        assert_eq!(eval_str(&tab, "location.pathname"), "/candidates");
         assert_eq!(
-            eval_str(&tab, "document.querySelector('[data-testid=search]').value"),
+            eval_str(&tab, "document.querySelector('[data-testid=grid-search]').value"),
             "gai"
         );
 

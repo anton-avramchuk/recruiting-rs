@@ -82,6 +82,8 @@ pub enum Operator {
     IsNotNull,
     IsEmpty,
     IsNotEmpty,
+    /// Значение поля входит в перечень (`value` - массив).
+    In,
 }
 
 impl Operator {
@@ -426,5 +428,20 @@ mod tests {
             .offset(),
             40
         );
+    }
+
+    #[test]
+    fn the_in_operator_takes_a_list_value() {
+        let f: Filter =
+            serde_json::from_value(json!({"field": "id", "operator": "in", "value": ["a", "b"]}))
+                .unwrap();
+        assert!(matches!(
+            f,
+            Filter::Leaf {
+                operator: Operator::In,
+                ..
+            }
+        ));
+        assert!(Operator::In.takes_value());
     }
 }

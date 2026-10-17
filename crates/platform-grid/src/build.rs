@@ -6,8 +6,8 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    ColumnType, GridColumn, GridError, GridSchema, MAX_CONDITIONS, MAX_DEPTH, MAX_SORT_KEYS,
-    MAX_VALUE_LEN,
+    ColumnType, GridColumn, GridError, GridSchema, MAX_CONDITIONS, MAX_DEPTH, MAX_IN_VALUES,
+    MAX_SORT_KEYS, MAX_VALUE_LEN,
 };
 
 /// Значение параметра запроса.
@@ -19,6 +19,9 @@ pub enum Bind {
     Uuid(Uuid),
     Timestamp(DateTime<Utc>),
     Date(NaiveDate),
+    TextArray(Vec<String>),
+    IntArray(Vec<i64>),
+    UuidArray(Vec<Uuid>),
 }
 
 /// Готовые части запроса. Параметры условий нумеруются с `$1`; `LIMIT` и `OFFSET` - числа,
@@ -197,6 +200,9 @@ impl Ctx<'_> {
         }
         let value = value
             .ok_or_else(|| GridError::new("filter", format!("для «{field}» нужно значение")))?;
+        if op == Operator::In {
+            return self.in_list(&column, field, &col, value, ignore_case);
+        }
         match (column.ty, op) {
             (ColumnType::Text, Operator::Contains | Operator::StartsWith | Operator::EndsWith) => {
                 let text = text_value(field, value)?;
@@ -223,6 +229,71 @@ impl Ctx<'_> {
         }
     }
 
+    /// `поле = ANY(массив)`: перечень приводится к типу столбца; пустой перечень не подходит ничему.
+    fn in_list(
+        &mut self,
+        column: &GridColumn,
+        field: &str,
+        col: &str,
+        value: &Value,
+        ignore_case: bool,
+    ) -> Result<String, GridError> {
+        let items = value.as_array().ok_or_else(|| {
+            GridError::new("filter", format!("для «{field}» нужен перечень значений"))
+        })?;
+        if items.len() > MAX_IN_VALUES {
+            return Err(GridError::new(
+                "filter",
+                format!("в перечне для «{field}» больше {MAX_IN_VALUES} значений"),
+            ));
+        }
+        if items.is_empty() {
+            return Ok("FALSE".into());
+        }
+        match column.ty {
+            ColumnType::Text => {
+                let texts = items
+                    .iter()
+                    .map(|v| text_value(field, v))
+                    .collect::<Result<Vec<_>, _>>()?;
+                if ignore_case {
+                    let lowered = texts.iter().map(|t| t.to_lowercase()).collect();
+                    let n = self.push(Bind::TextArray(lowered));
+                    Ok(format!("lower({col}) = ANY(${n}::text[])"))
+                } else {
+                    let n = self.push(Bind::TextArray(texts));
+                    Ok(format!("{col} = ANY(${n}::text[])"))
+                }
+            }
+            ColumnType::Int => {
+                let numbers = items
+                    .iter()
+                    .map(|v| match typed_bind(column, field, v)?.0 {
+                        Bind::Int(n) => Ok(n),
+                        _ => unreachable!("тип столбца Int"),
+                    })
+                    .collect::<Result<Vec<_>, GridError>>()?;
+                let n = self.push(Bind::IntArray(numbers));
+                Ok(format!("{col} = ANY(${n}::bigint[])"))
+            }
+            ColumnType::Uuid => {
+                let ids = items
+                    .iter()
+                    .map(|v| match typed_bind(column, field, v)?.0 {
+                        Bind::Uuid(id) => Ok(id),
+                        _ => unreachable!("тип столбца Uuid"),
+                    })
+                    .collect::<Result<Vec<_>, GridError>>()?;
+                let n = self.push(Bind::UuidArray(ids));
+                Ok(format!("{col} = ANY(${n}::uuid[])"))
+            }
+            _ => Err(GridError::new(
+                "filter",
+                format!("оператор не подходит полю «{}»", column.name),
+            )),
+        }
+    }
+
     fn push(&mut self, bind: Bind) -> usize {
         self.binds.push(bind);
         self.binds.len()
@@ -245,12 +316,13 @@ fn check_operator(column: &GridColumn, op: Operator) -> Result<(), GridError> {
     use Operator::*;
     let ok = match column.ty {
         ColumnType::Text => true,
-        ColumnType::Int | ColumnType::Timestamp | ColumnType::Date => {
-            !matches!(op, Contains | StartsWith | EndsWith | IsEmpty | IsNotEmpty)
-        }
-        ColumnType::Bool | ColumnType::Uuid => {
-            matches!(op, Eq | Neq | IsNull | IsNotNull)
-        }
+        ColumnType::Int => !matches!(op, Contains | StartsWith | EndsWith | IsEmpty | IsNotEmpty),
+        ColumnType::Timestamp | ColumnType::Date => !matches!(
+            op,
+            Contains | StartsWith | EndsWith | IsEmpty | IsNotEmpty | In
+        ),
+        ColumnType::Bool => matches!(op, Eq | Neq | IsNull | IsNotNull),
+        ColumnType::Uuid => matches!(op, Eq | Neq | IsNull | IsNotNull | In),
     };
     if ok {
         Ok(())
@@ -582,5 +654,75 @@ mod tests {
         assert!(!b.where_sql.contains("DROP"));
         assert!(!b.order_sql.contains("DROP"));
         assert_eq!(b.binds, vec![Bind::Text(evil.into())]);
+    }
+
+    #[test]
+    fn in_binds_one_array_with_a_cast_for_the_column_type() {
+        let b = built(Filter::leaf("age", Operator::In, json!([18, "21"])));
+        assert_eq!(b.where_sql, "WHERE (age) = ANY($1::bigint[])");
+        assert_eq!(b.binds, vec![Bind::IntArray(vec![18, 21])]);
+
+        let id = "00000000-0000-0000-0000-000000000001";
+        let b = built(Filter::leaf("id", Operator::In, json!([id])));
+        assert_eq!(b.where_sql, "WHERE (id) = ANY($1::uuid[])");
+        assert_eq!(b.binds, vec![Bind::UuidArray(vec![id.parse().unwrap()])]);
+    }
+
+    #[test]
+    fn in_on_text_ignores_case_by_lowering_both_sides() {
+        let b = built(Filter::leaf(
+            "email",
+            Operator::In,
+            json!(["A@b.io", "c@d.io"]),
+        ));
+        assert_eq!(b.where_sql, "WHERE lower((email)) = ANY($1::text[])");
+        assert_eq!(
+            b.binds,
+            vec![Bind::TextArray(vec!["a@b.io".into(), "c@d.io".into()])]
+        );
+        let b = built(Filter::Leaf {
+            field: "email".into(),
+            operator: Operator::In,
+            value: Some(json!(["A@b.io"])),
+            ignore_case: false,
+        });
+        assert_eq!(b.where_sql, "WHERE (email) = ANY($1::text[])");
+        assert_eq!(b.binds, vec![Bind::TextArray(vec!["A@b.io".into()])]);
+    }
+
+    #[test]
+    fn an_empty_in_matches_nothing() {
+        let b = built(Filter::leaf("age", Operator::In, json!([])));
+        assert_eq!(b.where_sql, "WHERE FALSE");
+        assert!(b.binds.is_empty());
+    }
+
+    #[test]
+    fn in_needs_a_list_of_fitting_values_and_a_fitting_column() {
+        for bad in [
+            Filter::leaf("age", Operator::In, json!("18")),
+            Filter::leaf("age", Operator::In, json!(["x"])),
+            Filter::leaf("id", Operator::In, json!(["not-a-uuid"])),
+            Filter::leaf("email", Operator::In, json!([["nested"]])),
+            Filter::leaf("created_at", Operator::In, json!(["2026-01-01T00:00:00Z"])),
+            Filter::leaf("active", Operator::In, json!([true])),
+        ] {
+            assert_eq!(rejected(with_filter(bad)).param, "filter");
+        }
+    }
+
+    #[test]
+    fn in_has_a_limit_on_the_number_of_values() {
+        let many: Vec<i64> = (0..=crate::MAX_IN_VALUES as i64).collect();
+        let err = rejected(with_filter(Filter::leaf("age", Operator::In, json!(many))));
+        assert_eq!(err.param, "filter");
+        let ok: Vec<i64> = (0..crate::MAX_IN_VALUES as i64).collect();
+        assert!(
+            build(
+                &SCHEMA,
+                &with_filter(Filter::leaf("age", Operator::In, json!(ok)))
+            )
+            .is_ok()
+        );
     }
 }

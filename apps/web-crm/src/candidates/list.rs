@@ -1,13 +1,14 @@
-//! Список кандидатов: поиск, фильтры, постраничная выдача.
+//! Список кандидатов на гриде: поиск, сортировка, фильтры столбцов и по заказчику.
+use candidate_contracts::PersonSummaryDto;
+use grid_contracts::Operator;
 use leptos::prelude::*;
 use leptos_router::components::A;
-use ui_kit::Reply;
-use ui_kit::{EmptyState, Notice, NoticeKind, PageHeader, SessionCtx};
+use ui_data::EntityGrid;
+use ui_kit::{PageHeader, Reply, SessionCtx, grid::Column};
 
 use super::{
     format::{format_salary, years_label},
-    outcome::ListOutcome,
-    server::{PersonQuery, search_persons_of_client},
+    server::list_persons_grid,
 };
 use crate::clients::server::list_clients;
 
@@ -31,19 +32,6 @@ pub fn is_owner(ctx: SessionCtx) -> bool {
 
 fn session_user(ctx: SessionCtx) -> Option<ui_kit::UserInfo> {
     ctx.current().and_then(Result::ok).and_then(|s| s.user)
-}
-
-/// Есть ли непустые текстовые фильтры (поиск, источник, навык, стаж).
-fn has_text_filters(
-    q: ReadSignal<String>,
-    source: ReadSignal<String>,
-    skill: ReadSignal<String>,
-    min_experience: ReadSignal<String>,
-) -> bool {
-    !q.get_untracked().trim().is_empty()
-        || !source.get_untracked().trim().is_empty()
-        || !skill.get_untracked().trim().is_empty()
-        || !min_experience.get_untracked().trim().is_empty()
 }
 
 /// Поле, значение которого применяется после паузы в наборе.
@@ -80,51 +68,85 @@ pub fn DebouncedInput(
     }
 }
 
+fn person_href(person: &PersonSummaryDto) -> String {
+    format!("/candidates/{}", person.id)
+}
+
+fn person_columns(clients: Signal<Vec<(String, String)>>) -> Vec<Column<PersonSummaryDto>> {
+    vec![
+        Column::new("full_name", "Кандидат", |p: &PersonSummaryDto| {
+            view! { <span data-testid="person-name">{p.full_name.clone()}</span> }.into_any()
+        })
+        .sortable()
+        .filter_text(),
+        Column::new("email", "Контакты", |p: &PersonSummaryDto| {
+            let contacts = [p.phone.clone(), p.email.clone()]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join(" · ");
+            view! { <span>{contacts}</span> }.into_any()
+        })
+        .sortable()
+        .filter_text(),
+        Column::new("source", "Источник", |p: &PersonSummaryDto| {
+            view! { <span>{p.source.clone().unwrap_or_default()}</span> }.into_any()
+        })
+        .sortable()
+        .filter_text(),
+        Column::new("skills", "Навыки", |p: &PersonSummaryDto| {
+            view! { <span>{p.skills.join(", ")}</span> }.into_any()
+        })
+        .filter_text(),
+        Column::new("experience_years", "Стаж", |p: &PersonSummaryDto| {
+            view! { <span>{years_label(p.experience_years)}</span> }.into_any()
+        })
+        .sortable()
+        .filter_text_op(Operator::Gte),
+        Column::new(
+            "expected_salary",
+            "Зарплата",
+            |p: &PersonSummaryDto| {
+                view! { <span>{p.expected_salary.map(format_salary).unwrap_or_default()}</span> }
+                    .into_any()
+            },
+        )
+        .sortable(),
+        // кандидаты заказчика: люди с откликами на его вакансии
+        Column::filter_only("client", "Заказчик")
+            .filter_select(clients, Operator::Eq)
+            .empty_label("Все заказчики"),
+    ]
+}
+
 #[component]
 pub fn CandidatesPage() -> impl IntoView {
     let ctx = expect_context::<SessionCtx>();
-    let (q, set_q) = signal(String::new());
-    let (source, set_source) = signal(String::new());
-    let (skill, set_skill) = signal(String::new());
-    let (min_experience, set_min_experience) = signal(String::new());
-    let (page, set_page) = signal(1i64);
-    // выбранный заказчик: пустая строка - все; epoch пересоздаёт поля ввода при сбросе
-    let client = RwSignal::new(String::new());
-    let epoch = RwSignal::new(0u32);
     let truncated = RwSignal::new(false);
-    let clients = Resource::new(|| (), |_| list_clients(String::new(), true));
-
-    let results = Resource::new(
-        move || {
-            (
-                q.get(),
-                source.get(),
-                skill.get(),
-                min_experience.get(),
-                page.get(),
-                client.get(),
-            )
-        },
-        move |(q, source, skill, min_experience, page, client)| async move {
-            let query = PersonQuery {
-                q,
-                source,
-                skill,
-                min_experience,
-                ids: String::new(),
-                page,
-            };
-            let (outcome, cut) = search_persons_of_client(query, client).await?;
-            truncated.set(cut);
-            Ok::<_, ServerFnError>(outcome)
-        },
-    );
-    let filtered = move || {
-        !q.get().trim().is_empty()
-            || !source.get().trim().is_empty()
-            || !skill.get().trim().is_empty()
-            || !min_experience.get().trim().is_empty()
-            || !client.get().is_empty()
+    let clients = LocalResource::new(|| list_clients(String::new(), true));
+    let client_options = Signal::derive(move || {
+        clients
+            .get()
+            .and_then(Result::ok)
+            .and_then(Reply::ok)
+            .map(|list| {
+                list.into_iter()
+                    .map(|c| {
+                        let label = if c.archived {
+                            format!("{} (архив)", c.name)
+                        } else {
+                            c.name
+                        };
+                        (c.id.to_string(), label)
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    });
+    let load = move |query| async move {
+        let (reply, cut) = list_persons_grid(query).await?;
+        truncated.set(cut);
+        Ok::<_, ServerFnError>(reply)
     };
 
     view! {
@@ -140,86 +162,6 @@ pub fn CandidatesPage() -> impl IntoView {
         </PageHeader>
 
         {move || {
-            epoch.get();
-            view! {
-                <div class="toolbar">
-                    <DebouncedInput
-                applied=set_q
-                reset_page=set_page
-                placeholder="Поиск по имени, email, телефону, навыкам"
-                label="Поиск"
-                testid="search"
-            />
-            <DebouncedInput
-                applied=set_source
-                reset_page=set_page
-                placeholder="Источник"
-                label="Источник"
-                testid="filter-source"
-            />
-            <DebouncedInput
-                applied=set_skill
-                reset_page=set_page
-                placeholder="Навык"
-                label="Навык"
-                testid="filter-skill"
-            />
-            <DebouncedInput
-                applied=set_min_experience
-                reset_page=set_page
-                placeholder="Стаж от, лет"
-                label="Стаж от"
-                testid="filter-min-experience"
-            />
-            <select
-                aria-label="Заказчик"
-                data-testid="filter-client"
-                prop:value=move || client.get()
-                on:change=move |ev| {
-                    client.set(event_target_value(&ev));
-                    set_page.set(1);
-                }
-            >
-                <option value="">"Все заказчики"</option>
-                <Transition fallback=|| ()>
-                    {move || {
-                        clients
-                            .get()
-                            .and_then(Result::ok)
-                            .and_then(Reply::ok)
-                            .map(|list| {
-                                list.into_iter()
-                                    .map(|c| {
-                                        let label = if c.archived { format!("{} (архив)", c.name) } else { c.name.clone() };
-                                        let id = c.id.to_string();
-                                        view! { <option value=id.clone() selected=move || client.get() == id>{label}</option> }
-                                    })
-                                    .collect_view()
-                            })
-                    }}
-                </Transition>
-            </select>
-            <Show when=filtered>
-                <button
-                    class="btn btn--ghost"
-                    data-testid="reset-filters"
-                    on:click=move |_| {
-                        set_q.set(String::new());
-                        set_source.set(String::new());
-                        set_skill.set(String::new());
-                        set_min_experience.set(String::new());
-                        client.set(String::new());
-                        set_page.set(1);
-                        epoch.update(|e| *e += 1);
-                    }
-                >
-                    "Сбросить фильтры"
-                </button>
-            </Show>
-        </div>
-            }
-        }}
-        {move || {
             truncated
                 .get()
                 .then(|| {
@@ -231,110 +173,14 @@ pub fn CandidatesPage() -> impl IntoView {
                 })
         }}
 
-        <Transition fallback=|| view! { <p class="muted">"Загрузка…"</p> }>
-            {move || {
-                results
-                    .get()
-                    .map(|result| match result {
-                        Ok(ListOutcome::Page(data)) if data.items.is_empty() => {
-                            if !client.get_untracked().is_empty() && !has_text_filters(q, source, skill, min_experience) {
-                                view! {
-                                    <EmptyState
-                                        title="Кандидатов заказчика пока нет"
-                                        hint="На его вакансии ещё никто не откликался."
-                                    />
-                                }
-                                    .into_any()
-                            } else if filtered() {
-                                view! {
-                                    <EmptyState
-                                        title="Ничего не найдено"
-                                        hint="Измените запрос или сбросьте фильтры."
-                                    />
-                                }
-                                    .into_any()
-                            } else {
-                                view! {
-                                    <EmptyState
-                                        title="Кандидатов пока нет"
-                                        hint="Добавьте первого кандидата, и он появится здесь."
-                                    />
-                                }
-                                    .into_any()
-                            }
-                        }
-                        Ok(ListOutcome::Page(data)) => {
-                            let pages = ((data.total + data.page_size - 1) / data.page_size).max(1);
-                            let at_end = move || page.get() >= pages;
-                            view! {
-                                <p class="muted">{format!("Найдено: {}", data.total)}</p>
-                                <div class="table-wrap">
-                                    <table data-testid="persons">
-                                        <thead>
-                                            <tr>
-                                                <th>"Кандидат"</th>
-                                                <th>"Контакты"</th>
-                                                <th>"Навыки"</th>
-                                                <th>"Стаж"</th>
-                                                <th>"Зарплата"</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {data
-                                                .items
-                                                .into_iter()
-                                                .map(|p| {
-                                                    let contacts = [p.phone.clone(), p.email.clone()]
-                                                        .into_iter()
-                                                        .flatten()
-                                                        .collect::<Vec<_>>()
-                                                        .join(" · ");
-                                                    view! {
-                                                        <tr>
-                                                            <td>
-                                                                <A href=format!("/candidates/{}", p.id)>
-                                                                    {p.full_name.clone()}
-                                                                </A>
-                                                            </td>
-                                                            <td>{contacts}</td>
-                                                            <td>{p.skills.join(", ")}</td>
-                                                            <td>{years_label(p.experience_years)}</td>
-                                                            <td>
-                                                                {p.expected_salary.map(format_salary).unwrap_or_default()}
-                                                            </td>
-                                                        </tr>
-                                                    }
-                                                })
-                                                .collect_view()}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div class="toolbar">
-                                    <span class="muted">{format!("Страница {} из {}", data.page, pages)}</span>
-                                    <button
-                                        class="btn"
-                                        disabled=move || page.get() <= 1
-                                        on:click=move |_| set_page.update(|p| *p -= 1)
-                                    >
-                                        "Назад"
-                                    </button>
-                                    <button class="btn" disabled=at_end on:click=move |_| set_page.update(|p| *p += 1)>
-                                        "Вперёд"
-                                    </button>
-                                </div>
-                            }
-                                .into_any()
-                        }
-                        _ => {
-                            view! {
-                                <Notice kind=NoticeKind::Error>
-                                    "Не удалось загрузить кандидатов. Попробуйте позже."
-                                </Notice>
-                            }
-                                .into_any()
-                        }
-                    })
-            }}
-        </Transition>
+        <EntityGrid
+            columns=person_columns(client_options)
+            load=load
+            row_href=Some(person_href as fn(&PersonSummaryDto) -> String)
+            search_fields=vec!["full_name", "email", "phone", "city", "skills"]
+            search_placeholder="Поиск по имени, email, телефону, навыкам"
+            empty_title="Кандидатов пока нет"
+            empty_hint="Добавьте первого кандидата, и он появится здесь."
+        />
     }
 }

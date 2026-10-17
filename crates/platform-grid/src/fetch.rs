@@ -24,6 +24,9 @@ macro_rules! bind_all {
                 Bind::Uuid(v) => query.bind(v),
                 Bind::Timestamp(v) => query.bind(v),
                 Bind::Date(v) => query.bind(v),
+                Bind::TextArray(v) => query.bind(v),
+                Bind::IntArray(v) => query.bind(v),
+                Bind::UuidArray(v) => query.bind(v),
             };
         }
         query
