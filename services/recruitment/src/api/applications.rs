@@ -4,6 +4,7 @@ use axum::{
     http::{HeaderMap, HeaderValue, StatusCode},
     routing::{get, post},
 };
+use grid_contracts::{GridPage, GridQuery};
 use platform_auth::{AuthUser, Permission};
 use platform_core::error::{ApiError, ProblemDetails};
 use recruitment_contracts::{
@@ -28,6 +29,7 @@ use crate::{
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/applications", get(list).post(create))
+        .route("/applications/grid", get(grid))
         .route("/applications/people", get(people_of_client))
         .route("/applications/bulk", post(bulk))
         .route("/applications/batch", post(batch))
@@ -188,6 +190,46 @@ pub(super) async fn list(
             total: page.total,
             page: page.page,
             page_size: page.page_size,
+        }),
+    ))
+}
+
+/// Параметры списка: `page`, `page_size`, `sort` (`поле:asc,поле:desc`), `filter` (JSON).
+#[utoipa::path(get, path = "/applications/grid", security(("bearer" = [])), params(
+    ("page" = Option<u32>, Query, description = "Страница, с 1"),
+    ("page_size" = Option<u32>, Query, description = "Размер страницы, до 100"),
+    ("sort" = Option<String>, Query, description = "Сортировка: поле:asc,поле:desc"),
+    ("filter" = Option<String>, Query, description = "Фильтр грида (JSON)"),
+), responses(
+    (status = 200, body = GridPage<ApplicationDto>, headers(("x-people-stale" = String, description = "true, если данные людей могут отставать"))),
+    (status = 400, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 401, body = ProblemDetails, content_type = "application/problem+json"),
+    (status = 403, body = ProblemDetails, content_type = "application/problem+json"),
+))]
+pub(super) async fn grid(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Query(params): Query<Vec<(String, String)>>,
+) -> Result<(HeaderMap, Json<GridPage<ApplicationDto>>), ApiError> {
+    user.require(Permission::ReadData)?;
+    let query = GridQuery::from_pairs(params.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+        .map_err(platform_grid::GridError::from)?;
+    let result = state
+        .applications
+        .list_grid(tenant_of(&user)?, query)
+        .await?;
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "x-people-stale",
+        HeaderValue::from_static(if result.stale { "true" } else { "false" }),
+    );
+    Ok((
+        headers,
+        Json(GridPage {
+            items: result.page.items.iter().map(application_to_dto).collect(),
+            total: result.page.total,
+            page: result.page.page,
+            page_size: result.page.page_size,
         }),
     ))
 }

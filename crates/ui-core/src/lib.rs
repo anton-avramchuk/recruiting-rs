@@ -12,7 +12,7 @@ pub mod tabs;
 
 pub use encode::encode_query_value;
 pub use grid::{
-    FilterSpec, GridUrl, PAGE_SIZES, RowActions, and_condition, closes_dialog, confirm_question,
-    grid_path, is_interactive, page_info, take_eq,
+    FilterSpec, GridUrl, PAGE_SIZES, RowActions, Selection, and_condition, clamp_cursor,
+    closes_dialog, confirm_question, grid_path, is_interactive, move_cursor, page_info, take_eq,
 };
 pub use reply::{Reply, classify, classify_empty, typed};

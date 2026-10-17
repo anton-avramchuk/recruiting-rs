@@ -37,7 +37,7 @@ macro_rules! bind_all {
 /// Изоляция организаций остаётся за соединением: вызывать надо внутри транзакции тенанта (RLS).
 pub async fn fetch_page<R>(
     conn: &mut PgConnection,
-    schema: &GridSchema,
+    schema: &GridSchema<'_>,
     select: &str,
     query: &GridQuery,
 ) -> Result<GridPage<R>, FetchError>

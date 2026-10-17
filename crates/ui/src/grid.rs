@@ -11,7 +11,9 @@ use leptos_router::{
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{ConfirmDialog, EmptyState, Notice, NoticeKind, Pager};
-use ui_core::grid::{FilterSpec, GridUrl, PAGE_SIZES, RowActions, is_interactive, page_info};
+use ui_core::grid::{
+    FilterSpec, GridUrl, PAGE_SIZES, RowActions, Selection, clamp_cursor, is_interactive, page_info,
+};
 
 /// Пауза в наборе перед запросом, мс.
 const DEBOUNCE_MS: u64 = 300;
@@ -230,6 +232,26 @@ pub fn Grid<T, F, Fut>(
     /// Внешний счётчик перезагрузок: при изменении страница читается заново.
     #[prop(default = None)]
     refresh: Option<Signal<u32>>,
+    /// Выбор строк: первый столбец с флажками и общий флажок «выбрать все на странице».
+    /// Нужен и `row_id`. Выбором владеет хозяин (групповые действия, клавиши).
+    #[prop(default = None)]
+    selection: Option<RwSignal<Selection>>,
+    /// Идентификатор строки для выбора.
+    #[prop(default = None)]
+    row_id: Option<fn(&T) -> String>,
+    /// Курсор строки с клавиатуры: подсвечивается строка с этим номером. Двигает его хозяин;
+    /// грид только удерживает его в пределах страницы и сбрасывает при смене вида (страница, фильтры).
+    #[prop(default = None)]
+    cursor: Option<RwSignal<Option<usize>>>,
+    /// Строки текущей страницы для хозяина (например, для клавиш списка).
+    #[prop(default = None)]
+    rows_out: Option<RwSignal<Vec<T>>>,
+    /// Открытие записи вместо перехода по адресу: двойной щелчок и «Изменить» вызывают его.
+    #[prop(default = None)]
+    on_open: Option<Callback<T>>,
+    /// Дополнительный класс строки.
+    #[prop(default = None)]
+    row_class: Option<fn(&T) -> String>,
     /// Поля, по которым работает общий поиск; пусто - поиска нет.
     #[prop(optional)]
     search_fields: Vec<&'static str>,
@@ -255,9 +277,13 @@ where
     let has_filters = columns
         .iter()
         .any(|c| !c.hidden && c.filter_spec().is_some());
-    let has_actions = row_href.is_some() || remove.is_some() || extra_actions.is_some();
+    let selectable = selection.is_some() && row_id.is_some();
+    let has_actions =
+        row_href.is_some() || on_open.is_some() || remove.is_some() || extra_actions.is_some();
     let extra_actions = StoredValue::new(extra_actions);
-    let width = columns.iter().filter(|c| !c.hidden).count() + usize::from(has_actions);
+    let width = columns.iter().filter(|c| !c.hidden).count()
+        + usize::from(has_actions)
+        + usize::from(selectable);
     let remove = StoredValue::new(remove);
     let columns = StoredValue::new(columns);
     let specs = StoredValue::new(specs);
@@ -346,6 +372,26 @@ where
         move |(q, _, _)| load(q),
     );
 
+    // строки страницы для хозяина; курсор не выходит за страницу
+    Effect::new(move |_| {
+        if let Some(Ok(page)) = rows.get() {
+            let len = page.items.len();
+            if let Some(out) = rows_out {
+                out.set(page.items);
+            }
+            if let Some(cursor) = cursor {
+                cursor.update(|c| *c = clamp_cursor(*c, len));
+            }
+        }
+    });
+    // новый вид списка (страница, сортировка, поиск, фильтры) возвращает курсор в начало
+    Effect::new(move |_| {
+        url.track();
+        if let Some(cursor) = cursor {
+            cursor.set(None);
+        }
+    });
+
     let search = view! {
         <DebouncedText
             value=Signal::derive(move || url.get().q)
@@ -410,6 +456,39 @@ where
                 .collect_view()
         })
     };
+    let select_head = selectable.then(|| {
+        let selection = selection.expect("выбор включён");
+        let ids = move || {
+            rows.get()
+                .and_then(Result::ok)
+                .map(|page| {
+                    let id = row_id.expect("идентификатор строки");
+                    page.items.iter().map(id).collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        };
+        view! {
+            <th scope="col" class="grid__select-head">
+                <input
+                    type="checkbox"
+                    aria-label="Выбрать все на странице"
+                    data-testid="grid-select-all"
+                    prop:checked=move || selection.with(|s| s.covers(ids().iter().map(String::as_str)))
+                    on:change=move |ev| {
+                        let on = event_target_checked(&ev);
+                        let ids = ids();
+                        selection.update(|s| {
+                            if on {
+                                s.select_all(ids.iter().map(String::as_str));
+                            } else {
+                                s.deselect_all(ids.iter().map(String::as_str));
+                            }
+                        });
+                    }
+                />
+            </th>
+        }
+    });
     let actions_head = has_actions
         .then(|| view! { <th scope="col" class="grid__actions-head"><span class="muted">"Действия"</span></th> });
 
@@ -515,7 +594,8 @@ where
                     {page
                         .items
                         .into_iter()
-                        .map(|item| {
+                        .enumerate()
+                        .map(|(index, item)| {
                             let cells = columns.with_value(|cols| {
                                 cols.iter()
                                     .filter(|c| !c.hidden)
@@ -526,18 +606,32 @@ where
                             let can_remove = remove.with_value(|r| {
                                 r.as_ref().map(|r| (r.allowed)(&item))
                             });
+                            let id = row_id.map(|f| f(&item)).unwrap_or_default();
+                            let extra_class = row_class.map(|f| f(&item)).unwrap_or_default();
+                            let opener = on_open.map(|cb| {
+                                let item = item.clone();
+                                move || cb.run(item.clone())
+                            });
                             let actions = RowActions::new(
-                                href.is_some(),
+                                href.is_some() || opener.is_some(),
                                 can_remove.is_some(),
                                 can_remove.unwrap_or(false),
                             );
                             let actions_cell = has_actions.then(|| {
-                                let edit = actions.edit.then(|| {
-                                    view! {
-                                        <A href=href.clone().unwrap_or_default() attr:class="btn" attr:data-testid="row-edit">
+                                let edit = actions.edit.then(|| match (&href, opener.clone()) {
+                                    (Some(href), _) => view! {
+                                        <A href=href.clone() attr:class="btn" attr:data-testid="row-edit">
                                             "Изменить"
                                         </A>
                                     }
+                                    .into_any(),
+                                    (None, Some(open)) => view! {
+                                        <button type="button" class="btn" data-testid="row-edit" on:click=move |_| open()>
+                                            "Изменить"
+                                        </button>
+                                    }
+                                    .into_any(),
+                                    (None, None) => ().into_any(),
                                 });
                                 let removal = actions.remove.then(|| {
                                     let item = item.clone();
@@ -559,20 +653,59 @@ where
                                 let extra = extra_actions.with_value(|e| e.as_ref().map(|f| f(&item)));
                                 view! { <td class="grid__actions-cell"><span class="grid__actions">{extra}{edit}{removal}</span></td> }
                             });
+                            let select_cell = selectable.then(|| {
+                                let selection = selection.expect("выбор включён");
+                                let (check_id, class_id) = (id.clone(), id.clone());
+                                let _ = class_id;
+                                view! {
+                                    <td class="grid__select-cell">
+                                        <input
+                                            type="checkbox"
+                                            aria-label="Выбрать строку"
+                                            data-testid="grid-select"
+                                            prop:checked={
+                                                let id = check_id.clone();
+                                                move || selection.with(|s| s.contains(&id))
+                                            }
+                                            on:change=move |_| selection.update(|s| s.toggle(&check_id))
+                                        />
+                                    </td>
+                                }
+                            });
+                            let row_id_for_class = id.clone();
+                            let row_classes = move || {
+                                let mut classes = extra_class.clone();
+                                if selectable
+                                    && selection.is_some_and(|s| s.with(|s| s.contains(&row_id_for_class)))
+                                {
+                                    classes.push_str(" row-selected");
+                                }
+                                if cursor.is_some_and(|c| c.get() == Some(index)) {
+                                    classes.push_str(" row-cursor");
+                                }
+                                classes
+                            };
                             view! {
                                 <tr
                                     data-testid="grid-row"
+                                    class=row_classes
                                     on:dblclick=move |ev| {
                                         use leptos::wasm_bindgen::JsCast;
                                         let inner = ev
                                             .target()
                                             .and_then(|t| t.dyn_into::<leptos::web_sys::Element>().ok())
                                             .is_some_and(|e| is_interactive(&e.tag_name()));
-                                        if !inner && let Some(href) = &href {
+                                        if inner {
+                                            return;
+                                        }
+                                        if let Some(open) = &opener {
+                                            open();
+                                        } else if let Some(href) = &href {
                                             open_href.set(Some(href.clone()));
                                         }
                                     }
                                 >
+                                    {select_cell}
                                     {cells}
                                     {actions_cell}
                                 </tr>
@@ -622,9 +755,9 @@ where
             <div class="card grid__card">
                 <table class="grid__table">
                     <thead>
-                        <tr>{head}{actions_head}</tr>
+                        <tr>{select_head}{head}{actions_head}</tr>
                         {has_filters
-                            .then(|| view! { <tr class="grid__filters">{filter_row}{has_actions.then(|| view! { <td></td> })}</tr> })}
+                            .then(|| view! { <tr class="grid__filters">{selectable.then(|| view! { <td></td> })}{filter_row}{has_actions.then(|| view! { <td></td> })}</tr> })}
                     </thead>
                     <Transition fallback=move || view! { <tbody><tr><td colspan=width.to_string() class="muted">"Загрузка…"</td></tr></tbody> }>
                         {body}

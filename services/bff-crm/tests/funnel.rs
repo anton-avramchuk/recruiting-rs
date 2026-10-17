@@ -190,3 +190,18 @@ async fn analytics_reaches_the_recruitment_service_and_lookalikes_stay_closed() 
     }
     assert_eq!(w.recruitment.api_calls.load(Ordering::SeqCst), 1);
 }
+
+#[tokio::test]
+async fn grid_parameters_reach_the_recruitment_service_unchanged() {
+    let w = world(None).await;
+    let query = "page=1&page_size=20&sort=stage_changed_at%3Aasc&filter=%7B%22field%22%3A%22overdue%22%2C%22operator%22%3A%22eq%22%2C%22value%22%3Atrue%7D";
+    let res = w
+        .client
+        .send("GET", &format!("/api/applications/grid?{query}"), &[], None)
+        .await;
+    assert_eq!(res.status, 200);
+    assert_eq!(
+        w.recruitment.last_query.lock().unwrap().as_deref(),
+        Some(query)
+    );
+}

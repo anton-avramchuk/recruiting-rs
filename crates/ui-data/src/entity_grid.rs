@@ -5,7 +5,7 @@ use grid_contracts::{GridPage, GridQuery};
 use leptos::prelude::*;
 use serde::{Serialize, de::DeserializeOwned};
 use ui::{Column, Grid, RowExtra, RowRemove};
-use ui_core::Reply;
+use ui_core::{Reply, Selection};
 
 /// Удаление записи из строки: название для вопроса, правило «можно ли» и серверная функция.
 pub struct EntityRemove<T> {
@@ -59,6 +59,12 @@ pub fn EntityGrid<T, F, Fut>(
     #[prop(default = None)] remove: Option<EntityRemove<T>>,
     #[prop(default = None)] extra_actions: Option<RowExtra<T>>,
     #[prop(default = None)] refresh: Option<Signal<u32>>,
+    #[prop(default = None)] selection: Option<RwSignal<Selection>>,
+    #[prop(default = None)] row_id: Option<fn(&T) -> String>,
+    #[prop(default = None)] cursor: Option<RwSignal<Option<usize>>>,
+    #[prop(default = None)] rows_out: Option<RwSignal<Vec<T>>>,
+    #[prop(default = None)] on_open: Option<Callback<T>>,
+    #[prop(default = None)] row_class: Option<fn(&T) -> String>,
     #[prop(optional)] search_fields: Vec<&'static str>,
     #[prop(default = "Поиск")] search_placeholder: &'static str,
     #[prop(default = "Пока ничего нет")] empty_title: &'static str,
@@ -82,6 +88,12 @@ where
             remove=remove.map(|r| r.inner)
             extra_actions=extra_actions
             refresh=refresh
+            selection=selection
+            row_id=row_id
+            cursor=cursor
+            rows_out=rows_out
+            on_open=on_open
+            row_class=row_class
             search_fields=search_fields
             search_placeholder=search_placeholder
             empty_title=empty_title

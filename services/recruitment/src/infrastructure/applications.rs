@@ -1,6 +1,8 @@
 //! Хранение откликов, их истории и интервью. Работает на соединении в контексте тенанта (RLS).
 use chrono::{DateTime, Utc};
+use grid_contracts::{GridPage, GridQuery};
 use platform_core::tenant::TenantId;
+use platform_grid::{ColumnType, FetchError, GridColumn, GridSchema, fetch_page};
 use recruitment_contracts::Stage;
 use sqlx::{FromRow, PgConnection};
 use uuid::Uuid;
@@ -186,6 +188,8 @@ pub struct ApplicationRow {
     pub hours_on_stage: i64,
     pub match_percent: Option<i32>,
     pub person_applications: i64,
+    /// Общее число строк: есть только в выборке с `count(*) OVER ()`.
+    #[sqlx(default)]
     total: i64,
 }
 
@@ -229,6 +233,86 @@ impl Sort {
     }
 }
 
+/// Поля списка откликов, доступные клиенту (белый список грида).
+const GRID_COLUMNS: &[GridColumn] = &[
+    GridColumn::new("id", "id", ColumnType::Uuid),
+    GridColumn::new("person_id", "person_id", ColumnType::Uuid),
+    GridColumn::new("vacancy_id", "vacancy_id", ColumnType::Uuid),
+    GridColumn::new("client_id", "client_id", ColumnType::Uuid),
+    GridColumn::new("vacancy_title", "vacancy_title", ColumnType::Text),
+    GridColumn::new("client_name", "client_name", ColumnType::Text),
+    GridColumn::new("contact_name", "contact_name", ColumnType::Text),
+    GridColumn::new("full_name", "full_name", ColumnType::Text),
+    GridColumn::new("source", "source", ColumnType::Text),
+    GridColumn::new("city", "city", ColumnType::Text),
+    GridColumn::new("email", "email", ColumnType::Text),
+    GridColumn::new("skills", "skills", ColumnType::Text).no_sort(),
+    GridColumn::new("expected_salary", "expected_salary", ColumnType::Int),
+    GridColumn::new("stage", "stage", ColumnType::Text),
+    GridColumn::new("stage_order", "stage_order", ColumnType::Int),
+    GridColumn::new(
+        "stage_changed_at",
+        "stage_changed_at",
+        ColumnType::Timestamp,
+    ),
+    GridColumn::new("created_at", "created_at", ColumnType::Timestamp),
+    GridColumn::new("hours_on_stage", "hours_on_stage", ColumnType::Int),
+    GridColumn::new("overdue", "overdue", ColumnType::Bool),
+    GridColumn::new("match_percent", "match_percent", ColumnType::Int),
+    GridColumn::new(
+        "person_applications",
+        "person_applications",
+        ColumnType::Int,
+    ),
+];
+
+const GRID_SELECT: &str = "id, person_id, vacancy_id, vacancy_title, client_name, contact_name, \
+    full_name, source, city, expected_salary, stage, stage_changed_at, created_at, hours_on_stage, \
+    match_percent, person_applications";
+
+/// Подзапрос-источник грида: те же вычисления, что в `rows_sql`, но момент `now` вписан литералом
+/// (его формирует сервер, не клиент), поэтому часы на этапе и просрочка доступны как столбцы.
+fn grid_source(now: DateTime<Utc>) -> String {
+    let now_sql = format!("'{}'::timestamptz", now.to_rfc3339());
+    let hours = hours_on_stage_sql(&now_sql);
+    let overdue = overdue_sql_for(&hours);
+    format!(
+        r"(SELECT a.id, a.person_id, a.vacancy_id, v.client_id, v.title AS vacancy_title,
+               (SELECT c.name FROM clients c WHERE c.client_id = v.client_id) AS client_name,
+               (SELECT k.full_name FROM client_contacts k WHERE k.contact_id = v.contact_id) AS contact_name,
+               p.full_name, p.source, p.city, p.email, array_to_string(p.skills, ' ') AS skills,
+               p.expected_salary, a.stage, a.stage_changed_at, a.created_at,
+               array_position(ARRAY['new','screening','hr','tech','final','offer','hired','rejected'], a.stage) AS stage_order,
+               {hours}::bigint AS hours_on_stage,
+               {overdue} AS overdue,
+               CASE WHEN cardinality(v.required_skills) = 0 THEN NULL
+                    ELSE round(100.0 * (SELECT count(*) FROM unnest(v.required_skills) r
+                                        WHERE lower(r) IN (SELECT lower(s) FROM unnest(p.skills) s))
+                               / cardinality(v.required_skills))::int
+               END AS match_percent,
+               (SELECT count(*) FROM applications x WHERE x.person_id = a.person_id) AS person_applications
+        FROM applications a
+        JOIN people p ON p.person_id = a.person_id
+        JOIN vacancies v ON v.id = a.vacancy_id) t"
+    )
+}
+
+/// Страница откликов по запросу грида (изоляция - за RLS соединения).
+pub async fn grid_page(
+    conn: &mut PgConnection,
+    query: &GridQuery,
+    now: DateTime<Utc>,
+) -> Result<GridPage<ApplicationRow>, FetchError> {
+    let source = grid_source(now);
+    let schema = GridSchema {
+        source: &source,
+        key: "id",
+        columns: GRID_COLUMNS,
+        max_page_size: 100,
+    };
+    fetch_page(conn, &schema, GRID_SELECT, query).await
+}
+
 /// Условия выборки. Пустые поля не ограничивают результат.
 #[derive(Debug, Clone, Default)]
 pub struct ApplicationFilter {
@@ -244,18 +328,28 @@ pub struct ApplicationFilter {
     pub overdue: Option<bool>,
 }
 
-/// Часы на этапе от момента `$1` (отрицательные считаются нулём).
+/// Часы на этапе от момента `now_sql` (отрицательные считаются нулём).
+fn hours_on_stage_sql(now_sql: &str) -> String {
+    format!("GREATEST(floor(extract(epoch FROM ({now_sql} - a.stage_changed_at)) / 3600), 0)")
+}
+
+/// Часы на этапе от параметра `$1`.
 const HOURS_ON_STAGE: &str =
     "GREATEST(floor(extract(epoch FROM ($1::timestamptz - a.stage_changed_at)) / 3600), 0)";
 
-/// Просрочка по SLA: пороги берутся из контрактов, правило то же, что у `Stage::overdue`.
-fn overdue_sql() -> String {
+/// Просрочка по SLA для выражения часов `hours`: пороги берутся из контрактов, правило то же,
+/// что у `Stage::overdue`.
+fn overdue_sql_for(hours: &str) -> String {
     format!(
-        "((a.stage = 'new' AND {HOURS_ON_STAGE} > {new}) \
-         OR (a.stage IN ('screening', 'hr', 'tech', 'final', 'offer') AND {HOURS_ON_STAGE} > {active}))",
+        "((a.stage = 'new' AND {hours} > {new}) \
+         OR (a.stage IN ('screening', 'hr', 'tech', 'final', 'offer') AND {hours} > {active}))",
         new = recruitment_contracts::NEW_SLA_HOURS,
         active = recruitment_contracts::ACTIVE_SLA_HOURS,
     )
+}
+
+fn overdue_sql() -> String {
+    overdue_sql_for(HOURS_ON_STAGE)
 }
 
 fn rows_sql() -> String {

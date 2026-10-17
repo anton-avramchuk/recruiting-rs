@@ -152,6 +152,7 @@ impl Upstream {
             .route("/vacancies", get(users).post(users))
             .route("/vacancies/1", get(users).post(users))
             .route("/applications", get(users).post(users))
+            .route("/applications/grid", get(users))
             .route("/applications/people", get(users))
             .route("/applications/1/stage", get(users).post(users))
             .route("/overview", get(users))

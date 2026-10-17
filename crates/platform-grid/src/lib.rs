@@ -56,9 +56,9 @@ impl GridColumn {
 
 /// Источник грида: таблица или представление и допустимые поля.
 #[derive(Debug, Clone, Copy)]
-pub struct GridSchema {
-    /// Таблица или представление (из кода).
-    pub source: &'static str,
+pub struct GridSchema<'a> {
+    /// Таблица или представление, либо подзапрос в скобках с псевдонимом (из кода сервиса, не от клиента).
+    pub source: &'a str,
     /// Публичное имя ключевого столбца: добавляется к сортировке для стабильного порядка.
     pub key: &'static str,
     pub columns: &'static [GridColumn],
@@ -108,7 +108,7 @@ impl From<GridError> for ApiError {
     }
 }
 
-impl GridSchema {
+impl GridSchema<'_> {
     pub(crate) fn column(&self, name: &str) -> Option<&GridColumn> {
         let wanted = grid_contracts::normalize_field(name);
         self.columns

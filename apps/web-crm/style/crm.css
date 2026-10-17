@@ -19,7 +19,6 @@
 .app-card__meta { display: flex; flex-wrap: wrap; gap: 2px 10px; color: var(--ink-muted); font-size: 0.8rem; }
 
 
-.row-selected { background: var(--bg); }
 th button.sort { font: inherit; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; font-weight: 600; }
 .bulkbar { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--ink); border-radius: var(--radius); padding: 8px 12px; margin-top: 12px; }
 
@@ -110,7 +109,6 @@ th button.sort { font: inherit; background: none; border: 0; padding: 0; color: 
 @media (max-width: 640px) { .cheatgrid { grid-template-columns: 1fr; } .shell__search kbd { display: none; } .shell__search { max-width: none; } }
 
 /* курсор списка с клавиатуры и подсказки клавиш на кнопках */
-tr.row-cursor { background: var(--bg); box-shadow: inset 3px 0 0 var(--accent); }
 
 /* быстрые действия в шапке */
 .topbtn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); font: inherit; font-size: 0.9rem; text-decoration: none; white-space: nowrap; cursor: pointer; }

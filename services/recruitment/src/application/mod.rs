@@ -36,9 +36,20 @@ pub enum FunnelError {
     #[error("{0}")]
     BadQuery(String),
     #[error(transparent)]
+    Grid(#[from] platform_grid::GridError),
+    #[error(transparent)]
     Db(#[from] sqlx::Error),
     #[error(transparent)]
     Store(#[from] StoreError),
+}
+
+impl From<platform_grid::FetchError> for FunnelError {
+    fn from(e: platform_grid::FetchError) -> Self {
+        match e {
+            platform_grid::FetchError::Grid(e) => FunnelError::Grid(e),
+            platform_grid::FetchError::Db(e) => FunnelError::Db(e),
+        }
+    }
 }
 
 /// Источник «сейчас»: фиксируется в тестах.

@@ -208,3 +208,8 @@ label.check { display: flex; flex-direction: row; align-items: center; gap: 6px;
 .dialog__actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 @media (max-width: 640px) { .shell__user { display: none; } }
+/* Выбор строк и курсор грида */
+.row-selected { background: var(--bg); }
+tr.row-cursor { background: var(--bg); box-shadow: inset 3px 0 0 var(--accent); }
+.grid__select-head, .grid__select-cell { width: 1%; }
+.grid__table tbody tr.row-selected { background: var(--bg); }

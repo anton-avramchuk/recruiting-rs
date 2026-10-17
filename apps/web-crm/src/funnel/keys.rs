@@ -80,27 +80,7 @@ pub fn panel_key(p: Press<'_>) -> Option<PanelKey> {
     })
 }
 
-/// Новая позиция курсора после шага `delta` (±1): на границах остаётся, без курсора — первая строка.
-pub fn move_cursor(current: Option<usize>, len: usize, delta: i32) -> Option<usize> {
-    if len == 0 {
-        return None;
-    }
-    let last = len - 1;
-    Some(match current {
-        None => 0,
-        Some(i) if delta < 0 => i.saturating_sub(1).min(last),
-        Some(i) => (i + 1).min(last),
-    })
-}
-
-/// Курсор после обновления списка: остаётся на том же месте, но не выходит за список.
-pub fn clamp_cursor(current: Option<usize>, len: usize) -> Option<usize> {
-    match (current, len) {
-        (_, 0) => None,
-        (Some(i), n) => Some(i.min(n - 1)),
-        (None, _) => None,
-    }
-}
+pub use ui_kit::grid::{clamp_cursor, move_cursor};
 
 #[cfg(test)]
 mod tests {
@@ -174,27 +154,5 @@ mod tests {
         ] {
             assert!(key.needs_write(), "{key:?}");
         }
-    }
-
-    #[test]
-    fn the_cursor_moves_and_stops_at_the_edges() {
-        assert_eq!(move_cursor(None, 3, 1), Some(0));
-        assert_eq!(move_cursor(None, 3, -1), Some(0));
-        assert_eq!(move_cursor(Some(0), 3, 1), Some(1));
-        assert_eq!(move_cursor(Some(1), 3, 1), Some(2));
-        assert_eq!(move_cursor(Some(2), 3, 1), Some(2));
-        assert_eq!(move_cursor(Some(1), 3, -1), Some(0));
-        assert_eq!(move_cursor(Some(0), 3, -1), Some(0));
-        assert_eq!(move_cursor(Some(5), 3, 1), Some(2));
-        assert_eq!(move_cursor(Some(0), 0, 1), None);
-        assert_eq!(move_cursor(None, 0, 1), None);
-    }
-
-    #[test]
-    fn the_cursor_survives_a_shorter_list() {
-        assert_eq!(clamp_cursor(Some(4), 3), Some(2));
-        assert_eq!(clamp_cursor(Some(1), 3), Some(1));
-        assert_eq!(clamp_cursor(Some(1), 0), None);
-        assert_eq!(clamp_cursor(None, 3), None);
     }
 }

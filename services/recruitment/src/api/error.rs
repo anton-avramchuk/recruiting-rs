@@ -17,6 +17,7 @@ impl From<FunnelError> for ApiError {
             )
             .with_detail("сервис заказчиков временно недоступен, попробуйте позже"),
             FunnelError::BadQuery(m) => ApiError::bad_request(m),
+            FunnelError::Grid(e) => e.into(),
             FunnelError::Db(e) => ApiError::internal(&e),
             FunnelError::Store(e) => ApiError::internal(&e),
         }

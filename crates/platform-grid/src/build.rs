@@ -40,7 +40,7 @@ pub struct Built {
 }
 
 /// Проверяет запрос по схеме и лимитам и собирает SQL.
-pub fn build(schema: &GridSchema, query: &GridQuery) -> Result<Built, GridError> {
+pub fn build(schema: &GridSchema<'_>, query: &GridQuery) -> Result<Built, GridError> {
     if query.page == 0 {
         return Err(GridError::new("page", "страницы нумеруются с 1"));
     }
@@ -73,7 +73,7 @@ pub fn build(schema: &GridSchema, query: &GridQuery) -> Result<Built, GridError>
     })
 }
 
-fn order_by(schema: &GridSchema, sort: &[SortKey]) -> Result<String, GridError> {
+fn order_by(schema: &GridSchema<'_>, sort: &[SortKey]) -> Result<String, GridError> {
     if sort.len() > MAX_SORT_KEYS {
         return Err(GridError::new(
             "sort",
@@ -96,7 +96,12 @@ fn order_by(schema: &GridSchema, sort: &[SortKey]) -> Result<String, GridError> 
         parts.push(format!(
             "({}) {}",
             column.sql,
-            if key.desc { "DESC" } else { "ASC" }
+            // пустые значения всегда в конце, в каком бы порядке ни шла сортировка
+            if key.desc {
+                "DESC NULLS LAST"
+            } else {
+                "ASC NULLS LAST"
+            }
         ));
     }
     if !has_key {
@@ -109,7 +114,7 @@ fn order_by(schema: &GridSchema, sort: &[SortKey]) -> Result<String, GridError> 
 }
 
 struct Ctx<'a> {
-    schema: &'a GridSchema,
+    schema: &'a GridSchema<'a>,
     binds: Vec<Bind>,
     conditions: usize,
 }
@@ -477,7 +482,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             b.order_sql,
-            "ORDER BY (created_at) DESC, (email) ASC, (id) ASC"
+            "ORDER BY (created_at) DESC NULLS LAST, (email) ASC NULLS LAST, (id) ASC"
         );
         assert_eq!(b.offset, 40);
     }
@@ -492,7 +497,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(b.order_sql, "ORDER BY (id) DESC");
+        assert_eq!(b.order_sql, "ORDER BY (id) DESC NULLS LAST");
     }
 
     #[test]

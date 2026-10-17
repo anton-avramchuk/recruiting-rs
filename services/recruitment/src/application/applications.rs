@@ -42,6 +42,12 @@ impl ListQuery {
     }
 }
 
+/// Страница откликов грида и признак «данные людей могут отставать».
+pub struct GridApplicationPage {
+    pub page: grid_contracts::GridPage<ApplicationRow>,
+    pub stale: bool,
+}
+
 pub struct ApplicationPage {
     pub items: Vec<ApplicationRow>,
     pub total: i64,
@@ -183,6 +189,27 @@ impl ApplicationService {
             total,
             page: query.page,
             page_size,
+            stale: !fresh,
+        })
+    }
+
+    /// Страница откликов по запросу грида; без сортировки - давно без движения выше.
+    pub async fn list_grid(
+        &self,
+        tenant: TenantId,
+        mut query: grid_contracts::GridQuery,
+    ) -> Result<GridApplicationPage, FunnelError> {
+        if query.sort.is_empty() {
+            query
+                .sort
+                .push(grid_contracts::SortKey::asc("stage_changed_at"));
+        }
+        let fresh = self.sync.sync(tenant).await;
+        let mut tx = TenantTx::begin(&self.pool, tenant).await?;
+        let page = store::grid_page(&mut tx, &query, self.clock.now()).await;
+        tx.rollback().await?;
+        Ok(GridApplicationPage {
+            page: page?,
             stale: !fresh,
         })
     }
