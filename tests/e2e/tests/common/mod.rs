@@ -92,6 +92,18 @@ pub fn click(tab: &Tab, selector: &str) {
         .unwrap();
 }
 
+/// Двойной щелчок по элементу (событие `dblclick` со всплытием).
+pub fn dblclick(tab: &Tab, selector: &str) {
+    tab.wait_for_element(selector)
+        .unwrap_or_else(|e| panic!("{selector}: {e}"));
+    eval(
+        tab,
+        &format!(
+            "document.querySelector({selector:?}).dispatchEvent(new MouseEvent('dblclick', {{bubbles: true}}))"
+        ),
+    );
+}
+
 pub fn exists_js(selector: &str) -> String {
     format!("!!document.querySelector({selector:?})")
 }

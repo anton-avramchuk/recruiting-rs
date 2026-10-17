@@ -4,7 +4,7 @@ use leptos_router::{
     components::A,
     hooks::{use_navigate, use_params_map},
 };
-use ui_kit::{EmptyState, Notice, NoticeKind};
+use ui_kit::{ConfirmDialog, EmptyState, Notice, NoticeKind};
 
 use super::{
     permission_label,
@@ -313,8 +313,11 @@ fn RoleEditor(
         let id = id.get_value();
         async move { delete_role(id).await }
     });
+    let confirm = RwSignal::new(false);
+    let role_name = role.name.clone();
     Effect::new(move |_| {
         if let Some(result) = remove.value().get() {
+            confirm.set(false);
             match result {
                 Ok(Reply::Ok(())) => navigate("/security/roles", Default::default()),
                 Ok(other) => {
@@ -372,12 +375,20 @@ fn RoleEditor(
                     on:click=move |_| {
                         error.set(None);
                         done.set(None);
-                        remove.dispatch(());
+                        confirm.set(true);
                     }
                 >
                     "Удалить роль"
                 </button>
             </p>
         </div>
+        <ConfirmDialog
+            open=confirm
+            label=Signal::stored(role_name)
+            busy=Signal::derive(move || remove.pending().get())
+            on_confirm=Callback::new(move |()| {
+                remove.dispatch(());
+            })
+        />
     }
 }

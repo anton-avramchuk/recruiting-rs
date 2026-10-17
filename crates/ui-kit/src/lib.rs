@@ -12,7 +12,8 @@ mod session;
 pub mod theme;
 
 pub use components::{
-    AppShell, BffMeta, EmptyState, NavItem, Notice, NoticeKind, PageHeader, StatusBadge, UiStyles,
+    AppShell, BffMeta, ConfirmDialog, EmptyState, NavItem, Notice, NoticeKind, PageHeader,
+    StatusBadge, UiStyles,
 };
 pub use encode::encode_query_value;
 pub use forms::{FormFields, form_fields};

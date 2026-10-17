@@ -1,5 +1,5 @@
 //! Компонент `Grid`.
-use std::{future::Future, sync::Arc, time::Duration};
+use std::{future::Future, pin::Pin, sync::Arc, time::Duration};
 
 use grid_contracts::{GridPage, GridQuery, Operator};
 use leptos::prelude::*;
@@ -10,8 +10,11 @@ use leptos_router::{
 };
 use serde::{Serialize, de::DeserializeOwned};
 
-use super::state::{FilterSpec, GridUrl, PAGE_SIZES, page_info};
-use crate::{EmptyState, Notice, NoticeKind};
+use super::{
+    actions::{RowActions, is_interactive},
+    state::{FilterSpec, GridUrl, PAGE_SIZES, page_info},
+};
+use crate::{ConfirmDialog, EmptyState, Notice, NoticeKind};
 
 /// Пауза в наборе перед запросом, мс.
 const DEBOUNCE_MS: u64 = 300;
@@ -139,6 +142,47 @@ pub fn DebouncedText(
     }
 }
 
+/// Удаление записи из строки грида: название для диалога подтверждения, разрешение на запись и
+/// асинхронное удаление; текст ошибки показывается в диалоге.
+pub struct RowRemove<T> {
+    label: Arc<dyn Fn(&T) -> String + Send + Sync>,
+    allowed: Arc<dyn Fn(&T) -> bool + Send + Sync>,
+    run: Arc<dyn Fn(T) -> RemoveFuture + Send + Sync>,
+}
+
+type RemoveFuture = Pin<Box<dyn Future<Output = Result<(), String>> + Send>>;
+
+impl<T> Clone for RowRemove<T> {
+    fn clone(&self) -> Self {
+        Self {
+            label: self.label.clone(),
+            allowed: self.allowed.clone(),
+            run: self.run.clone(),
+        }
+    }
+}
+
+impl<T: 'static> RowRemove<T> {
+    /// Удалять можно любую запись; `label` - как назвать запись в вопросе.
+    pub fn new<F, Fut>(label: fn(&T) -> String, run: F) -> Self
+    where
+        F: Fn(T) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<(), String>> + Send + 'static,
+    {
+        Self {
+            label: Arc::new(label),
+            allowed: Arc::new(|_| true),
+            run: Arc::new(move |item| Box::pin(run(item))),
+        }
+    }
+
+    /// Ограничивает записи, у которых показывается «Удалить».
+    pub fn allowed_when(mut self, allowed: fn(&T) -> bool) -> Self {
+        self.allowed = Arc::new(allowed);
+        self
+    }
+}
+
 /// Таблица с серверными страницами.
 ///
 /// `load` получает готовый запрос и возвращает страницу либо текст ошибки; состояние (страница, сортировка,
@@ -147,9 +191,12 @@ pub fn DebouncedText(
 pub fn Grid<T, F, Fut>(
     columns: Vec<Column<T>>,
     load: F,
-    /// Ссылка строки: первый столбец оборачивается в неё.
+    /// Страница записи: по ней ведут двойной щелчок по строке и действие «Изменить».
     #[prop(optional)]
     row_href: Option<fn(&T) -> String>,
+    /// Удаление записи из строки (с подтверждением); без него действия «Удалить» нет.
+    #[prop(optional)]
+    remove: Option<RowRemove<T>>,
     /// Поля, по которым работает общий поиск; пусто - поиска нет.
     #[prop(optional)]
     search_fields: Vec<&'static str>,
@@ -173,7 +220,9 @@ where
     let specs: Vec<FilterSpec> = columns.iter().filter_map(|c| c.filter_spec()).collect();
     let searchable = !search_fields.is_empty();
     let has_filters = !filter_fields.is_empty();
-    let width = columns.len();
+    let has_actions = row_href.is_some() || remove.is_some();
+    let width = columns.len() + usize::from(has_actions);
+    let remove = StoredValue::new(remove);
     let columns = StoredValue::new(columns);
     let specs = StoredValue::new(specs);
     let search_fields = StoredValue::new(search_fields);
@@ -209,14 +258,56 @@ where
     });
     let change = move |f: &dyn Fn(GridUrl) -> GridUrl| pending.set(Some(f(url.get_untracked())));
 
+    // открытие записи двойным щелчком: переход делает эффект (навигатор не Send)
+    let open_href = RwSignal::new(None::<String>);
+    let open_navigate = use_navigate();
+    Effect::new(move |_| {
+        if let Some(href) = open_href.get() {
+            open_navigate(&href, Default::default());
+        }
+    });
+
+    // удаление из строки: диалог подтверждения, затем перечитывание страницы
+    let version = RwSignal::new(0u32);
+    let confirm_open = RwSignal::new(false);
+    let target = RwSignal::new(None::<T>);
+    let remove_error = RwSignal::new(None::<String>);
+    let removing = Action::new(move |item: &T| {
+        let item = item.clone();
+        let run = remove.with_value(|r| r.as_ref().map(|r| r.run.clone()));
+        async move {
+            match run {
+                Some(run) => run(item).await,
+                None => Ok(()),
+            }
+        }
+    });
+    Effect::new(move |_| match removing.value().get() {
+        Some(Ok(())) => {
+            confirm_open.set(false);
+            target.set(None);
+            version.update(|v| *v += 1);
+        }
+        Some(Err(message)) => remove_error.set(Some(message)),
+        None => {}
+    });
+    let confirm_label = Signal::derive(move || {
+        target
+            .get()
+            .zip(remove.with_value(|r| r.clone()))
+            .map(|(item, r)| (r.label)(&item))
+            .unwrap_or_default()
+    });
+
     let rows = Resource::new(
         move || {
             let current = url.get();
-            specs.with_value(|specs| {
+            let q = specs.with_value(|specs| {
                 search_fields.with_value(|fields| current.to_grid_query(specs, fields))
-            })
+            });
+            (q, version.get())
         },
-        load,
+        move |(q, _)| load(q),
     );
 
     let search = view! {
@@ -282,6 +373,8 @@ where
                 .collect_view()
         })
     };
+    let actions_head = has_actions
+        .then(|| view! { <th scope="col" class="grid__actions-head"><span class="muted">"Действия"</span></th> });
 
     let filter_row = move || {
         columns.with_value(|cols| {
@@ -375,19 +468,63 @@ where
                         .map(|item| {
                             let cells = columns.with_value(|cols| {
                                 cols.iter()
-                                    .enumerate()
-                                    .map(|(i, col)| {
-                                        let content = (col.cell)(&item);
-                                        match (i, row_href) {
-                                            (0, Some(href)) => {
-                                                view! { <td><A href=href(&item)>{content}</A></td> }.into_any()
-                                            }
-                                            _ => view! { <td>{content}</td> }.into_any(),
-                                        }
-                                    })
+                                    .map(|col| view! { <td>{(col.cell)(&item)}</td> })
                                     .collect_view()
                             });
-                            view! { <tr data-testid="grid-row">{cells}</tr> }
+                            let href = row_href.map(|href| href(&item));
+                            let can_remove = remove.with_value(|r| {
+                                r.as_ref().map(|r| (r.allowed)(&item))
+                            });
+                            let actions = RowActions::new(
+                                href.is_some(),
+                                can_remove.is_some(),
+                                can_remove.unwrap_or(false),
+                            );
+                            let actions_cell = has_actions.then(|| {
+                                let edit = actions.edit.then(|| {
+                                    view! {
+                                        <A href=href.clone().unwrap_or_default() attr:class="btn" attr:data-testid="row-edit">
+                                            "Изменить"
+                                        </A>
+                                    }
+                                });
+                                let removal = actions.remove.then(|| {
+                                    let item = item.clone();
+                                    view! {
+                                        <button
+                                            type="button"
+                                            class="btn"
+                                            data-testid="row-remove"
+                                            on:click=move |_| {
+                                                remove_error.set(None);
+                                                target.set(Some(item.clone()));
+                                                confirm_open.set(true);
+                                            }
+                                        >
+                                            "Удалить"
+                                        </button>
+                                    }
+                                });
+                                view! { <td class="grid__actions-cell"><span class="grid__actions">{edit}{removal}</span></td> }
+                            });
+                            view! {
+                                <tr
+                                    data-testid="grid-row"
+                                    on:dblclick=move |ev| {
+                                        use leptos::wasm_bindgen::JsCast;
+                                        let inner = ev
+                                            .target()
+                                            .and_then(|t| t.dyn_into::<leptos::web_sys::Element>().ok())
+                                            .is_some_and(|e| is_interactive(&e.tag_name()));
+                                        if !inner && let Some(href) = &href {
+                                            open_href.set(Some(href.clone()));
+                                        }
+                                    }
+                                >
+                                    {cells}
+                                    {actions_cell}
+                                </tr>
+                            }
                         })
                         .collect_view()}
                 </tbody>
@@ -454,8 +591,9 @@ where
             <div class="card grid__card">
                 <table class="grid__table">
                     <thead>
-                        <tr>{head}</tr>
-                        {has_filters.then(|| view! { <tr class="grid__filters">{filter_row}</tr> })}
+                        <tr>{head}{actions_head}</tr>
+                        {has_filters
+                            .then(|| view! { <tr class="grid__filters">{filter_row}{has_actions.then(|| view! { <td></td> })}</tr> })}
                     </thead>
                     <Transition fallback=move || view! { <tbody><tr><td colspan=width.to_string() class="muted">"Загрузка…"</td></tr></tbody> }>
                         {body}
@@ -463,6 +601,18 @@ where
                 </table>
             </div>
             <Transition fallback=|| ()>{pager}</Transition>
+            <ConfirmDialog
+                open=confirm_open
+                label=confirm_label
+                busy=Signal::derive(move || removing.pending().get())
+                error=Signal::derive(move || remove_error.get())
+                on_confirm=Callback::new(move |()| {
+                    remove_error.set(None);
+                    if let Some(item) = target.get_untracked() {
+                        removing.dispatch(item);
+                    }
+                })
+            />
         </div>
     }
 }

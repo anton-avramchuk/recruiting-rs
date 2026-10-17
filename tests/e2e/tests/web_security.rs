@@ -35,6 +35,10 @@ fn path_with_query(tab: &Tab) -> String {
     eval_str(tab, "location.pathname + location.search")
 }
 
+fn row_of(email: &str) -> String {
+    format!("tr[data-testid=grid-row]:has([data-email='{email}'])")
+}
+
 fn row(email: &str, part: &str) -> String {
     format!("tr[data-testid=grid-row]:has([data-email='{email}']) {part}")
 }
@@ -53,7 +57,7 @@ fn sign_in(tab: &Tab, base: &str, user: (&str, &str)) {
 }
 
 fn open_user(tab: &Tab, email: &str) {
-    click(tab, &format!("[data-email='{email}']"));
+    dblclick(tab, &row_of(email));
     wait_until(
         tab,
         "user page",
@@ -243,6 +247,24 @@ async fn the_users_grid_pages_sorts_filters_and_keeps_its_state_in_the_address()
         // 24 пользователя: владелец, наблюдатель и 22 созданных
         wait_info(&tab, "1–20 из 24");
         assert_eq!(eval(&tab, &count_js("[data-testid=grid-row]")), 20);
+
+        // действия строки: одиночный щелчок ничего не открывает, «Удалить» у пользователей нет
+        assert_eq!(eval(&tab, &count_js("[data-testid=row-edit]")), 20);
+        assert_eq!(eval(&tab, &count_js("[data-testid=row-remove]")), 0);
+        click(&tab, &row("user00@acme.io", "td"));
+        std::thread::sleep(Duration::from_millis(500));
+        assert_eq!(eval_str(&tab, "location.pathname"), "/security");
+        // двойной щелчок и «Изменить» открывают пользователя
+        dblclick(&tab, &row_of("user00@acme.io"));
+        wait_until(&tab, "user by double click", &exists_js("[data-testid=user-role-select]"));
+        assert!(text(&tab, "[data-testid=user-heading]").contains("user00@acme.io"));
+        back_to_users(&tab);
+        wait_info(&tab, "1–20 из 24");
+        click(&tab, &row("user01@acme.io", "[data-testid=row-edit]"));
+        wait_until(&tab, "user by edit", &exists_js("[data-testid=user-role-select]"));
+        assert!(text(&tab, "[data-testid=user-heading]").contains("user01@acme.io"));
+        back_to_users(&tab);
+        wait_info(&tab, "1–20 из 24");
         click(&tab, "[data-testid=grid-next]");
         wait_info(&tab, "21–24 из 24");
         assert!(path_with_query(&tab).contains("page=2"));
@@ -426,7 +448,11 @@ async fn the_owner_manages_custom_roles_and_their_users() {
         wait_until(&tab, "role page", &exists_js("[data-testid=role-delete]"));
         assert!(text(&tab, "[data-testid=role-heading]").contains('1'));
         click(&tab, "[data-testid=role-delete]");
+        wait_until(&tab, "confirm", &exists_js("[data-testid=confirm-dialog]"));
+        assert!(text(&tab, "[data-testid=confirm-question]").contains("Стажёр"));
+        click(&tab, "[data-testid=confirm-ok]");
         wait_until(&tab, "assigned", &roles_error_contains("назначена"));
+        wait_until(&tab, "dialog closed", &gone_js("[data-testid=confirm-dialog]"));
 
         // без права записи кнопок записи нет: оставляем только чтение
         click(&tab, "[data-testid=perm-write]");
@@ -441,7 +467,7 @@ async fn the_owner_manages_custom_roles_and_their_users() {
         // смена пользователю роли на встроенную и удаление свободной роли
         click(&tab, "[data-testid=tab-users]");
         wait_until(&tab, "users", &exists_js("[data-testid=grid-row]"));
-        click(&tab, &row("intern@acme.io", "[data-email]"));
+        dblclick(&tab, &row_of("intern@acme.io"));
         wait_until(&tab, "user page", &exists_js("[data-testid=user-role-select]"));
         choose_ready(&tab, "[data-testid=user-role-select]", "Наблюдатель");
         click(&tab, "[data-testid=user-role-save]");
@@ -451,6 +477,19 @@ async fn the_owner_manages_custom_roles_and_their_users() {
         click(&tab, "[data-testid=role-row][data-kind=custom]");
         wait_until(&tab, "role page", &exists_js("[data-testid=role-delete]"));
         click(&tab, "[data-testid=role-delete]");
+        wait_until(&tab, "confirm", &exists_js("[data-testid=confirm-dialog]"));
+        click(&tab, "[data-testid=confirm-cancel]");
+        wait_until(&tab, "dialog closed", &gone_js("[data-testid=confirm-dialog]"));
+        assert_eq!(eval(&tab, &count_js("[data-testid=role-delete]")), 1);
+        // Esc тоже отменяет
+        click(&tab, "[data-testid=role-delete]");
+        wait_until(&tab, "confirm again", &exists_js("[data-testid=confirm-dialog]"));
+        tab.press_key("Escape").unwrap();
+        wait_until(&tab, "closed by Esc", &gone_js("[data-testid=confirm-dialog]"));
+        // подтверждение удаляет роль
+        click(&tab, "[data-testid=role-delete]");
+        wait_until(&tab, "confirm third", &exists_js("[data-testid=confirm-dialog]"));
+        click(&tab, "[data-testid=confirm-ok]");
         wait_count(&tab, "role removed", "[data-testid=role-row]", 3);
     })
     .await
